@@ -2,7 +2,8 @@
   <div class="login-container minimal-white" :style="{ background: gradientStyle }">
     <div class="login-card">
       <div class="login-header">
-        <div class="logo">{{ uiSettings.login_logo }}</div>
+        <img v-if="isLoginLogoImage" :src="uiSettings.login_logo" class="logo-img" alt="logo" />
+        <div v-else class="logo">{{ uiSettings.login_logo }}</div>
         <h1>{{ uiSettings.login_title }}</h1>
         <p>{{ uiSettings.login_subtitle }}</p>
       </div>
@@ -85,6 +86,13 @@ const uiSettings = ref({
     try { Object.assign(uiSettings.value, JSON.parse(cached)) } catch(e) {}
   }
 })()
+
+// 判断 login_logo 是否为图片（URL / data:image / 相对路径）
+const isLoginLogoImage = computed(() => {
+  const val = uiSettings.value.login_logo || ''
+  return val.startsWith('http://') || val.startsWith('https://') ||
+         val.startsWith('/') || val.startsWith('data:image/')
+})
 
 // 计算渐变背景
 const gradientStyle = computed(() => {
@@ -254,6 +262,12 @@ h1, h2, h3, h4, h5, h6, p, span, div {
 
 .logo {
   font-size: 48px;
+  margin-bottom: 12px;
+}
+.logo-img {
+  height: 64px;
+  max-width: 200px;
+  object-fit: contain;
   margin-bottom: 12px;
 }
 

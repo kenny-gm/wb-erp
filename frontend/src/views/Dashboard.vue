@@ -93,7 +93,7 @@ function getMetricLabel(metric) { const labels = { visitors: '访客数', orders
 function getMetricStroke(metric) { const colors = { visitors: '#3b82f6', orders: '#f97316', sales: '#10b981', ad_cost: '#ef4444' }; return colors[metric] || '#3b82f6' }
 
 async function fetchShops() { try { shops.value = (await axios.get('/api/shops/')).data } catch (e) { console.error(e) } }
-async function fetchProducts() { try { products.value = (await axios.get('/api/products/')).data } catch (e) { console.error(e) } }
+async function fetchProducts() { try { const res = (await axios.get('/api/products/')).data; products.value = res.products || res || [] } catch (e) { console.error(e) } }
 async function fetchOwners() { try { owners.value = (await axios.get('/api/dashboard/owners/')).data } catch (e) { console.error(e) } }
 async function fetchThresholds() { try { const items = (await axios.get('/api/metric-thresholds/')).data || []; items.forEach(i => { thresholds[i.metric_name] = i }) } catch (e) { console.error(e) } }
 

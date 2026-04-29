@@ -6,20 +6,26 @@
   <title>合肥拓图俄罗斯销售分析系统</title>
   <link rel="icon" type="image/png" href="/api/admin/favicon/">
   <script>
-    // Preload UI settings synchronously before Vue mounts to prevent flicker
+    // 从 localStorage 快速恢复缓存（不阻塞）
     (function() {
-      var xhr = new XMLHttpRequest();
-      xhr.open('GET', '/api/admin/ui-settings/', false);
-      xhr.onreadystatechange = function() {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-          try {
-            var data = JSON.parse(xhr.responseText);
-            localStorage.setItem('ui_settings_cache', JSON.stringify(data));
-            if (data.system_name) document.title = data.system_name;
-          } catch(e) {}
+      try {
+        var cached = localStorage.getItem('ui_settings_cache');
+        if (cached) {
+          var data = JSON.parse(cached);
+          if (data.system_name) document.title = data.system_name;
         }
-      };
-      try { xhr.send(null); } catch(e) {}
+      } catch(e) {}
+      // 异步拉取最新配置更新缓存
+      fetch('/api/admin/ui-settings/').then(function(r) {
+        if (r.ok) return r.json();
+      }).then(function(data) {
+        if (data) {
+          localStorage.setItem('ui_settings_cache', JSON.stringify(data));
+          if (data.system_name) document.title = data.system_name;
+          // 通知 Vue 应用配置已更新
+          window.dispatchEvent(new CustomEvent('ui-settings-updated', { detail: data }));
+        }
+      }).catch(function() {});
     })();
   </script>
 </head>

@@ -285,15 +285,13 @@ def get_ui_settings(
         db.commit()
         db.refresh(setting)
     
-    # 直接从数据库获取所有字段
-    result = db.execute(text("SELECT system_name, browser_logo FROM ui_settings LIMIT 1")).fetchone()
-    system_name = result[0] if result else "WB ERP"
-    browser_logo = result[1] if result and result[1] else ""
-    
+    # browser_logo / login_logo 不返回 base64 大字段，只返回 URL 或空
+    # 前端用 /api/admin/browser-logo/ 和 /api/admin/login-logo/ 获取实际图片
     return {
         "id": setting.id,
-        "system_name": system_name,
-        "browser_logo": browser_logo,
+        "system_name": setting.system_name or "WB ERP",
+        "browser_logo_url": "/api/admin/browser-logo/",
+        "login_logo_url": "/api/admin/login-logo/",
         "login_logo": setting.login_logo or "",
         "login_title": setting.login_title or "WB ERP",
         "login_subtitle": setting.login_subtitle or "",
@@ -304,16 +302,31 @@ def get_ui_settings(
     }
 
 
-@router.get("/favicon/")
-def get_favicon(db: Session = Depends(get_db)):
-    """获取浏览器图标（公开接口）"""
+@router.get("/browser-logo/")
+def get_browser_logo(db: Session = Depends(get_db)):
+    """获取浏览器图标（返回实际图片，登录页 logo 用）"""
     result = db.execute(text("SELECT browser_logo FROM ui_settings LIMIT 1")).fetchone()
     browser_logo = result[0] if result else None
-    if not browser_logo:
+    if not browser_logo or browser_logo == "":
         return Response(content="", media_type="image/png")
-    # browser_logo 是 data:image/png;base64,... 格式
     import re, base64
     match = re.search(r'data:image/(\w+);base64,(.+)', browser_logo)
+    if not match:
+        return Response(content="", media_type="image/png")
+    img_type = match.group(1)
+    img_data = base64.b64decode(match.group(2))
+    return Response(content=img_data, media_type=f"image/{img_type}")
+
+
+@router.get("/login-logo/")
+def get_login_logo(db: Session = Depends(get_db)):
+    """获取登录页 logo 图片"""
+    result = db.execute(text("SELECT login_logo FROM ui_settings LIMIT 1")).fetchone()
+    login_logo = result[0] if result else None
+    if not login_logo or login_logo == "":
+        return Response(content="", media_type="image/png")
+    import re, base64
+    match = re.search(r'data:image/(\w+);base64,(.+)', login_logo)
     if not match:
         return Response(content="", media_type="image/png")
     img_type = match.group(1)

@@ -33,6 +33,7 @@
         </el-select>
       </div>
       <el-button type="primary" @click="fetchAdData" :loading="loading">查询</el-button>
+      <el-button @click="downloadAllAdData" :disabled="!hasAdData">下载报表</el-button>
     </div>
 
     <!-- 产品信息横向展示 -->
@@ -342,6 +343,7 @@ import { ElMessage } from 'element-plus'
 import { Refresh, Download, DataAnalysis, Setting, Money, User, Document, ShoppingCart, Notification } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import axios from 'axios'
+import * as XLSX from 'xlsx'
 
 // 导入组件
 import CpmRecommendationsTable from '../components/ad/CpmRecommendationsTable.vue'
@@ -398,6 +400,8 @@ const cpcKeywordsExpanded = ref(false)  // CPC搜索关键词折叠状态
 const cpmSearchExpanded = ref(true)   // CPM搜索广告折叠状态（默认展开）
 const cpmKeywordsExpanded = ref(false)  // CPM搜索关键词折叠状态
 const cpmKeywordsData = ref([])  // CPM搜索关键词数据
+const hasAdData = computed(() => cpmRecommendationsData.value.length > 0 || cpmSearchData.value.length > 0 || cpcDailyData.value.length > 0)
+
 
 // 占比计算
 const adRatioPercent = computed(() => {
@@ -897,6 +901,71 @@ async function fetchAdData() {
   } finally {
     loading.value = false
   }
+}
+
+// 下载整合的广告报表
+async function downloadAllAdData() {
+  const dateFrom = filters.start_date || dateRange.value.start
+  const dateTo = filters.end_date || dateRange.value.end
+  const shopName = currentShop.value?.name || '全店铺'
+  const productName = currentProduct.value?.name || currentProduct.value?.sku || '产品'
+
+  const rows = []
+
+  // 表头
+  rows.push(['广告类型', '时间', '曝光', '访客', '花费', '订单', '购物车', '加购率', 'CTR', '转化', 'CPM', 'CPC'])
+
+  // CPM推荐
+  for (const r of cpmRecommendationsData.value) {
+    const impressions = r.impressions || 0
+    const visitors = r.visitors || 0
+    const cost = r.cost || 0
+    const orders = r.order_count || 0
+    const cart = r.cart_count || 0
+    const ctr = r.ctr || 0
+    const cartRate = visitors > 0 ? (cart / visitors * 100).toFixed(2) : '0.00'
+    const conversion = visitors > 0 ? (orders / visitors * 100).toFixed(2) : '0.00'
+    const cpm = impressions > 0 ? (cost / impressions * 1000).toFixed(2) : '0.00'
+    const cpc = visitors > 0 ? (cost / visitors).toFixed(2) : '0.00'
+    rows.push(['CPM推荐', r.record_date, impressions, visitors, cost, orders, cart, cartRate + '%', ctr.toFixed(2) + '%', conversion + '%', cpm, cpc])
+  }
+
+  // CPM搜索
+  for (const r of cpmSearchData.value) {
+    const impressions = r.impressions || 0
+    const visitors = r.visitors || 0
+    const cost = r.cost || 0
+    const orders = r.order_count || 0
+    const cart = r.cart_count || 0
+    const ctr = r.ctr || 0
+    const cartRate = visitors > 0 ? (cart / visitors * 100).toFixed(2) : '0.00'
+    const conversion = visitors > 0 ? (orders / visitors * 100).toFixed(2) : '0.00'
+    const cpm = impressions > 0 ? (cost / impressions * 1000).toFixed(2) : '0.00'
+    const cpc = visitors > 0 ? (cost / visitors).toFixed(2) : '0.00'
+    rows.push(['CPM搜索', r.record_date, impressions, visitors, cost, orders, cart, cartRate + '%', ctr.toFixed(2) + '%', conversion + '%', cpm, cpc])
+  }
+
+  // CPC搜索
+  for (const r of cpcDailyData.value) {
+    const impressions = r.impressions || 0
+    const visitors = r.visitors || 0
+    const cost = r.cost || 0
+    const orders = r.order_count || 0
+    const cart = r.cart_count || 0
+    const ctr = r.ctr || 0
+    const cartRate = visitors > 0 ? (cart / visitors * 100).toFixed(2) : '0.00'
+    const conversion = visitors > 0 ? (orders / visitors * 100).toFixed(2) : '0.00'
+    const cpm = impressions > 0 ? (cost / impressions * 1000).toFixed(2) : '0.00'
+    const cpc = visitors > 0 ? (cost / visitors).toFixed(2) : '0.00'
+    rows.push(['CPC搜索', r.record_date, impressions, visitors, cost, orders, cart, cartRate + '%', ctr.toFixed(2) + '%', conversion + '%', cpm, cpc])
+  }
+
+  // 生成Excel并下载
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, '广告数据')
+  const fileName = `${shopName}_${productName}_${dateFrom}_${dateTo}.xlsx`
+  XLSX.writeFile(wb, fileName)
 }
 
 // 根据时间范围获取开始日期

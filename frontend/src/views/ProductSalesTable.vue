@@ -530,7 +530,6 @@ onMounted(() => {
 
 async function prefetchLogsForDateRange() {
   // 预获取日期范围内的所有日志，用于显示颜色标记
-  console.log('prefetchLogsForDateRange 开始, props:', props.startDate, props.endDate)
   if (!props.startDate || !props.endDate) {
     return
   }
@@ -549,7 +548,6 @@ async function prefetchLogsForDateRange() {
       const key = `${log.product_id}_${log.date}`
       dateLogsMap.value[key] = true
     })
-    console.log('dateLogsMap 已更新, 总数:', Object.keys(dateLogsMap.value).length)
   } catch (e) {
   }
 }
