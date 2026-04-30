@@ -96,23 +96,6 @@ const routes = [
           }
         ]
       },
-      // 捕获已删除模块的访问，跳转看板
-      {
-        path: 'inventory',
-        redirect: '/dashboard'
-      },
-      {
-        path: 'orders',
-        redirect: '/dashboard'
-      },
-      {
-        path: 'finance',
-        redirect: '/dashboard'
-      },
-      {
-        path: 'alerts',
-        redirect: '/dashboard'
-      },
       {
         path: 'product-sales',
         redirect: '/dashboard'
