@@ -36,6 +36,16 @@
       <el-button @click="downloadAllAdData" :disabled="!hasAdData">下载报表</el-button>
     </div>
 
+    <!-- 数据时间与口径说明 -->
+    <div v-if="dataInfo.data_updated_at || dataInfo.data_staleness" class="data-info-bar">
+      <span v-if="dataInfo.data_updated_at" class="data-info-item">
+        <el-icon><Clock /></el-icon> 数据更新时间：{{ dataInfo.data_updated_at }}
+      </span>
+      <span v-if="dataInfo.data_staleness" class="data-info-item data-info-warning">
+        <el-icon><Warning /></el-icon> {{ dataInfo.data_staleness }}
+      </span>
+    </div>
+
     <!-- 产品信息横向展示 -->
     <div class="product-info-bar" v-if="currentProduct">
       <div class="product-icon-wrap">📦</div>
@@ -340,7 +350,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Refresh, Download, DataAnalysis, Setting, Money, User, Document, ShoppingCart, Notification } from '@element-plus/icons-vue'
+import { Refresh, Download, DataAnalysis, Setting, Money, User, Document, ShoppingCart, Notification, Clock, Warning } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import axios from 'axios'
 import * as XLSX from 'xlsx'
@@ -352,18 +362,7 @@ import CpcSearchDailyTable from '../components/ad/CpcSearchDailyTable.vue'
 import CpcKeywordsTable from '../components/ad/CpcKeywordsTable.vue'
 import CpmKeywordsTable from '../components/ad/CpmKeywordsTable.vue'
 
-// 导入Mock数据
-import {
-  mockShops,
-  mockProducts,
-  mockCoreMetrics,
-  mockSalesTrend,
-  mockTrafficSource,
-  mockTrafficTrend,
-  mockAdCampaigns,
-  mockKeywords,
-  mockOptimizationAdvice
-} from '../components/ad/mockData'
+// 真实数据，无 mock
 
 // Auth store
 const authStore = useAuthStore()
@@ -621,6 +620,7 @@ const adCampaigns = ref([])
 const keywordsData = ref([])
 const optimizationAdvice = ref([])
 const loading = ref(false)
+const dataInfo = reactive({ data_updated_at: '', data_staleness: '' })
 
 // 计算当前选中的产品和店铺
 const currentProduct = computed(() => {
@@ -791,6 +791,10 @@ async function fetchAdData() {
       ad_visitors_change: summary.ad_visitors_change || 0,
     }
 
+    // 数据时间信息
+    dataInfo.data_updated_at = summary.data_updated_at || ''
+    dataInfo.data_staleness = summary.data_staleness || ''
+
     // 计算访客数据 - 使用API返回的新字段
     const productVisitors = summary.impressions || 0  // 产品访客 (product_analytics)
     const adVisitors = summary.ad_visitors || 0  // 广告点击=广告访客
@@ -836,68 +840,73 @@ async function fetchAdData() {
           natural_visitors: dayNaturalVisitors
         }
       })
-    } else {
-      generateMockDailyData(dateFrom)
     }
 
     // 获取CPM推荐广告数据
     try {
-      const cpmResponse = await axios.get(`/api/products/${selectedProduct.value}/cpm-recommendations/`, {
+      const cpmResponse = await axios.get(`/api/products/${selectedProduct.value}/cpm-recommendations`, {
         params: { date_from: dateFrom, date_to: dateTo }
       })
       cpmRecommendationsData.value = cpmResponse.data.data || []
     } catch (e) {
-      console.error('获取CPM推荐数据失败', e)
+      console.error(`[CPM推荐] /cpm-recommendations 接口失败 (CPM推荐):`, e)
       cpmRecommendationsData.value = []
     }
 
     // 获取CPM搜索广告数据
     try {
-      const cpmSearchResponse = await axios.get(`/api/products/${selectedProduct.value}/cpm-search/`, {
+      const cpmSearchResponse = await axios.get(`/api/products/${selectedProduct.value}/cpm-search`, {
         params: { date_from: dateFrom, date_to: dateTo }
       })
       cpmSearchData.value = cpmSearchResponse.data.data || []
     } catch (e) {
-      console.error('获取CPM搜索数据失败', e)
+      console.error(`[CPM搜索] /cpm-search 接口失败:`, e)
       cpmSearchData.value = []
     }
 
     // 获取CPC搜索每日数据
     try {
-      const cpcDailyResponse = await axios.get(`/api/products/${selectedProduct.value}/cpc-search/`, {
+      const cpcDailyResponse = await axios.get(`/api/products/${selectedProduct.value}/cpc-search`, {
         params: { date_from: dateFrom, date_to: dateTo }
       })
       cpcDailyData.value = cpcDailyResponse.data.data || []
     } catch (e) {
-      console.error('获取CPC搜索每日数据失败', e)
+      console.error(`[CPC每日] /cpc-search 接口失败:`, e)
       cpcDailyData.value = []
     }
     
     // 获取CPC搜索关键词数据
     try {
-      const cpcKwResponse = await axios.get(`/api/products/${selectedProduct.value}/keyword-stats/`, {
+      const cpcKwResponse = await axios.get(`/api/products/${selectedProduct.value}/keyword-stats`, {
         params: { date_from: dateFrom, date_to: dateTo, payment_type: 'cpc' }
       })
       cpcKeywordsData.value = cpcKwResponse.data.keywords || []
     } catch (e) {
-      console.error('获取CPC搜索关键词数据失败', e)
+      console.error(`[CPC关键词] /keyword-stats?payment_type=cpc 接口失败:`, e)
       cpcKeywordsData.value = []
     }
     
     // 获取CPM搜索关键词数据
     try {
-      const cpmKwResponse = await axios.get(`/api/products/${selectedProduct.value}/keyword-stats/`, {
+      const cpmKwResponse = await axios.get(`/api/products/${selectedProduct.value}/keyword-stats`, {
         params: { date_from: dateFrom, date_to: dateTo, payment_type: 'cpm' }
       })
       cpmKeywordsData.value = cpmKwResponse.data.keywords || []
     } catch (e) {
-      console.error('获取CPM搜索关键词数据失败', e)
+      console.error(`[CPM关键词] /keyword-stats?payment_type=cpm 接口失败:`, e)
       cpmKeywordsData.value = []
     }
 
   } catch (error) {
     console.error('获取广告数据失败', error)
-    generateMockDailyData(filters.start_date || dateRange.value.start)
+    // 接口失败时显示错误状态，不生成假数据
+    dailyData.value = []
+    salesTrend.value = []
+    trafficTrend.value = []
+    trafficSource.value = { ad_visitors: 0, natural_visitors: 0, other_visitors: 0, total_visitors: 0 }
+    adCampaigns.value = []
+    keywordsData.value = []
+    optimizationAdvice.value = []
   } finally {
     loading.value = false
   }
@@ -982,53 +991,6 @@ function getDateFrom(timeRange) {
 }
 
 // 生成模拟每日数据
-function generateMockDailyData(dateFrom) {
-  const days = Math.ceil((new Date() - new Date(dateFrom)) / (1000 * 60 * 60 * 24))
-  const dailyData = []
-
-  for (let i = 0; i < days; i++) {
-    const date = new Date(new Date(dateFrom).getTime() + i * 24 * 60 * 60 * 1000)
-    dailyData.push({
-      date: date.toISOString().split('T')[0],
-      impressions: Math.floor(Math.random() * 10000),
-      clicks: Math.floor(Math.random() * 500),
-      spend: Math.floor(Math.random() * 5000),
-      sales: Math.floor(Math.random() * 15000),
-      orders: Math.floor(Math.random() * 50)
-    })
-  }
-
-  salesTrend.value = dailyData.map(d => ({ date: d.date, sales: d.sales, orders: d.orders }))
-  trafficTrend.value = dailyData.map(d => ({ date: d.date, impressions: d.impressions, clicks: d.clicks }))
-  // 只有在没有真实数据时才使用模拟数据
-  if (!trafficSource.value.total_visitors) {
-    trafficSource.value = {
-      ad_ratio: 25,
-      natural_ratio: 73,
-      other_ratio: 2,
-      ad_visitors: 2500,
-      natural_visitors: 7300,
-      other_visitors: 200,
-      total_visitors: 10000
-    }
-  }
-  adCampaigns.value = [
-    { id: 1, name: '智能投放', status: 'active', type: 'cpm_search', impressions: 50000, clicks: 1000, spend: 5000, sales: 15000 },
-    { id: 2, name: '爆款推广', status: 'active', type: 'cpm_recommend', impressions: 30000, clicks: 600, spend: 3000, sales: 9000 },
-    { id: 3, name: '长尾词', status: 'active', type: 'cpc_search', impressions: 20000, clicks: 400, spend: 2000, sales: 6000 }
-  ]
-  keywordsData.value = [
-    { keyword: '羊毛大衣', impressions: 25000, clicks: 800, ctr: 0.032, spend: 2500, sales: 7500 },
-    { keyword: '女士大衣', impressions: 18000, clicks: 540, ctr: 0.03, spend: 1800, sales: 5400 },
-    { keyword: '冬季外套', impressions: 12000, clicks: 360, ctr: 0.03, spend: 1200, sales: 3600 }
-  ]
-  optimizationAdvice.value = [
-    { type: 'info', message: '搜索广告CTR高于类目广告,建议增加预算' },
-    { type: 'warning', message: '部分关键词ACOS过高,建议优化出价' },
-    { type: 'success', message: '整体ROAS为2.8,处于健康水平' }
-  ]
-}
-
 // 筛选变化处理
 const handleFilterChange = () => {
   console.log('筛选条件变化:', {
@@ -1046,22 +1008,10 @@ const handleFilterChange = () => {
   fetchAdData()
 }
 
-// 加载数据
-const loadData = () => {
-  // 使用Mock数据
-  coreMetrics.value = mockCoreMetrics
-  salesTrend.value = mockSalesTrend
-  trafficSource.value = mockTrafficSource
-  trafficTrend.value = mockTrafficTrend
-  adCampaigns.value = mockAdCampaigns
-  keywordsData.value = mockKeywords.filter(k => k.impressions > 100) // 过滤展示量>100
-  optimizationAdvice.value = mockOptimizationAdvice
-}
-
-// 刷新数据
+// 刷新数据（调用真实 API）
 const refreshData = () => {
   ElMessage.success('数据刷新中...')
-  loadData()
+  fetchAdData()
 }
 
 // 导出报表
@@ -1188,6 +1138,9 @@ watch(selectedShop, (newShopId) => {
 }
 
 .filter-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px; padding: 12px 16px; background: #fff; border-radius: 8px; }
+.data-info-bar { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 12px; padding: 8px 16px; background: #f0f9eb; border: 1px solid #e1f3d8; border-radius: 6px; font-size: 13px; align-items: center; }
+.data-info-item { display: flex; align-items: center; gap: 4px; color: #606266; }
+.data-info-warning { color: #e6a23c; font-weight: 500; }
 .filter-item { display: flex; align-items: center; gap: 8px; }
 .filter-item.flex-1 { flex: 1; min-width: 150px; }
 

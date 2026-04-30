@@ -785,6 +785,26 @@ def get_product_ads(
             "roas": (sales / cost) if cost > 0 else 0
         })
 
+    # 数据时间信息
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import text
+    try:
+        result = db.execute(text("SELECT MAX(record_date) FROM ad_records WHERE ad_type = 'advertising'")).fetchone()
+        latest = result[0] if result else None
+        if latest:
+            latest = latest.replace(tzinfo=timezone(timedelta(hours=8)))
+            summary["data_updated_at"] = latest.strftime("%Y-%m-%d %H:%M") + " (北京时间)"
+            diff = (datetime.now(timezone(timedelta(hours=8))) - latest).total_seconds() / 3600
+            if diff > 48:
+                summary["data_staleness"] = f"数据已延迟 {int(diff)} 小时，最后同步于 {latest.strftime('%m-%d %H:%M')}，请检查广告同步任务"
+            elif diff > 24:
+                summary["data_staleness"] = f"数据更新时间为 {latest.strftime('%m-%d %H:%M')}，略有延迟"
+        else:
+            summary["data_updated_at"] = "暂无同步数据"
+            summary["data_staleness"] = "尚未从 WB API 同步广告数据"
+    except:
+        pass
+
     return {"summary": summary, "daily_data": list(daily_agg.values()), "adverts": adverts, "ad_details": ad_details, "source": "database"}
 
     # ============ 数据库无数据,尝试API ============

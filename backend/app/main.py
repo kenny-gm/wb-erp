@@ -3,6 +3,10 @@
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.types import ASGIApp
+from starlette.datastructures import URL
+from starlette.requests import Request
 from app.config import settings
 from app.database import engine, Base
 
@@ -22,14 +26,40 @@ from app.models.models import (
 # 创建数据库表
 Base.metadata.create_all(bind=engine)
 
-# 创建应用
+
+# ─── 自定义 ASGI 中间件 ────────────────────────────────────────────
+
+class ProxyAwareSchemeMiddleware:
+    """将 X-Forwarded-Proto 注入 scope，确保 FastAPI 生成 https:// URL（用于重定向）"""
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http":
+            headers = dict(scope.get("headers", []))
+            forwarded_proto = headers.get(b"x-forwarded-proto", b"").decode()
+            forwarded_host = headers.get(b"x-forwarded-host", b"").decode()
+            if forwarded_proto == "https":
+                scope["scheme"] = "https"
+                if forwarded_host:
+                    scope["host"] = forwarded_host
+        await self.app(scope, receive, send)
+
+
+# ─── 创建应用 ──────────────────────────────────────────────────────
+
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="Wildberries 跨境电商 ERP 系统"
 )
 
-# CORS 配置
+# 顺序很重要：ProxyAware → TrustedHost → CORSMiddleware
+app.add_middleware(ProxyAwareSchemeMiddleware)
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["*"],
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

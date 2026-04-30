@@ -288,7 +288,11 @@ def get_ui_settings(
     return {
         "id": setting.id,
         "system_name": setting.system_name or "WB ERP",
-        "browser_logo": setting.browser_logo or "",
+        "browser_logo_url": "/api/admin/browser-logo/",
+        "login_logo_url": "/api/admin/login-logo/",
+        "sidebar_logo_url": "/api/admin/sidebar-logo/" if setting.sidebar_logo and setting.sidebar_logo.startswith('/') else None,
+        # 兼容旧前端，值用 URL 而非 base64
+        "browser_logo": "/api/admin/browser-logo/",
         "login_logo": setting.login_logo or "",
         "login_title": setting.login_title or "WB ERP",
         "login_subtitle": setting.login_subtitle or "",

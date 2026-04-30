@@ -36,6 +36,9 @@ class DashboardStats(BaseModel):
     ad_ratio_alert: str = "normal"
     currency: str = "RUB"
     comparison: Optional[dict] = None
+    data_updated_at: Optional[str] = None  # 数据最新更新时间
+    data_source: str = "database"  # 数据来源: database=本地, api=WB API
+    data_staleness: Optional[str] = None  # 数据延迟提示
 
 
 def get_shop_exchange_rates(db: Session) -> dict:
@@ -62,6 +65,32 @@ def convert_currency(amount: float, to_currency: str, exchange_rate: float) -> f
         # 店铺是RUB，直接返回卢布
         return amount
 
+
+
+def _add_data_info(db: Session, stats: DashboardStats) -> DashboardStats:
+    """为 stats 添加数据时间信息和延迟提示"""
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import text
+    try:
+        # 最新广告数据时间
+        result = db.execute(text("SELECT MAX(record_date) FROM ad_records WHERE ad_type = 'advertising'")).fetchone()
+        latest_ad_date = result[0] if result else None
+        if latest_ad_date:
+            latest_ad_date = latest_ad_date.replace(tzinfo=timezone(timedelta(hours=8)))
+            stats.data_updated_at = latest_ad_date.strftime("%Y-%m-%d %H:%M") + " (北京时间)"
+            # 计算延迟
+            now = datetime.now(timezone(timedelta(hours=8)))
+            diff_hours = (now - latest_ad_date).total_seconds() / 3600
+            if diff_hours > 48:
+                stats.data_staleness = f"数据已延迟 {int(diff_hours)} 小时，最后同步于 {latest_ad_date.strftime('%m-%d %H:%M')}，请检查广告同步任务"
+            elif diff_hours > 24:
+                stats.data_staleness = f"数据更新时间为 {latest_ad_date.strftime('%m-%d %H:%M')}，略有延迟"
+        else:
+            stats.data_updated_at = "暂无同步数据"
+            stats.data_staleness = "尚未从 WB API 同步广告数据，请检查同步任务"
+    except Exception as e:
+        stats.data_updated_at = "未知"
+    return stats
 
 @router.post("/stats/", response_model=DashboardStats)
 def get_dashboard_stats(
@@ -128,6 +157,7 @@ def get_dashboard_stats(
         
         if not product_ids:
             return stats
+        stats = _add_data_info(db, stats)
         
         # 从product_analytics表汇总（销售额、访客、加购、订单）
         ads_query = db.query(AdRecord).filter(
@@ -569,6 +599,26 @@ def get_dashboard_products(
         "conversion_rate": round(avg_conv_rate - prev_conv_rate, 2),
         "ad_ratio": round(avg_ad_ratio - prev_ad_ratio, 2),
     }
+    
+    # 数据时间信息
+    try:
+        from datetime import datetime, timezone, timedelta
+        from sqlalchemy import text
+        result = db.execute(text("SELECT MAX(record_date) FROM ad_records WHERE ad_type = 'advertising'")).fetchone()
+        latest = result[0] if result else None
+        if latest:
+            latest = latest.replace(tzinfo=timezone(timedelta(hours=8)))
+            summary["data_updated_at"] = latest.strftime("%Y-%m-%d %H:%M") + " (北京时间)"
+            diff = (datetime.now(timezone(timedelta(hours=8))) - latest).total_seconds() / 3600
+            if diff > 48:
+                summary["data_staleness"] = f"数据已延迟 {int(diff)} 小时，最后同步于 {latest.strftime('%m-%d %H:%M')}，请检查广告同步任务"
+            elif diff > 24:
+                summary["data_staleness"] = f"数据更新时间为 {latest.strftime('%m-%d %H:%M')}，略有延迟"
+        else:
+            summary["data_updated_at"] = "暂无同步数据"
+            summary["data_staleness"] = "尚未从 WB API 同步广告数据"
+    except:
+        pass
     
     return {"items": items, "summary": summary, "comparison": comparison}
 

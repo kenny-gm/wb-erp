@@ -2,7 +2,7 @@
   <div class="login-container minimal-white" :style="{ background: gradientStyle }">
     <div class="login-card">
       <div class="login-header">
-        <img v-if="isLoginLogoImage" :src="uiSettings.login_logo" class="logo-img" alt="logo" />
+        <img v-if="isLoginLogoImage" :src="uiSettings.login_logo_url || uiSettings.login_logo" class="logo-img" alt="logo" />
         <div v-else class="logo">{{ uiSettings.login_logo }}</div>
         <h1>{{ uiSettings.login_title }}</h1>
         <p>{{ uiSettings.login_subtitle }}</p>
