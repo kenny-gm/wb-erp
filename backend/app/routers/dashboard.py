@@ -42,9 +42,17 @@ class DashboardStats(BaseModel):
 
 
 def get_shop_exchange_rates(db: Session) -> dict:
-    """获取所有店铺的汇率配置"""
+    """获取所有店铺的汇率配置
+    currency 来自 shops 表
+    rate 来自 system_settings 表（cny_to_rub），确保汇率调整后销售额同步变化
+    """
+    from app.models.models import Shop
+    from sqlalchemy import text
+    # 从系统设置读取人民币兑卢布汇率
+    sys_setting = db.execute(text("SELECT value FROM system_settings WHERE `key` = 'cny_to_rub'")).fetchone()
+    cny_to_rub = float(sys_setting[0]) if sys_setting and sys_setting[0] else 12.5
     shops = db.query(Shop).filter(Shop.is_active == True).all()
-    return {shop.id: {"currency": shop.currency or "RUB", "rate": shop.exchange_rate or 12.5} for shop in shops}
+    return {shop.id: {"currency": shop.currency or "RUB", "rate": cny_to_rub} for shop in shops}
 
 
 def convert_currency(amount: float, to_currency: str, exchange_rate: float) -> float:

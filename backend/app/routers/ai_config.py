@@ -149,7 +149,7 @@ def get_config(config_id: int, db: Session = Depends(get_db), current_user = Dep
 @router.post("/generate-report")
 async def generate_ai_report(type: str = "day", db: Session = Depends(get_db), current_user = Depends(get_current_admin)):
     from datetime import timedelta
-    from sqlalchemy import func
+    from sqlalchemy import func, text
     today = datetime.now().date()
     
     if type == "day":
@@ -178,7 +178,8 @@ async def generate_ai_report(type: str = "day", db: Session = Depends(get_db), c
         raise HTTPException(status_code=400, detail="请先配置提示词")
     
     end_date_next = (datetime.strptime(end_str, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
-    exchange_rate = 12.5
+    sys_setting = db.execute(text("SELECT value FROM system_settings WHERE `key` = 'cny_to_rub'")).fetchone()
+    exchange_rate = float(sys_setting[0]) if sys_setting and sys_setting[0] else 12.5
     
     main_stats = db.query(
         func.coalesce(func.sum(AdRecord.sales), 0).label("sales"),

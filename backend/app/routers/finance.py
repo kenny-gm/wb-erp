@@ -24,12 +24,18 @@ def to_rub(amount: float, currency: str, rate: float) -> float:
 
 
 def get_shop_currency_and_rate(db: Session, shop_id: int = None) -> tuple:
-    """获取店铺货币类型和汇率"""
+    """获取店铺货币类型和汇率
+    currency 来自 shops 表
+    rate 来自 system_settings 表（cny_to_rub）
+    """
+    from sqlalchemy import text
+    sys_setting = db.execute(text("SELECT value FROM system_settings WHERE `key` = 'cny_to_rub'")).fetchone()
+    cny_to_rub = float(sys_setting[0]) if sys_setting and sys_setting[0] else 12.5
     if shop_id:
         shop = db.query(Shop).filter(Shop.id == shop_id).first()
         if shop:
-            return shop.currency or "RUB", shop.exchange_rate or 12.5
-    return "RUB", 12.5
+            return shop.currency or "RUB", cny_to_rub
+    return "RUB", cny_to_rub
 
 
 @router.get("/summary/")
