@@ -30,6 +30,19 @@ axios.interceptors.request.use(
   error => Promise.reject(error)
 )
 
+// 添加axios响应拦截器：401时自动跳转登录页
+axios.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
+)
+
 app.use(router)
 app.use(ElementPlus)
 
