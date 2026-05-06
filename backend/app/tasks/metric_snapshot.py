@@ -26,7 +26,7 @@ def daily_metric_snapshot():
                 func.coalesce(func.sum(AdRecord.impressions), 0).label("impressions"),
                 func.coalesce(func.sum(AdRecord.visitors), 0).label("clicks"),
                 func.coalesce(func.sum(AdRecord.cost), 0).label("cost"),
-                func.coalesce(func.sum(AdRecord.order_sum), 0).label("ad_sales")
+                func.coalesce(func.sum(AdRecord.sales), 0).label("ad_sales")
             ).filter(
                 AdRecord.product_id == product.id,
                 func.date(AdRecord.record_date) == target_date

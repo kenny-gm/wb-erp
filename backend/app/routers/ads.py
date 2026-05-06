@@ -69,7 +69,7 @@ def list_ads(
             "clicks": r.visitors,
             "ctr": r.ctr,
             "cost": r.cost,  # 原始数据，已经是卢布
-            "sales": r.order_sum,
+            "sales": r.sales,
             "orders": r.order_count,
             "cpc": r.cpc,
             "cpm": r.cpm,
@@ -131,7 +131,7 @@ def ad_summary(
     if allowed_product_ids is not None:
         sales_records = [r for r in sales_records if r.product_id in allowed_product_ids]
     
-    total_sales = sum(r.order_sum or 0 for r in sales_records)
+    total_sales = sum(r.sales or 0 for r in sales_records)
     total_orders = sum(r.order_count or 0 for r in sales_records)
     
     avg_ctr = (total_clicks / total_impressions * 100) if total_impressions > 0 else 0
@@ -212,7 +212,7 @@ def ads_by_product(
             "impressions": int(r.impressions or 0),
             "clicks": int(r.visitors or 0),
             "cost": round(r.cost or 0, 2),  # 直接返回卢布
-            "sales": round(r.order_sum or 0, 2),
+            "sales": round(r.sales or 0, 2),
             "orders": int(r.order_count or 0),
             "avg_ctr": round(r.avg_ctr or 0, 2),
             "avg_cpc": round(r.avg_cpc or 0, 2),
