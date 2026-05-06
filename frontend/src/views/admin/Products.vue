@@ -323,7 +323,7 @@ function downloadTemplate() {
     .then(blob => {
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
-      a.download = 'products_template.csv'
+      a.download = 'products_template.xlsx'
       a.click()
       URL.revokeObjectURL(a.href)
     })

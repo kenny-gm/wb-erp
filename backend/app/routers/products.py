@@ -155,46 +155,72 @@ def download_product_template(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    """下载所有产品的信息模板(供管理员填写)"""
-    import io, csv
-    from sqlalchemy import text
+    """下载所有产品的完整信息模板(xlsx)"""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from fastapi.responses import StreamingResponse
 
-    # 使用原生SQL查询,直接获取数据库中的产品信息
     result = db.execute(text("""
-        SELECT p.nm_id, p.sku, s.name as shop_name, p.custom_name, p.owner,
+        SELECT p.id, p.nm_id, p.sku, s.name as shop_name,
+               p.name, p.custom_name, p.owner,
                p.weight, p.length, p.width, p.height,
-               p.purchase_price, p.shipping_price
+               p.purchase_price, p.shipping_price,
+               p.created_at, p.updated_at
         FROM products p
         LEFT JOIN shops s ON p.shop_id = s.id
         ORDER BY p.id
     """))
+    rows = result.fetchall()
 
-    output = io.StringIO()
-    writer = csv.writer(output)
-    # 表头:产品标识列 + 可编辑列
-    writer.writerow(["nm_id", "sku", "店铺名称", "custom_name", "owner", "weight", "length", "width", "height", "purchase_price", "shipping_price"])
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "产品信息"
 
-    # 写入所有产品数据
-    for row in result:
-        writer.writerow([
-            row.nm_id or "",
-            row.sku or "",
-            row.shop_name or "",
-            row.custom_name or "",
-            row.owner or "",
-            row.weight or "",
-            row.length or "",
-            row.width or "",
-            row.height or "",
-            row.purchase_price or "",
-            row.shipping_price or ""
-        ])
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    thin_border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
 
+    columns = [
+        ("ID", "id"), ("NM_ID", "nm_id"), ("SKU", "sku"), ("店铺", "shop_name"),
+        ("产品名称", "name"), ("自定义名称", "custom_name"), ("负责人", "owner"),
+        ("重量(kg)", "weight"), ("长度(cm)", "length"), ("宽度(cm)", "width"), ("高度(cm)", "height"),
+        ("采购价(CNY)", "purchase_price"), ("头程单价(CNY)", "shipping_price"),
+        ("创建时间", "created_at"), ("更新时间", "updated_at"),
+    ]
+
+    for col_idx, (col_name, _) in enumerate(columns, 1):
+        cell = ws.cell(row=1, column=col_idx, value=col_name)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    for row_idx, row in enumerate(rows, 2):
+        row_dict = row._asdict()
+        for col_idx, (_, field_name) in enumerate(columns, 1):
+            val = row_dict.get(field_name, "")
+            if val is None:
+                val = ""
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical="center")
+
+    for col_idx in range(1, len(columns) + 1):
+        ws.column_dimensions[get_column_letter(col_idx)].width = 18
+    ws.row_dimensions[1].height = 30
+
+    output = io.BytesIO()
+    wb.save(output)
     output.seek(0)
     return StreamingResponse(
-        io.BytesIO(output.getvalue().encode("utf-8-sig")),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=product_template.csv"}
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=products_template.xlsx"}
     )
 
 
