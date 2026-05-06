@@ -150,7 +150,7 @@ def list_products(
     )
 
 
-@router.get("/template/")
+@router.get("/import-template/")
 def download_product_template(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
