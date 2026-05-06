@@ -41,7 +41,7 @@ def daily_metric_snapshot():
             
             visitors = analytics.impressions if analytics else 0
             add_to_cart = analytics.visitors if analytics else 0
-            sales = float(sales_stats.order_sum) if sales_stats else 0
+            sales = float(sales_stats.sales) if sales_stats else 0
             orders = int(sales_stats.order_count) if sales_stats else 0
             ad_cost = float(ad_stats.cost) if ad_stats else 0
             ad_sales = float(ad_stats.ad_sales) if ad_stats else 0

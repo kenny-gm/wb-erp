@@ -28,7 +28,7 @@ def track_operation_effects():
             
             avg_conversion = sum(m.conversion_rate for m in metrics) / len(metrics)
             avg_roas = sum(m.roas for m in metrics) / len(metrics) if any(m.roas for m in metrics) else 0
-            avg_sales = sum(m.order_sum for m in metrics) / len(metrics)
+            avg_sales = sum(m.sales for m in metrics) / len(metrics)
             avg_ad_cost = sum(m.ad_cost for m in metrics) / len(metrics)
             
             before = log.metrics_before or {}

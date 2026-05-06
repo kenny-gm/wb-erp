@@ -101,7 +101,7 @@ def check_profit(rule, yesterday, db):
             metric_snapshot={
                 "profit": m.profit,
                 "profit_margin": m.profit_margin,
-                "sales": m.order_sum,
+                "sales": m.sales,
                 "date": yesterday
             }
         )
@@ -223,7 +223,7 @@ def check_ad_ratio(rule, yesterday, db):
             metric_snapshot={
                 "ad_ratio": m.ad_ratio,
                 "ad_cost": m.ad_cost,
-                "sales": m.order_sum,
+                "sales": m.sales,
                 "date": yesterday
             }
         )

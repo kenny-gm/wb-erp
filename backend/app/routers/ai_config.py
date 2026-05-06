@@ -202,10 +202,10 @@ async def generate_ai_report(type: str = "day", db: Session = Depends(get_db), c
         AdRecord.shop_id == 1
     ).first()
     
-    sales_rub = float(main_stats.order_sum or 0) * exchange_rate
+    sales_rub = float(main_stats.sales or 0) * exchange_rate
     visitors = int(main_stats.visitors or 0)
     orders = int(main_stats.order_count or 0)
-    cart = int(main_stats.cart or 0)
+    cart = int(main_stats.cart_count or 0)
     ad_cost = float(ad_cost_stats.ad_cost or 0)
     
     prev_start = (datetime.strptime(start_str, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -231,7 +231,7 @@ async def generate_ai_report(type: str = "day", db: Session = Depends(get_db), c
         AdRecord.shop_id == 1
     ).first()
     
-    prev_sales = float(prev_stats.order_sum or 0) * exchange_rate
+    prev_sales = float(prev_stats.sales or 0) * exchange_rate
     prev_visitors = int(prev_stats.visitors or 0)
     prev_orders = int(prev_stats.order_count or 0)
     
@@ -266,9 +266,9 @@ async def generate_ai_report(type: str = "day", db: Session = Depends(get_db), c
         v = row.visitors or 1
         items.append({
             "nm_id": row.nm_id,
-            "sales": float(row.order_sum or 0) * exchange_rate,
+            "sales": float(row.sales or 0) * exchange_rate,
             "conversion_rate": round((row.order_count or 0) / v * 100, 2),
-            "add_to_cart_rate": round((row.cart or 0) / v * 100, 2)
+            "add_to_cart_rate": round((row.cart_count or 0) / v * 100, 2)
         })
     
     data_text = "【核心数据】\n日期范围：" + date_range + "\n总销售额：" + str(round(sales_rub, 0)) + "元 (" + chg(sales_change) + ")\n总访客数：" + str(visitors) + " (" + chg(visitors_change) + ")\n总订单数：" + str(orders) + " (" + chg(orders_change) + ")\n转化率：" + str(conversion_rate) + "%\n加购率：" + str(add_to_cart_rate) + "%\n广告费：" + str(round(ad_cost, 2)) + "元\n广告占比：" + str(ad_ratio) + "%\n\n【单品数据 TOP 10】\n"

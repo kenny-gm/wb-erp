@@ -29,7 +29,7 @@ def get_effect_analysis(
         "metrics": [
             {
                 "date": m.date,
-                "sales": m.order_sum,
+                "sales": m.sales,
                 "ad_cost": m.ad_cost,
                 "roas": m.roas,
                 "conversion_rate": m.conversion_rate
