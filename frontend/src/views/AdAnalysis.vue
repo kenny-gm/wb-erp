@@ -936,7 +936,7 @@ async function downloadAllAdData() {
     const conversion = visitors > 0 ? (orders / visitors * 100).toFixed(2) : '0.00'
     const cpm = impressions > 0 ? (cost / impressions * 1000).toFixed(2) : '0.00'
     const cpc = visitors > 0 ? (cost / visitors).toFixed(2) : '0.00'
-    rows.push([currentProduct.value?.id || '', 'CPM推荐', r.record_date, impressions, visitors, cost, orders, cart, cartRate + '%', ctr.toFixed(2) + '%', conversion + '%', cpm, cpc])
+    rows.push([currentProduct.value?.nm_id || currentProduct.value?.id || '', 'CPM推荐', r.record_date, impressions, visitors, cost, orders, cart, cartRate + '%', ctr.toFixed(2) + '%', conversion + '%', cpm, cpc])
   }
 
   // CPM搜索
@@ -951,7 +951,7 @@ async function downloadAllAdData() {
     const conversion = visitors > 0 ? (orders / visitors * 100).toFixed(2) : '0.00'
     const cpm = impressions > 0 ? (cost / impressions * 1000).toFixed(2) : '0.00'
     const cpc = visitors > 0 ? (cost / visitors).toFixed(2) : '0.00'
-    rows.push([currentProduct.value?.id || '', 'CPM搜索', r.record_date, impressions, visitors, cost, orders, cart, cartRate + '%', ctr.toFixed(2) + '%', conversion + '%', cpm, cpc])
+    rows.push([currentProduct.value?.nm_id || currentProduct.value?.id || '', 'CPM搜索', r.record_date, impressions, visitors, cost, orders, cart, cartRate + '%', ctr.toFixed(2) + '%', conversion + '%', cpm, cpc])
   }
 
   // CPC搜索
@@ -966,7 +966,7 @@ async function downloadAllAdData() {
     const conversion = visitors > 0 ? (orders / visitors * 100).toFixed(2) : '0.00'
     const cpm = impressions > 0 ? (cost / impressions * 1000).toFixed(2) : '0.00'
     const cpc = visitors > 0 ? (cost / visitors).toFixed(2) : '0.00'
-    rows.push([currentProduct.value?.id || '', 'CPC搜索', r.record_date, impressions, visitors, cost, orders, cart, cartRate + '%', ctr.toFixed(2) + '%', conversion + '%', cpm, cpc])
+    rows.push([currentProduct.value?.nm_id || currentProduct.value?.id || '', 'CPC搜索', r.record_date, impressions, visitors, cost, orders, cart, cartRate + '%', ctr.toFixed(2) + '%', conversion + '%', cpm, cpc])
   }
 
   // 生成Excel并下载
