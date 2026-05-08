@@ -970,9 +970,48 @@ async function downloadAllAdData() {
   }
 
   // 生成Excel并下载
-  const ws = XLSX.utils.aoa_to_sheet(rows)
   const wb = XLSX.utils.book_new()
+  const ws = XLSX.utils.aoa_to_sheet(rows)
   XLSX.utils.book_append_sheet(wb, ws, '广告数据')
+
+  // 关键词数据 sheet（仅当存在关键词时）
+  const hasCpcKw = cpcKeywordsData.value && cpcKeywordsData.value.length > 0
+  const hasCpmKw = cpmKeywordsData.value && cpmKeywordsData.value.length > 0
+  if (hasCpcKw || hasCpmKw) {
+    const kwRows = []
+    kwRows.push(['类型', '关键词', '曝光', '点击', '花费', '订单', '加购', 'CTR', 'CPC', 'CPM', '平均排名', '加购率', '转化率'])
+    if (hasCpcKw) {
+      for (const k of cpcKeywordsData.value) {
+        kwRows.push([
+          'CPC搜索', k.keyword || '', k.views || 0, k.clicks || 0, k.spend || 0,
+          k.orders || 0, k.atbs || 0,
+          (k.ctr || 0).toFixed(2) + '%',
+          (k.cpc || 0).toFixed(2),
+          (k.cpm || 0).toFixed(2),
+          (k.avg_position || 0).toFixed(1),
+          (k.cart_rate || 0).toFixed(2) + '%',
+          (k.conv_rate || 0).toFixed(2) + '%'
+        ])
+      }
+    }
+    if (hasCpmKw) {
+      for (const k of cpmKeywordsData.value) {
+        kwRows.push([
+          'CPM搜索', k.keyword || '', k.views || 0, k.clicks || 0, k.spend || 0,
+          k.orders || 0, k.atbs || 0,
+          (k.ctr || 0).toFixed(2) + '%',
+          (k.cpc || 0).toFixed(2),
+          (k.cpm || 0).toFixed(2),
+          (k.avg_position || 0).toFixed(1),
+          (k.cart_rate || 0).toFixed(2) + '%',
+          (k.conv_rate || 0).toFixed(2) + '%'
+        ])
+      }
+    }
+    const wsKw = XLSX.utils.aoa_to_sheet(kwRows)
+    XLSX.utils.book_append_sheet(wb, wsKw, '关键词数据')
+  }
+
   const fileName = `${shopName}_${productName}_${dateFrom}_${dateTo}.xlsx`
   XLSX.writeFile(wb, fileName)
 }
