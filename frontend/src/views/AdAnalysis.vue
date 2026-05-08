@@ -1012,6 +1012,25 @@ async function downloadAllAdData() {
     XLSX.utils.book_append_sheet(wb, wsKw, '关键词数据')
   }
 
+  // 每日销售数据 sheet
+  if (dailyData.value && dailyData.value.length > 0) {
+    const salesRows = []
+    salesRows.push(['日期', '销售额', '访客数', '订单数', '加购数', '广告花费'])
+    const sortedDaily = [...dailyData.value].sort((a, b) => new Date(a.date) - new Date(b.date))
+    for (const d of sortedDaily) {
+      salesRows.push([
+        d.date || '',
+        d.sales || 0,
+        d.visitors || 0,
+        d.orders || 0,
+        d.cart || 0,
+        d.ad_cost || d.spend || 0
+      ])
+    }
+    const wsSales = XLSX.utils.aoa_to_sheet(salesRows)
+    XLSX.utils.book_append_sheet(wb, wsSales, '每日销售数据')
+  }
+
   const fileName = `${shopName}_${productName}_${dateFrom}_${dateTo}.xlsx`
   XLSX.writeFile(wb, fileName)
 }
