@@ -922,7 +922,7 @@ async function downloadAllAdData() {
   const rows = []
 
   // 表头
-  rows.push(['广告类型', '时间', '曝光', '访客', '花费', '订单', '购物车', '加购率', 'CTR', '转化', 'CPM', 'CPC'])
+  rows.push(['产品ID', '广告类型', '时间', '曝光', '访客', '花费', '订单', '购物车', '加购率', 'CTR', '转化', 'CPM', 'CPC'])
 
   // CPM推荐
   for (const r of cpmRecommendationsData.value) {
@@ -936,7 +936,7 @@ async function downloadAllAdData() {
     const conversion = visitors > 0 ? (orders / visitors * 100).toFixed(2) : '0.00'
     const cpm = impressions > 0 ? (cost / impressions * 1000).toFixed(2) : '0.00'
     const cpc = visitors > 0 ? (cost / visitors).toFixed(2) : '0.00'
-    rows.push(['CPM推荐', r.record_date, impressions, visitors, cost, orders, cart, cartRate + '%', ctr.toFixed(2) + '%', conversion + '%', cpm, cpc])
+    rows.push([selectedProduct.value?.id || '', 'CPM推荐', r.record_date, impressions, visitors, cost, orders, cart, cartRate + '%', ctr.toFixed(2) + '%', conversion + '%', cpm, cpc])
   }
 
   // CPM搜索
@@ -951,7 +951,7 @@ async function downloadAllAdData() {
     const conversion = visitors > 0 ? (orders / visitors * 100).toFixed(2) : '0.00'
     const cpm = impressions > 0 ? (cost / impressions * 1000).toFixed(2) : '0.00'
     const cpc = visitors > 0 ? (cost / visitors).toFixed(2) : '0.00'
-    rows.push(['CPM搜索', r.record_date, impressions, visitors, cost, orders, cart, cartRate + '%', ctr.toFixed(2) + '%', conversion + '%', cpm, cpc])
+    rows.push([selectedProduct.value?.id || '', 'CPM搜索', r.record_date, impressions, visitors, cost, orders, cart, cartRate + '%', ctr.toFixed(2) + '%', conversion + '%', cpm, cpc])
   }
 
   // CPC搜索
@@ -966,7 +966,7 @@ async function downloadAllAdData() {
     const conversion = visitors > 0 ? (orders / visitors * 100).toFixed(2) : '0.00'
     const cpm = impressions > 0 ? (cost / impressions * 1000).toFixed(2) : '0.00'
     const cpc = visitors > 0 ? (cost / visitors).toFixed(2) : '0.00'
-    rows.push(['CPC搜索', r.record_date, impressions, visitors, cost, orders, cart, cartRate + '%', ctr.toFixed(2) + '%', conversion + '%', cpm, cpc])
+    rows.push([selectedProduct.value?.id || '', 'CPC搜索', r.record_date, impressions, visitors, cost, orders, cart, cartRate + '%', ctr.toFixed(2) + '%', conversion + '%', cpm, cpc])
   }
 
   // 生成Excel并下载
@@ -979,11 +979,11 @@ async function downloadAllAdData() {
   const hasCpmKw = cpmKeywordsData.value && cpmKeywordsData.value.length > 0
   if (hasCpcKw || hasCpmKw) {
     const kwRows = []
-    kwRows.push(['类型', '关键词', '曝光', '点击', '花费', '订单', '加购', 'CTR', 'CPC', 'CPM', '平均排名', '加购率', '转化率'])
+    kwRows.push(['产品ID', '类型', '关键词', '曝光', '点击', '花费', '订单', '加购', 'CTR', 'CPC', 'CPM', '平均排名', '加购率', '转化率'])
     if (hasCpcKw) {
       for (const k of cpcKeywordsData.value) {
         kwRows.push([
-          'CPC搜索', k.keyword || '', k.views || 0, k.clicks || 0, k.spend || 0,
+          selectedProduct.value?.id || '', 'CPC搜索', k.keyword || '', k.views || 0, k.clicks || 0, k.spend || 0,
           k.orders || 0, k.atbs || 0,
           (k.ctr || 0).toFixed(2) + '%',
           (k.cpc || 0).toFixed(2),
@@ -997,7 +997,7 @@ async function downloadAllAdData() {
     if (hasCpmKw) {
       for (const k of cpmKeywordsData.value) {
         kwRows.push([
-          'CPM搜索', k.keyword || '', k.views || 0, k.clicks || 0, k.spend || 0,
+          selectedProduct.value?.id || '', 'CPM搜索', k.keyword || '', k.views || 0, k.clicks || 0, k.spend || 0,
           k.orders || 0, k.atbs || 0,
           (k.ctr || 0).toFixed(2) + '%',
           (k.cpc || 0).toFixed(2),
