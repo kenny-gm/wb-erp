@@ -11,7 +11,7 @@
       <el-form :inline="true" class="filter-form">
         <el-form-item label="产品">
           <el-select v-model="filter.productId" placeholder="选择产品" clearable filterable @change="fetchLogs">
-            <el-option v-for="p in products" :key="p.id" :label="(p.shop_name || p.name) + ' - ' + (p.custom_name || p.name)" :value="p.id" />
+            <el-option v-for="p in products" :key="p.id" :label="(p.shop_name || p.name) + ' - ' + (p.custom_name || p.name) + ' (' + (p.nm_id || '-') + ')'" :value="p.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="天数">
@@ -57,7 +57,7 @@
       <el-form :model="logForm" label-width="100px">
         <el-form-item label="产品">
           <el-select v-model="logForm.product_id" placeholder="选择产品" filterable>
-            <el-option v-for="p in products" :key="p.id" :label="(p.shop_name || p.name) + ' - ' + (p.custom_name || p.name)" :value="p.id" />
+            <el-option v-for="p in products" :key="p.id" :label="(p.shop_name || p.name) + ' - ' + (p.custom_name || p.name) + ' (' + (p.nm_id || '-') + ')'" :value="p.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="操作类型">
