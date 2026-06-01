@@ -489,14 +489,14 @@ def get_dashboard_products(
         AdRecord.product_id.in_(product_ids),
     ).all()
 
-    # 广告费用（WB 广告费是 RUB，直接累加）
+    # 广告费用（Yandex CNY 需转 RUB，WB RUB 直接累加）
     # {shop_id: {product_id: cost_rub}}
     ad_costs_by_shop: Dict[int, Dict[int, float]] = {}
     for ad in current_ads_costs:
         if ad.shop_id not in ad_costs_by_shop:
             ad_costs_by_shop[ad.shop_id] = {}
         ad_costs_by_shop[ad.shop_id][ad.product_id] = (
-            ad_costs_by_shop[ad.shop_id].get(ad.product_id, 0) + (ad.cost or 0)
+            ad_costs_by_shop[ad.shop_id].get(ad.product_id, 0) + convert_ad_cost(ad, shop_rates)
         )
 
     # 获取上一周期 product_analytics 数据
@@ -529,7 +529,7 @@ def get_dashboard_products(
         if ad.shop_id not in prev_ad_costs_by_shop:
             prev_ad_costs_by_shop[ad.shop_id] = {}
         prev_ad_costs_by_shop[ad.shop_id][ad.product_id] = (
-            prev_ad_costs_by_shop[ad.shop_id].get(ad.product_id, 0) + (ad.cost or 0)
+            prev_ad_costs_by_shop[ad.shop_id].get(ad.product_id, 0) + convert_ad_cost(ad, shop_rates)
         )
 
     # 构建返回数据

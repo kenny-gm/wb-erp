@@ -447,29 +447,23 @@ def test_yandex_orders_no_update_on_failure(mock_db, mock_shop_yandex_biz):
 # Test 11: Yandex 单项 sync 拒绝 ads/keywords/inventory
 # ============================================================
 
-def test_yandex_single_sync_rejects_ads_keywords_inventory(mock_shop_yandex_biz):
+def test_yandex_single_sync_rejects_ads_keywords_inventory(mock_db, mock_shop_yandex_biz):
     """Yandex 店铺单独触发 ads/keywords/inventory 应返回 MVP 提示，不调用 WB 方法"""
     from app.routers.shops import _sync_shop_data_internal
 
-    # Mock shop
-    class MockShop:
-        id = 999
-        name = "Test Yandex"
-        platform = "yandex"
-        last_sync_at = datetime.now()
-
+    # Use the actual shop from the fixture
     result_ads = _sync_shop_data_internal(
-        shop_id=999, sync_type="ads", history=False, db=mock_db
+        shop_id=mock_shop_yandex_biz.id, sync_type="ads", history=False, db=mock_db
     )
     assert "Yandex MVP" in result_ads["results"]["ads"]["message"]
 
     result_kw = _sync_shop_data_internal(
-        shop_id=999, sync_type="keywords", history=False, db=mock_db
+        shop_id=mock_shop_yandex_biz.id, sync_type="keywords", history=False, db=mock_db
     )
     assert "Yandex MVP" in result_kw["results"]["keywords"]["message"]
 
     result_inv = _sync_shop_data_internal(
-        shop_id=999, sync_type="inventory", history=False, db=mock_db
+        shop_id=mock_shop_yandex_biz.id, sync_type="inventory", history=False, db=mock_db
     )
     assert "Yandex MVP" in result_inv["results"]["inventory"]["message"]
 

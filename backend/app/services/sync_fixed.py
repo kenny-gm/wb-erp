@@ -590,6 +590,9 @@ class SyncService:
             offers = self.client.get_all_offers(int(business_id), campaign_ids)
 
             if not offers:
+                # API 成功但无商品数据，也更新 last_sync_at
+                self.shop.last_sync_at = datetime.now(ZoneInfo("Asia/Shanghai"))
+                self.db.commit()
                 self._finish_sync_log(sync_log, True, 0, "无商品数据")
                 return {"success": True, "count": 0, "updated": 0}
 
