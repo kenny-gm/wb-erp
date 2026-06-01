@@ -186,6 +186,7 @@ const syncing = ref(false)
 const syncProgress = ref(0)
 const syncStatus = ref('')
 const syncResult = ref(null)
+let pollInterval = null
 
 const showLogsDialog = ref(false)
 const logsLoading = ref(false)
@@ -337,19 +338,51 @@ async function syncData(shop) {
 
   try {
     syncStatus.value = '正在同步...'
-    syncProgress.value = 25
-    const response = await axios.post(`/api/shops/${shop.id}/sync/?sync_type=all`)
 
-    syncProgress.value = 100
-    syncStatus.value = '同步完成'
-    syncResult.value = response.data
+    // 启动异步任务
+    const response = await axios.post(`/api/shops/${shop.id}/sync-async/?sync_type=all`)
+    const jobId = response.data.job_id
 
-    fetchShops()
+    // 轮询任务状态
+    pollInterval = setInterval(async () => {
+      try {
+        const res = await axios.get(`/api/shops/sync-jobs/${jobId}`)
+        const job = res.data
+
+        syncProgress.value = job.progress || 0
+        syncStatus.value = job.message || '同步中...'
+
+        if (job.status === 'success') {
+          clearInterval(pollInterval)
+          pollInterval = null
+          syncing.value = false
+          syncStatus.value = '同步完成'
+          syncResult.value = job.result_json ? JSON.parse(job.result_json) : {}
+          fetchShops()
+          ElMessage.success('同步完成')
+        } else if (job.status === 'failed') {
+          clearInterval(pollInterval)
+          pollInterval = null
+          syncing.value = false
+          syncStatus.value = '同步失败'
+          syncResult.value = { error: job.error || '同步失败' }
+          ElMessage.error('同步失败: ' + (job.error || '未知错误'))
+        }
+        // pending/running: 继续轮询
+      } catch (e) {
+        clearInterval(pollInterval)
+        pollInterval = null
+        syncing.value = false
+        syncStatus.value = '查询失败'
+        ElMessage.error('查询同步状态失败')
+      }
+    }, 3000)
+
   } catch (error) {
-    ElMessage.error('同步失败')
-    syncStatus.value = '同步失败'
-  } finally {
+    if (pollInterval) clearInterval(pollInterval)
     syncing.value = false
+    syncStatus.value = '启动失败'
+    ElMessage.error('同步任务启动失败')
   }
 }
 

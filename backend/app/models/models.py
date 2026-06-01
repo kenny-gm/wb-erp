@@ -318,6 +318,24 @@ class MenuItem(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")), onupdate=lambda ctx: datetime.now(ZoneInfo("Asia/Shanghai")))
 
 
+class SyncJob(Base):
+    """异步同步任务"""
+    __tablename__ = "sync_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shops.id"), nullable=False)
+    sync_type = Column(String(50), nullable=False)
+    status = Column(String(20), default="pending")  # pending/running/success/failed
+    progress = Column(Integer, default=0)  # 0-100
+    message = Column(Text, default="")
+    result_json = Column(Text, nullable=True)  # JSON string
+    error = Column(Text, nullable=True)
+    created_by = Column(Integer, nullable=True)
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")))
+    updated_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")), onupdate=datetime.now)
+
 class SyncLog(Base):
     """同步日志"""
     __tablename__ = "sync_logs"

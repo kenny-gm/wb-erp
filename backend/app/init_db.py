@@ -69,3 +69,75 @@ def migrate_add_platform_config(db_url: str = None):
 
 # 自动执行迁移
 migrate_add_platform_config()
+
+# ============================================================
+# 迁移：确保 sync_jobs 表存在
+# ============================================================
+def migrate_add_sync_jobs(db_url: str = None):
+    """检测并创建 sync_jobs 表（如果不存在）
+    支持 SQLite 和 PostgreSQL 双引擎"""
+    if db_url is None:
+        db_url = str(engine.url)
+
+    from sqlalchemy import text, inspect as sqla_inspect
+    inspector = sqla_inspect(engine)
+
+    try:
+        existing_tables = inspector.get_table_names()
+    except Exception as e:
+        print(f"检测表列表失败: {e}")
+        return False
+
+    if "sync_jobs" in existing_tables:
+        print("sync_jobs 表已存在，跳过")
+        return True
+
+    print("sync_jobs 表不存在，开始创建...")
+    try:
+        if "postgres" in db_url.lower():
+            # PostgreSQL
+            engine.execute(text("""
+                CREATE TABLE sync_jobs (
+                    id SERIAL PRIMARY KEY,
+                    shop_id INTEGER NOT NULL REFERENCES shops(id),
+                    sync_type VARCHAR(50) NOT NULL,
+                    status VARCHAR(20) DEFAULT 'pending',
+                    progress INTEGER DEFAULT 0,
+                    message TEXT DEFAULT '',
+                    result_json TEXT,
+                    error TEXT,
+                    created_by INTEGER,
+                    started_at TIMESTAMP,
+                    finished_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+        else:
+            # SQLite
+            engine.execute(text("""
+                CREATE TABLE sync_jobs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    shop_id INTEGER NOT NULL,
+                    sync_type VARCHAR(50) NOT NULL,
+                    status VARCHAR(20) DEFAULT 'pending',
+                    progress INTEGER DEFAULT 0,
+                    message TEXT DEFAULT '',
+                    result_json TEXT,
+                    error TEXT,
+                    created_by INTEGER,
+                    started_at TIMESTAMP,
+                    finished_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+        print("sync_jobs 表创建成功")
+        return True
+    except Exception as e:
+        print(f"创建 sync_jobs 表失败: {e}")
+        return False
+
+
+migrate_add_sync_jobs()
+

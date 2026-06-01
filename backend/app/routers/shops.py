@@ -8,12 +8,45 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, field_serializer
 
 from app.database import get_db
-from app.models.models import Shop, SyncLog
+from app.models.models import Shop, SyncLog, SyncJob
+from fastapi import BackgroundTasks
 from app.routers.auth import get_current_user, get_current_admin
 from app.services.sync_fixed import SyncService
 from app.utils.timezone import format_shanghai_time
 
 router = APIRouter(prefix="/api/shops", tags=["店铺管理"])
+
+# ========== 异步同步任务模型 ==========
+
+class SyncJobCreate(BaseModel):
+    sync_type: str = "all"
+    history: bool = False
+
+
+class SyncJobResponse(BaseModel):
+    id: int
+    shop_id: int
+    sync_type: str
+    status: str
+    progress: int
+    message: str
+    result_json: Optional[str] = None
+    error: Optional[str] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SyncJobCreateResponse(BaseModel):
+    success: bool
+    job_id: int
+    status: str
+    message: str
+
+
 
 
 # ========== 请求/响应模型 ==========
@@ -522,3 +555,230 @@ def internal_sync_shop_data(
         raise HTTPException(status_code=401, detail="无效的API密钥")
 
     return _sync_shop_data_internal(shop_id, sync_type, history, db)
+
+# ============================================================
+# 后台同步任务函数
+# ============================================================
+def run_sync_job_background(job_id: int, shop_id: int, sync_type: str, history: bool):
+    """后台执行同步任务（独立 session）"""
+    import sys, traceback, json
+    sys.path.insert(0, '/app/backend')
+
+    from app.database import SessionLocal
+    from app.services.sync_fixed import SyncService
+    from app.models.models import Shop, SyncJob
+
+    db = SessionLocal()
+    try:
+        job = db.query(SyncJob).filter(SyncJob.id == job_id).first()
+        if not job:
+            print(f"[SyncJob {job_id}] 任务不存在")
+            return
+
+        shop = db.query(Shop).filter(Shop.id == shop_id).first()
+        if not shop:
+            job.status = "failed"
+            job.error = f"店铺 {shop_id} 不存在"
+            job.finished_at = datetime.now(ZoneInfo("Asia/Shanghai"))
+            job.message = "店铺不存在"
+            db.commit()
+            return
+
+        job.status = "running"
+        job.progress = 5
+        job.started_at = datetime.now(ZoneInfo("Asia/Shanghai"))
+        job.message = "开始同步..."
+        db.commit()
+
+        svc = SyncService(db, shop)
+
+        if sync_type == "all":
+            job.progress = 20
+            job.message = "同步商品..."
+            db.commit()
+            r_products = svc.sync_products(overwrite=True)
+            if not r_products.get("success"):
+                raise Exception(f"商品同步失败: {r_products.get('error')}")
+
+            job.progress = 40
+            job.message = "同步订单..."
+            db.commit()
+            r_orders = svc.sync_orders()
+            if not r_orders.get("success"):
+                raise Exception(f"订单同步失败: {r_orders.get('error')}")
+
+            job.progress = 60
+            job.message = "同步库存..."
+            db.commit()
+            r_inv = svc.sync_inventory()
+            if not r_inv.get("success"):
+                raise Exception(f"库存同步失败: {r_inv.get('error')}")
+
+            job.progress = 75
+            job.message = "同步广告/关键词..."
+            db.commit()
+            if shop.platform == "yandex":
+                r_ads = {"success": True, "message": "Yandex MVP 暂不支持广告"}
+            else:
+                r_ads = svc.sync_ads(days=7)
+
+            if shop.platform == "yandex":
+                r_keywords = {"success": True, "message": "Yandex MVP 暂不支持关键词"}
+            else:
+                r_keywords = svc.sync_keywords(days=30)
+
+            job.progress = 85
+            job.message = "同步流量数据..."
+            db.commit()
+            if shop.platform == "yandex":
+                r_traffic = svc.sync_yandex_traffic()
+            else:
+                r_traffic = {"success": True, "message": "WB 无流量报告"}
+
+            job.progress = 95
+            job.message = "完成..."
+            db.commit()
+
+            result = {
+                "products": r_products,
+                "orders": r_orders,
+                "inventory": r_inv,
+                "ads": r_ads,
+                "keywords": r_keywords,
+                "traffic": r_traffic,
+            }
+
+        elif sync_type == "products":
+            r = svc.sync_products(overwrite=True)
+            result = r
+        elif sync_type == "orders":
+            r = svc.sync_orders()
+            result = r
+        elif sync_type == "inventory":
+            r = svc.sync_inventory()
+            result = r
+        elif sync_type == "ads":
+            if shop.platform == "yandex":
+                result = {"success": True, "message": "Yandex MVP 暂不支持广告"}
+            else:
+                result = svc.sync_ads(days=7)
+        elif sync_type == "keywords":
+            if shop.platform == "yandex":
+                result = {"success": True, "message": "Yandex MVP 暂不支持关键词"}
+            else:
+                result = svc.sync_keywords(days=30)
+        elif sync_type == "product_sales":
+            days = 30 if history else 7
+            if shop.platform == "yandex":
+                result = svc.sync_yandex_product_sales(days=days)
+            else:
+                result = svc.sync_product_sales(days=days)
+        else:
+            raise Exception(f"未知的 sync_type: {sync_type}")
+
+        job.status = "success"
+        job.progress = 100
+        job.result_json = json.dumps(result, ensure_ascii=False)
+        job.message = "同步完成"
+        job.finished_at = datetime.now(ZoneInfo("Asia/Shanghai"))
+        db.commit()
+
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(f"[SyncJob {job_id}] 失败: {e}\n{tb}")
+        job.status = "failed"
+        job.error = str(e)
+        job.message = "同步失败"
+        job.finished_at = datetime.now(ZoneInfo("Asia/Shanghai"))
+        db.commit()
+    finally:
+        db.close()
+
+
+# ============================================================
+# 异步同步接口
+# ============================================================
+@router.post("/{shop_id}/sync-async/", response_model=SyncJobCreateResponse)
+def sync_shop_async(
+    shop_id: int,
+    sync_type: str = "all",
+    history: bool = False,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_admin),
+    background_tasks: BackgroundTasks = None,
+):
+    """创建异步同步任务，立即返回 job_id"""
+    shop = db.query(Shop).filter(Shop.id == shop_id).first()
+    if not shop:
+        raise HTTPException(status_code=404, detail="店铺不存在")
+
+    # 并发保护：检查是否有 pending/running 的同类型任务
+    existing = db.query(SyncJob).filter(
+        SyncJob.shop_id == shop_id,
+        SyncJob.sync_type == sync_type,
+        SyncJob.status.in_("pending", "running")
+    ).first()
+
+    if existing:
+        return SyncJobCreateResponse(
+            success=True,
+            job_id=existing.id,
+            status=existing.status,
+            message="同步任务已在运行中"
+        )
+
+    # 创建新任务
+    job = SyncJob(
+        shop_id=shop_id,
+        sync_type=sync_type,
+        status="pending",
+        progress=0,
+        message="等待同步...",
+        created_by=current_user.get("id") if current_user else None,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    # 启动后台任务
+    if background_tasks:
+        background_tasks.add_task(
+            run_sync_job_background,
+            job.id, shop_id, sync_type, history
+        )
+
+    return SyncJobCreateResponse(
+        success=True,
+        job_id=job.id,
+        status="pending",
+        message="同步任务已启动"
+    )
+
+
+@router.get("/sync-jobs/{job_id}", response_model=SyncJobResponse)
+def get_sync_job(
+    job_id: int,
+    db: Session = Depends(get_db),
+):
+    """查询同步任务状态"""
+    job = db.query(SyncJob).filter(SyncJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return job
+
+
+@router.get("/{shop_id}/sync-jobs/latest")
+def get_latest_sync_job(
+    shop_id: int,
+    sync_type: str = "all",
+    db: Session = Depends(get_db),
+):
+    """查询店铺最近一次同步任务"""
+    job = db.query(SyncJob).filter(
+        SyncJob.shop_id == shop_id,
+        SyncJob.sync_type == sync_type
+    ).order_by(SyncJob.id.desc()).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="暂无同步记录")
+    return job
+
