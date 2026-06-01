@@ -67,6 +67,23 @@ def get_ad_cost_currency(shop: "Shop") -> str:
     return "RUB"
 
 
+def convert_ad_cost(ad_record, shop_rates: dict) -> float:
+    """
+    统一广告费口径为 RUB。
+    - Yandex (platform==yandex): ad.cost 是 CNY，需要 × 汇率转 RUB
+    - WB (platform==wildberries): ad.cost 是 RUB，不转换
+    - 找不到 shop 时默认 RUB
+    """
+    cost = ad_record.cost or 0
+    if not cost:
+        return 0.0
+    shop_cfg = shop_rates.get(ad_record.shop_id, {"platform": "", "currency": "RUB", "rate": 12.5})
+    if shop_cfg.get("platform") == "yandex":
+        rate = shop_cfg.get("rate", 12.5)
+        return cost * rate
+    return cost
+
+
 def convert_currency(amount: float, to_currency: str, exchange_rate: float) -> float:
     """
     转换金额为卢布显示
@@ -213,9 +230,9 @@ def get_dashboard_stats(
             stats.add_to_cart += ad.cart_count or 0
             stats.order_count += ad.order_count or 0
         
-        # 广告费用（WB 广告费是 RUB，无需转换）
+        # 广告费用（Yandex CNY 需转 RUB，WB RUB 直接累加）
         for ad in ads_costs:
-            stats.ad_cost += ad.cost or 0
+            stats.ad_cost += convert_ad_cost(ad, shop_rates)
     else:
         # 场景：无负责人筛选
         # 从analytics表获取店铺级别汇总
@@ -259,9 +276,9 @@ def get_dashboard_stats(
             stats.add_to_cart += ad.cart_count or 0
             stats.order_count += ad.order_count or 0
         
-        # 从广告表获取广告费用
+        # 广告费用（Yandex CNY 需转 RUB，WB RUB 直接累加）
         for ad in ads_costs:
-            stats.ad_cost += ad.cost or 0
+            stats.ad_cost += convert_ad_cost(ad, shop_rates)
     
     # 计算转化率等指标
     if stats.visitors > 0:
@@ -358,7 +375,7 @@ def get_dashboard_stats(
 
         prev_ads_costs = prev_ads_cost_query.all()
         for ad in prev_ads_costs:
-            prev_stats["ad_cost"] += ad.cost or 0
+            prev_stats["ad_cost"] += convert_ad_cost(ad, shop_rates)
 
     # 计算同比百分比
     def calc_percent(current, previous):
@@ -732,12 +749,12 @@ def get_sales_trend(
         daily_data[date_str]["cart"] += ad.cart_count or 0
         daily_data[date_str]["orders"] += ad.order_count or 0
     
-    # 从广告数据获取广告费用（卢布，无需转换）
+    # 从广告数据获取广告费用（Yandex CNY 需转 RUB，WB RUB 直接累加）
     for ad in ads_costs:
         date_str = ad.record_date.strftime("%Y-%m-%d") if ad.record_date else "unknown"
         if date_str not in daily_data:
             daily_data[date_str] = {"sales": 0, "visitors": 0, "cart": 0, "orders": 0, "ad_cost": 0}
-        daily_data[date_str]["ad_cost"] += ad.cost or 0
+        daily_data[date_str]["ad_cost"] += convert_ad_cost(ad, shop_rates)
     
     return [{"date": d, **data} for d, data in sorted(daily_data.items())]
 
@@ -812,8 +829,17 @@ def get_stats_for_period(db: Session, start_date: datetime, end_date: datetime, 
     stats["visitors"] = sum(ad.visitors or 0 for ad in ads)
     stats["add_to_cart"] = sum(ad.cart_count or 0 for ad in ads)
     
-    # 广告费用（来自 ad_records 表，卢布，无需转换）
-    stats["ad_cost"] = sum(ad.cost or 0 for ad in ads_costs)
+    # 广告费用（来自 advertising 类型 AdRecord，Yandex CNY 需转 RUB）
+    ads_cost_query = db.query(AdRecord).filter(
+        AdRecord.record_date >= start_date,
+        AdRecord.record_date < end_date,
+        AdRecord.ad_type == "advertising",
+    )
+    if shop_ids:
+        ads_cost_query = ads_cost_query.filter(AdRecord.shop_id.in_(shop_ids))
+    ads_cost_records = ads_cost_query.all()
+    shop_rates_local = get_shop_exchange_rates(db)
+    stats["ad_cost"] = sum(convert_ad_cost(ad, shop_rates_local) for ad in ads_cost_records)
     
     if stats["visitors"] > 0:
         stats["add_to_cart_rate"] = stats["add_to_cart"] / stats["visitors"] * 100
@@ -924,7 +950,7 @@ def get_stats_by_owner(
             owner_stats[owner]["sales"] += convert_currency(
                 ad.sales or 0, ad_shop_cfg["currency"], ad_shop_cfg["rate"]
             )
-            owner_stats[owner]["ad_cost"] += ad.cost or 0
+            owner_stats[owner]["ad_cost"] += convert_ad_cost(ad, shop_rates)
             owner_stats[owner]["orders"] += ad.order_count or 0
             owner_stats[owner]["visitors"] += ad.visitors or 0
             owner_stats[owner]["add_to_cart"] += ad.cart_count or 0

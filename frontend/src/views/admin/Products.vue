@@ -289,7 +289,7 @@ async function syncProducts() {
   syncStatus.value = '正在同步...'
   syncResult.value = null
   try {
-    const response = await axios.post(`/api/shops/${syncShopId.value}/sync/`, { sync_type: 'products' })
+    const response = await axios.post(`/api/shops/${syncShopId.value}/sync/?sync_type=products`)
     syncResult.value = response.data
     syncStatus.value = response.data.success ? '同步成功' : '同步失败'
     if (response.data.success) {

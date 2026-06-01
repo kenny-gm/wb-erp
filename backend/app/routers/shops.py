@@ -185,6 +185,8 @@ def create_shop(
                 existing.name = data.name or biz_info["business_name"] or f"Yandex Business {biz_id}"
                 existing.currency = data.currency or "CNY"
                 existing.platform_config = platform_config
+                if data.api_token:
+                    existing.api_token = data.api_token
                 db.commit()
                 db.refresh(existing)
                 results.append(_shop_to_dict(existing))
@@ -336,9 +338,15 @@ def _sync_shop_data_internal(
         elif sync_type == "inventory":
             results["inventory"] = sync_service.sync_inventory()
         elif sync_type == "ads":
-            results["ads"] = sync_service.sync_ads(days=7)
+            if shop.platform == "yandex":
+                results["ads"] = {"success": True, "message": "Yandex MVP 暂不支持广告"}
+            else:
+                results["ads"] = sync_service.sync_ads(days=7)
         elif sync_type == "keywords":
-            results["keywords"] = sync_service.sync_keywords(days=30)
+            if shop.platform == "yandex":
+                results["keywords"] = {"success": True, "message": "Yandex MVP 暂不支持关键词"}
+            else:
+                results["keywords"] = sync_service.sync_keywords(days=30)
         elif sync_type == "product_sales":
             results["product_sales"] = sync_service.sync_product_sales(days=30 if history else 7)
         elif sync_type == "all":

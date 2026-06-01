@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/products", tags=["产品管理"])
 # ========== 请求/响应模型 ==========
 
 class ProductCreate(BaseModel):
-    nm_id: int
+    nm_id: str
     sku: str
     name: str
     custom_name: Optional[str] = None
@@ -49,7 +49,7 @@ class ProductUpdate(BaseModel):
 
 class ProductResponse(BaseModel):
     id: int
-    nm_id: int
+    nm_id: str
     sku: str
     shop_id: int
     shop_name: Optional[str] = None

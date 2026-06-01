@@ -306,6 +306,7 @@ function buildTreeData(apiData, isRange) {
     productGroups[key].shops.push({
       shop_id: item.shop_id,
       shop_name: item.shop_name,
+      shop_platform: item.shop_platform,
       nm_id: item.nm_id,
       product_id: item.product_id,
       sku: item.sku,
@@ -367,6 +368,7 @@ function buildTreeData(apiData, isRange) {
         product_name: null,
         shop_name: shop.shop_name,
         shop_id: shop.shop_id,
+        shop_platform: shop.shop_platform,
         currency: shop.currency,
         orders: shop.orders,
         sales: shop.sales,
@@ -392,6 +394,7 @@ function buildTreeData(apiData, isRange) {
           product_name: group.product_name,
           shop_name: d.date,
           shop_id: shop.shop_id,
+          shop_platform: shop.shop_platform,
           product_id: shop.product_id,
           currency: shop.currency,
           orders: d.orders,

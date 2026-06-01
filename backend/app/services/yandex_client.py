@@ -9,10 +9,12 @@ API 文档: https://yandex.ru/dev/market/partner-doc/ref/
 - 报表(广告/访客等): POST /v2/reports/* (需要 promotion 或 finance-and-accounting 权限，当前 token 无此权限)
 
 权限状态（2026-05-26）:
-- Token: ACMA:5SeTljHd37D8cXC2iSmcfhuOcGrg8JvMQ7kO68xr:88d2c1e8
+- Token: <YOUR_YANDEX_TOKEN>（已撤销，请替换为新 Token）
 - scopes: ALL_METHODS_READ_ONLY
 - 可用: /v2/campaigns, /v2/campaigns/{id}/stats/orders, /v2/campaigns/{id}/offers
 - 不可用: /v2/reports/* (需要 promotion 或 finance-and-accounting)
+
+⚠️ 注意：如果此 Token 已泄露，请前往 Yandex Partner Market 后台撤销并重建
 
 MVP 口径（2026-05-27）:
 - 商品同步: POST /v2/campaigns/{id}/offers，按 business_id + offer_id 聚合

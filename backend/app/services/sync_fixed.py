@@ -566,14 +566,11 @@ class SyncService:
     def sync_yandex_products(self, overwrite: bool = False) -> dict:
         """
         Yandex 商品同步：遍历 business 下所有 campaign 的 offers，按 offer_id 去重写入 Product。
+        成功写入后更新 last_sync_at，失败时不更新。
         """
         sync_log = self._create_sync_log("products")
 
         try:
-            # 先更新时间戳，避免API失败时也记录同步时间
-            self.shop.last_sync_at = datetime.now(ZoneInfo("Asia/Shanghai"))
-            self.db.commit()
-
             config = self.shop.platform_config or {}
             business_id = config.get("business_id")
             campaign_ids = config.get("campaign_ids", [])
@@ -628,6 +625,10 @@ class SyncService:
 
             self.db.commit()
 
+            # 成功后才更新 last_sync_at
+            self.shop.last_sync_at = datetime.now(ZoneInfo("Asia/Shanghai"))
+            self.db.commit()
+
             total = count + updated
             logger.info(f"Yandex products 完成: 新增 {count}, 更新 {updated}")
             self._finish_sync_log(sync_log, True, total, f"新增 {count} 个，更新 {updated} 个")
@@ -650,10 +651,6 @@ class SyncService:
         sync_log = self._create_sync_log("orders")
 
         try:
-            # 先更新时间戳，避免API失败时也记录同步时间
-            self.shop.last_sync_at = datetime.now(ZoneInfo("Asia/Shanghai"))
-            self.db.commit()
-
             config = self.shop.platform_config or {}
             business_id = config.get("business_id")
             campaign_ids = config.get("campaign_ids", [])
@@ -865,6 +862,10 @@ class SyncService:
                     self.db.add(ad_record)
                     ad_count += 1
 
+            self.db.commit()
+
+            # 成功后才更新 last_sync_at
+            self.shop.last_sync_at = datetime.now(ZoneInfo("Asia/Shanghai"))
             self.db.commit()
 
             total = order_count + order_updated + item_count + ad_count + ad_updated
