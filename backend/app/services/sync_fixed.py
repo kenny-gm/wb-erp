@@ -972,6 +972,7 @@ class SyncService:
                         return {"success": False, "error": result["error"]}
 
                     if result.get("success"):
+                        business_request_succeeded = True
                         all_records = result.get("records", [])
                         logger.info(f"  businessId {business_id}: 获取 {len(all_records)} 条流量记录（请求成功，不fallback）")
                     elif result.get("fallback_allowed"):
