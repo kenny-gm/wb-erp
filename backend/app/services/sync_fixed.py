@@ -953,9 +953,9 @@ class SyncService:
 
             if business_id:
                 try:
-                    records, request_failed, rate_limited = self._fetch_shows_sales_report_business(business_id, date_from, date_to)
+                    result = self._fetch_shows_sales_report_business(business_id, date_from, date_to)
 
-                    if rate_limited:
+                    if result.get("rate_limited"):
                         logger.warning(f"  businessId shows-sales 420 rate limit，直接返回")
                         self._finish_sync_log(sync_log, False, 0, "Yandex shows-sales rate limited, retry later")
                         return {
@@ -965,16 +965,25 @@ class SyncService:
                             "message": "Yandex shows-sales rate limited, retry later"
                         }
 
-                    business_request_succeeded = not request_failed
-                    all_records = records
-                    if business_request_succeeded:
-                        logger.info(f"  businessId {business_id}: 获取 {len(records)} 条流量记录（businessId请求成功，不走fallback）")
+                    if result.get("error") and not result.get("fallback_allowed"):
+                        # 非420失败，不fallback，直接返回错误
+                        logger.warning(f"  businessId 请求失败（不fallback）: {result['error']}")
+                        self._finish_sync_log(sync_log, False, 0, result["error"])
+                        return {"success": False, "error": result["error"]}
+
+                    if result.get("success"):
+                        all_records = result.get("records", [])
+                        logger.info(f"  businessId {business_id}: 获取 {len(all_records)} 条流量记录（请求成功，不fallback）")
+                    elif result.get("fallback_allowed"):
+                        # 只有 fallback_allowed=True（400参数错误）才走fallback
+                        logger.warning(f"  businessId 请求失败，允许fallback: {result.get('error', 'unknown')}")
+                        business_request_succeeded = False
                 except Exception as e:
                     logger.warning(f"  businessId 请求异常，fallback到campaign: {e}")
                     business_request_succeeded = False
 
-            # Fallback 只允许：businessId 请求失败（network/timeout/400参数错误）且没有有效数据
-            # 420 rate limit 不允许 fallback，直接返回 rate_limited
+            # Fallback 只允许：400 参数错误导致 fallback_allowed=True
+            # 420 / 超时 / 解析失败 / 缺sheet / 无reportId → 不fallback，直接返回错误
             if not all_records and not business_request_succeeded and campaign_ids:
                 logger.info(f"  启用 campaign 串行 fallback（仅限 businessId 请求失败）")
                 for cid in campaign_ids:
@@ -1071,20 +1080,14 @@ class SyncService:
             self._finish_sync_log(sync_log, False, 0, str(e))
             return {"success": False, "error": str(e)}
 
-    def _fetch_shows_sales_report_business(self, business_id: int, date_from: str, date_to: str) -> tuple:
+    def _fetch_shows_sales_report_business(self, business_id: int, date_from: str, date_to: str) -> dict:
         """
-        返回: (records, request_failed, rate_limited)
-          - (records, False, False): 请求成功
-          - ([], False, False): 请求成功但无数据
-          - ([], False, True): 420 rate limited（不允许 fallback）
-          - ([], True, False): 400 参数错误等（允许 fallback）
-        """
-        """
-        内部方法：使用 businessId 级别请求 shows-sales 报告（单次请求覆盖所有 campaign）。
-        返回: (records: List[dict], request_failed: bool)
-        - request_failed=True 表示请求明确失败（400参数错误等），允许 fallback
-        - request_failed=False 但 records=[] 表示请求成功但无数据，不 fallback
-        - 420 rate limit 也返回 request_failed=False，直接由调用方处理（不允许 fallback）
+        返回结构化 dict:
+          - 200成功有数据: {success=True, records=[...], rate_limited=False, fallback_allowed=False, error=null}
+          - 200成功无数据: {success=True, records=[], rate_limited=False, fallback_allowed=False, error=null}
+          - 420: {success=False, records=[], rate_limited=True, fallback_allowed=False, error="420"}
+          - 400: {success=False, records=[], rate_limited=False, fallback_allowed=True, error="400"}
+          - 其他失败: {success=False, records=[], rate_limited=False, fallback_allowed=False, error=具体信息}
         """
         import httpx
         import io
@@ -1109,19 +1112,19 @@ class SyncService:
         # 420: rate limit，request_failed=False（由调用方处理，不走 fallback）
         if resp.status_code == 420:
             logger.warning(f"  businessId shows-sales 420 rate limit")
-            return ([], False, True)  # rate_limited=True → 不fallback，直接返回
+            return {"success": False, "records": [], "rate_limited": True, "fallback_allowed": False, "error": "420 rate limit"}
 
         # 400: 参数错误，request_failed=True（允许 fallback）
         if resp.status_code == 400:
             logger.warning(f"  businessId 请求返回 400（参数错误）: {resp.text}")
-            return ([], True, False)  # request_failed=True → 允许fallback
+            return {"success": False, "records": [], "rate_limited": False, "fallback_allowed": True, "error": f"400 parameter error: {resp.text}"}
 
         resp.raise_for_status()
         data = resp.json()
         report_id = data.get("result", {}).get("reportId")
         if not report_id:
             logger.error(f"shows-sales 生成失败: {data}")
-            return ([], False, False)  # request_failed=False → 不fallback，直接返回空
+            return {"success": False, "records": [], "rate_limited": False, "fallback_allowed": False, "error": "shows-sales reportId missing"}
 
         # Step 2: 轮询等待（最多15分钟）
         for i in range(90):
@@ -1137,10 +1140,10 @@ class SyncService:
                 break
             if status == "FAILED":
                 logger.error(f"shows-sales 报告生成失败: {info}")
-                return ([], False, False)  # request_failed=False → 不fallback，直接返回空
+                return {"success": False, "records": [], "rate_limited": False, "fallback_allowed": False, "error": "shows-sales report FAILED"}
         else:
             logger.error("shows-sales 报告生成超时（15分钟）")
-            return ([], False, False)  # request_failed=False → 不fallback，直接返回空
+            return {"success": False, "records": [], "rate_limited": False, "fallback_allowed": False, "error": "shows-sales report timeout (15min)"}
 
         # Step 3: 下载并解析 XLSX
         download_url = info["result"]["file"]
@@ -1151,12 +1154,12 @@ class SyncService:
             wb = load_workbook(io.BytesIO(dl_resp.content))
         except InvalidFileException:
             logger.error("报告文件解析失败（非 XLSX 格式）")
-            return ([], False, False)  # request_failed=False → 不fallback，直接返回空
+            return {"success": False, "records": [], "rate_limited": False, "fallback_allowed": False, "error": "report file parse failed"}
 
         sheet_name = "Аналитика продаж"
         if sheet_name not in wb.sheetnames:
             logger.error(f"报告缺少工作表 '{sheet_name}'，实际: {wb.sheetnames}")
-            return ([], False, False)  # request_failed=False → 不fallback，直接返回空
+            return {"success": False, "records": [], "rate_limited": False, "fallback_allowed": False, "error": "report missing sheet"}
 
         ws = wb[sheet_name]
         headers_row = [cell.value for cell in ws[1]]
@@ -1197,7 +1200,7 @@ class SyncService:
             records.append(row_dict)
 
         logger.info(f"  shows-sales 解析完毕: {len(records)} 条记录")
-        return (records, False, False)
+        return {"success": True, "records": records, "rate_limited": False, "fallback_allowed": False, "error": None}
 
     def _fetch_shows_sales_report(self, campaign_id: int, date_from: str, date_to: str) -> List[dict]:
         """
