@@ -912,10 +912,10 @@ class SyncService:
     def sync_yandex_traffic(self, date_from: Optional[str] = None, date_to: Optional[str] = None) -> dict:
         """
         Yandex 流量数据同步（shows-sales 报告）：
-        1. 优先使用 businessId 级别请求（一次只生成1个报表）
+        1. 优先使用 businessId 级别请求（一次只生成1个报表，覆盖所有 campaign）
         2. 轮询直到报告生成完成（异步，约5-10分钟）
         3. 下载 XLSX，解析 "Аналитика продаж" 工作表
-        4. 写入 AdRecord(product_analytics) 流量字段
+        4. 按 offer_id + date 聚合后写入 AdRecord(product_analytics) 流量字段
 
         只允许写入流量字段：impressions / visitors / cart_count / clicks
         严禁写入：order_count / sales / cost
@@ -932,8 +932,8 @@ class SyncService:
             campaign_ids = config.get("campaign_ids", [])
             business_id = config.get("business_id")
 
-            if not campaign_ids and not business_id:
-                msg = "Yandex traffic: platform_config 缺少 campaign_ids 和 business_id"
+            if not business_id:
+                msg = "Yandex traffic: platform_config 缺少 business_id"
                 logger.error(msg)
                 self._finish_sync_log(sync_log, False, 0, msg)
                 return {"success": False, "error": msg}
@@ -949,32 +949,39 @@ class SyncService:
 
             # 优先使用 businessId 级别请求（单次请求，覆盖所有 campaign）
             all_records = []
+            business_request_succeeded = False
+
             if business_id:
                 try:
-                    records = self._fetch_shows_sales_report_business(business_id, date_from, date_to)
-                    all_records.extend(records)
-                    logger.info(f"  businessId {business_id}: 获取 {len(records)} 条流量记录")
+                    records, request_failed = self._fetch_shows_sales_report_business(business_id, date_from, date_to)
+                    business_request_succeeded = not request_failed
+                    all_records = records
+                    if business_request_succeeded:
+                        logger.info(f"  businessId {business_id}: 获取 {len(records)} 条流量记录（businessId请求成功，不走fallback）")
                 except Exception as e:
-                    logger.warning(f"  businessId 请求失败，fallback 到 campaign 串行: {e}")
-                    all_records = []
+                    logger.warning(f"  businessId 请求异常，fallback到campaign: {e}")
+                    business_request_succeeded = False
 
-            # Fallback: 如果 businessId 请求失败，按 campaign 串行请求（需排队等待）
-            if not all_records and campaign_ids:
-                logger.info(f"  启用 campaign 串行 fallback，请求间隔 60s")
-                for i, cid in enumerate(campaign_ids):
-                    if i > 0:
-                        logger.info(f"  等待 60s 后请求下一个 campaign...")
-                        time.sleep(60)
+            # Fallback 只允许：businessId 请求失败（network/timeout/400参数错误）且没有有效数据
+            # 420 rate limit 不允许 fallback，直接返回 rate_limited
+            if not all_records and not business_request_succeeded and campaign_ids:
+                logger.info(f"  启用 campaign 串行 fallback（仅限 businessId 请求失败）")
+                for cid in campaign_ids:
                     try:
                         records = self._fetch_shows_sales_report(cid, date_from, date_to)
                         all_records.extend(records)
                         logger.info(f"  campaign {cid}: 获取 {len(records)} 条流量记录")
                     except httpx.HTTPStatusError as e:
                         if e.response.status_code == 420:
-                            logger.warning(f"  campaign {cid}: 420 rate limit，等待 60s 后重试")
-                            time.sleep(60)
-                            records = self._fetch_shows_sales_report(cid, date_from, date_to)
-                            all_records.extend(records)
+                            # 420 不重试，不等待，直接返回 rate_limited
+                            logger.warning(f"  campaign {cid}: 420 rate limit，不继续请求，直接返回")
+                            self._finish_sync_log(sync_log, False, 0, "Yandex shows-sales rate limited, retry later")
+                            return {
+                                "success": False,
+                                "rate_limited": True,
+                                "retry_after_seconds": 600,
+                                "message": "Yandex shows-sales rate limited, retry later"
+                            }
                         else:
                             raise
 
@@ -982,10 +989,28 @@ class SyncService:
                 self._finish_sync_log(sync_log, True, 0, "无流量数据")
                 return {"success": True, "count": 0}
 
-            # 写入 AdRecord（只写流量字段，含去重）
-            count = 0
-            seen_keys = set()  # (product_id, record_date) 去重
+            # 按 offer_id + date 聚合（合并多个 campaign 的同商品流量）
+            aggregated: Dict[tuple, dict] = {}
             for rec in all_records:
+                key = (rec["offer_id"], rec["date"][:10])
+                if key not in aggregated:
+                    aggregated[key] = {
+                        "offer_id": rec["offer_id"],
+                        "date": rec["date"][:10],
+                        "shows": 0,
+                        "clicks": 0,
+                        "to_cart": 0,
+                    }
+                aggregated[key]["shows"] += rec.get("shows", 0) or 0
+                aggregated[key]["clicks"] += rec.get("clicks", 0) or 0
+                aggregated[key]["to_cart"] += rec.get("to_cart", 0) or 0
+
+            aggregated_list = list(aggregated.values())
+            logger.info(f"  聚合后: {len(aggregated_list)} 条唯一 (offer_id, date) 记录")
+
+            # 写入 AdRecord（只写流量字段）
+            count = 0
+            for rec in aggregated_list:
                 sku = rec["offer_id"]
                 product = self.db.query(Product).filter(
                     Product.shop_id == self.shop_id,
@@ -996,12 +1021,6 @@ class SyncService:
                     continue
 
                 record_date = datetime.strptime(rec["date"][:10], "%Y-%m-%d").date()
-                key = (product.id, record_date)
-                if key in seen_keys:
-                    logger.info(f"  跳过重复记录: sku={sku}, date={rec['date'][:10]}")
-                    continue
-                seen_keys.add(key)
-
                 existing = self.db.query(AdRecord).filter(
                     AdRecord.shop_id == self.shop_id,
                     AdRecord.product_id == product.id,
@@ -1041,9 +1060,13 @@ class SyncService:
             self._finish_sync_log(sync_log, False, 0, str(e))
             return {"success": False, "error": str(e)}
 
-    def _fetch_shows_sales_report_business(self, business_id: int, date_from: str, date_to: str) -> List[dict]:
+    def _fetch_shows_sales_report_business(self, business_id: int, date_from: str, date_to: str) -> tuple:
         """
         内部方法：使用 businessId 级别请求 shows-sales 报告（单次请求覆盖所有 campaign）。
+        返回: (records: List[dict], request_failed: bool)
+        - request_failed=True 表示请求明确失败（400参数错误等），允许 fallback
+        - request_failed=False 但 records=[] 表示请求成功但无数据，不 fallback
+        - 420 rate limit 也返回 request_failed=False，直接由调用方处理（不允许 fallback）
         """
         import httpx
         import io
@@ -1064,13 +1087,23 @@ class SyncService:
             "https://api.partner.market.yandex.ru/v2/reports/shows-sales/generate",
             headers=headers, json=body, timeout=30
         )
+
+        # 420: rate limit，request_failed=False（由调用方处理，不走 fallback）
+        if resp.status_code == 420:
+            logger.warning(f"  businessId shows-sales 420 rate limit")
+            return ([], False)
+
+        # 400: 参数错误，request_failed=True（允许 fallback）
         if resp.status_code == 400:
-            raise Exception(f"businessId 请求返回 400（参数错误）: {resp.text}")
+            logger.warning(f"  businessId 请求返回 400（参数错误）: {resp.text}")
+            return ([], True)
+
         resp.raise_for_status()
         data = resp.json()
         report_id = data.get("result", {}).get("reportId")
         if not report_id:
-            raise Exception(f"shows-sales 生成失败: {data}")
+            logger.error(f"shows-sales 生成失败: {data}")
+            return ([], True)
 
         # Step 2: 轮询等待（最多15分钟）
         for i in range(90):
@@ -1085,9 +1118,11 @@ class SyncService:
             if status == "DONE":
                 break
             if status == "FAILED":
-                raise Exception(f"shows-sales 报告生成失败: {info}")
+                logger.error(f"shows-sales 报告生成失败: {info}")
+                return ([], True)
         else:
-            raise Exception("shows-sales 报告生成超时（15分钟）")
+            logger.error("shows-sales 报告生成超时（15分钟）")
+            return ([], True)
 
         # Step 3: 下载并解析 XLSX
         download_url = info["result"]["file"]
@@ -1097,11 +1132,13 @@ class SyncService:
         try:
             wb = load_workbook(io.BytesIO(dl_resp.content))
         except InvalidFileException:
-            raise Exception("报告文件解析失败（非 XLSX 格式）")
+            logger.error("报告文件解析失败（非 XLSX 格式）")
+            return ([], True)
 
         sheet_name = "Аналитика продаж"
         if sheet_name not in wb.sheetnames:
-            raise Exception(f"报告缺少工作表 '{sheet_name}'，实际: {wb.sheetnames}")
+            logger.error(f"报告缺少工作表 '{sheet_name}'，实际: {wb.sheetnames}")
+            return ([], True)
 
         ws = wb[sheet_name]
         headers_row = [cell.value for cell in ws[1]]
@@ -1142,11 +1179,13 @@ class SyncService:
             records.append(row_dict)
 
         logger.info(f"  shows-sales 解析完毕: {len(records)} 条记录")
-        return records
+        # request_failed=False 表示请求成功（无论有无数据），不允许 fallback
+        return (records, False)
 
     def _fetch_shows_sales_report(self, campaign_id: int, date_from: str, date_to: str) -> List[dict]:
         """
         内部方法：调用 shows-sales 报告接口（campaign 维度），轮询下载解析，返回流量记录列表。
+        注意：此方法为 fallback 用途（仅 businessId 请求失败时使用），420 时直接 raise 不重试。
         """
         import httpx
         import io
@@ -1214,8 +1253,6 @@ class SyncService:
             "Показы моих товаров, шт.": "shows",
             "Клики по товарам, шт.": "clicks",
             "Добавления в корзину, шт.": "to_cart",
-            "Заказанные товары, шт.": "order_items",
-            "Заказано товаров на сумму, ₽": "order_amount",
         }
 
         records = []
@@ -1235,7 +1272,6 @@ class SyncService:
             # 解析日期（格式："25-05-2026" → "2026-05-25"）
             date_str = str(row_dict.get("date") or "")
             if date_str and len(date_str) >= 10:
-                # 取后10位 "DD-MM-YYYY" → 转 "YYYY-MM-DD"
                 parts = date_str[-10:].split("-")
                 if len(parts) == 3:
                     row_dict["date"] = f"{parts[2]}-{parts[1]}-{parts[0]}"
@@ -1246,11 +1282,6 @@ class SyncService:
 
         logger.info(f"  shows-sales 解析完毕: {len(records)} 条记录")
         return records
-
-
-    # ============================================================
-    # 全量同步
-    # ============================================================
 
     def sync_all(self, history: bool = False) -> dict:
         """
