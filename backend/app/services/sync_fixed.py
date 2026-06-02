@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 from app.models.models import (
     Shop, Product, Order, OrderItem, InventorySnapshot,
     AdRecord, AdKeywordStat, SyncLog, InventoryRecord
@@ -401,7 +401,7 @@ class SyncService:
                 existing = self.db.query(AdRecord).filter(
                     AdRecord.shop_id == self.shop_id,
                     AdRecord.product_id == product.id,
-                    AdRecord.record_date == record_date,
+                    func.date(AdRecord.record_date) == func.date(record_date),
                     AdRecord.ad_type == "advertising",
                     AdRecord.advert_id == advert_id
                 ).first()
@@ -518,7 +518,7 @@ class SyncService:
                         continue
 
                     existing = self.db.query(AdRecord).filter(
-                        AdRecord.record_date == record_date,
+                        func.date(AdRecord.record_date) == func.date(record_date),
                         AdRecord.ad_type == "product_analytics",
                         AdRecord.product_id == product_id
                     ).first()
@@ -837,7 +837,7 @@ class SyncService:
                 existing = self.db.query(AdRecord).filter(
                     AdRecord.shop_id == self.shop_id,
                     AdRecord.product_id == product.id,
-                    AdRecord.record_date == record_date,
+                    func.date(AdRecord.record_date) == func.date(record_date),
                     AdRecord.ad_type == "product_analytics"
                 ).first()
                 if existing:
@@ -1045,7 +1045,7 @@ class SyncService:
                 existing = self.db.query(AdRecord).filter(
                     AdRecord.shop_id == self.shop_id,
                     AdRecord.product_id == product.id,
-                    AdRecord.record_date == record_date,
+                    func.date(AdRecord.record_date) == func.date(record_date),
                     AdRecord.ad_type == "product_analytics"
                 ).first()
                 if existing:
