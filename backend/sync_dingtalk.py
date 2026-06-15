@@ -43,10 +43,37 @@ def batch_create_records(base_id, table_id, records, batch_size=50):
         time.sleep(0.3)
     return total
 
+def ensure_views():
+    """确保 daily_stats 和 ad_daily 视图存在"""
+    conn = sqlite3.connect('/app/db/wb_erp.db')
+    conn.execute('''
+CREATE VIEW IF NOT EXISTS daily_stats AS
+SELECT shop_id, DATE(order_date) as stat_date,
+    COUNT(*) as order_count, SUM(total_amount) as order_sum,
+    SUM(ad_cost) as ad_cost, SUM(product_cost) as product_cost,
+    SUM(profit) as profit, AVG(profit_rate) as avg_profit_rate
+FROM orders WHERE order_date IS NOT NULL
+GROUP BY shop_id, DATE(order_date)
+''')
+    conn.execute('''
+CREATE VIEW IF NOT EXISTS ad_daily AS
+SELECT shop_id, record_date as stat_date,
+    SUM(impressions) as impressions, SUM(clicks) as clicks,
+    SUM(cost) as cost, SUM(cost_cny) as cost_cny,
+    SUM(order_count) as order_count, SUM(sales) as sales,
+    SUM(sales_cny) as sales_cny, SUM(visitors) as visitors,
+    SUM(cart_count) as cart_count
+FROM ad_records WHERE record_date IS NOT NULL
+GROUP BY shop_id, record_date
+''')
+    conn.commit()
+    conn.close()
+
 def sync_table(table_name, query, field_ids, date_fields=None):
     if date_fields is None:
         date_fields = []
     print(f"=== {table_name} ===")
+    ensure_views()  # 先确保视图存在
     conn = sqlite3.connect('/app/db/wb_erp.db')
     conn.row_factory = sqlite3.Row
     rows = conn.execute(query).fetchall()
