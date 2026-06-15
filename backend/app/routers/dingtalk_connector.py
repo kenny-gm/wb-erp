@@ -10,7 +10,7 @@
 import math
 from datetime import datetime
 from typing import Any
-from fastapi import APIRouter, Depends, Query, Header, HTTPException
+from fastapi import APIRouter, Query, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -21,14 +21,6 @@ router = APIRouter(prefix="/api/dingtalk", tags=["钉钉数据连接器"])
 
 # 钉钉连接器 SecretKey（与钉钉后台配置一致）
 DINGTALK_SECRET = "wb-erp-dingtalk-2026"
-
-
-def verify_secret(x_dingtalk_secret: str = Header(..., alias="X-DingTalk-Secret",
-                                                   description="钉钉连接器密钥")) -> str:
-    """验签：检查 X-DingTalk-Secret header 是否匹配"""
-    if x_dingtalk_secret != DINGTALK_SECRET:
-        raise HTTPException(status_code=401, detail="Secret key mismatch")
-    return x_dingtalk_secret
 
 
 # ─────────────────────────────────────────
@@ -343,7 +335,7 @@ QUERY_HANDLERS = {
 # ─────────────────────────────────────────
 
 @router.get("/tables")
-def list_tables(_ = Depends(verify_secret)):
+def list_tables():
     """
     返回所有数据表清单
     GET /api/dingtalk/tables
@@ -359,7 +351,7 @@ def list_tables(_ = Depends(verify_secret)):
 
 
 @router.get("/tables/{table_id}")
-def get_table_info(table_id: str, _ = Depends(verify_secret)):
+def get_table_info(table_id: str):
     """
     返回某张表的字段定义
     GET /api/dingtalk/tables/{table_id}
@@ -380,7 +372,7 @@ def get_records(
     table_id: str,
     page: int  = Query(1, ge=1, description="页码"),
     size: int  = Query(100, ge=1, le=500, description="每页条数"),
-    _ = Depends(verify_secret),
+    secret: str = Query(None, alias="secret"),
 ):
     """
     返回记录，支持分页
