@@ -6,10 +6,6 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Date, Text, ForeignKey, Enum as SQLEnum, JSON, Index
 from sqlalchemy.orm import relationship
 from app.database import Base
-from app.models.profit_models import (
-    ShopCostConfig, ProductCostHistory, SalesReport,
-    ReportProductDetail, ExchangeRateRecord, PaymentRecord, FixedCost
-)
 import enum
 
 
@@ -349,10 +345,7 @@ class SyncLog(Base):
     started_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")))
     finished_at = Column(DateTime, nullable=True)
 
-# 动态添加利润核算关系
-Shop.cost_config = relationship("ShopCostConfig", back_populates="shop", uselist=False)
-Shop.order_sum_reports = relationship("SalesReport", back_populates="shop")
-Product.cost_histories = relationship("ProductCostHistory", back_populates="product")
+
 
 
 
