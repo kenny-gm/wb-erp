@@ -7,7 +7,9 @@ import sys, os, json, urllib.request, sqlite3, time
 
 sys.path.insert(0, '/app/backend')
 
-MCP_URL = 'https://mcp-gw.dingtalk.com/server/bca43adceffe04aa480abdff760e8272a2c1ce6f64be41653f23149fbe06bae1?key=29bccabbf0e05d979d525beed09e8f24'
+MCP_URL = os.getenv("DINGTALK_MCP_URL")
+if not MCP_URL:
+    raise RuntimeError("DINGTALK_MCP_URL environment variable is required")
 
 TABLES = {
     'products':    {'base': 'Y1OQX0akWm6KBXgLCbyoaYA6VGlDd3mE', 'table': 'hERWDMS'},

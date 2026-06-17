@@ -30,6 +30,8 @@ from unittest.mock import MagicMock, patch
 from types import SimpleNamespace
 
 import pytest
+from pathlib import Path
+import importlib.util
 from sqlalchemy import create_engine, func, text
 from sqlalchemy.orm import sessionmaker
 
@@ -624,7 +626,7 @@ def test_migration_idempotent(mock_db):
 
         # 动态加载 migration 模块
         spec = importlib.util.spec_from_file_location(
-            "mig", "/app/backend/migrations/fix_ad_records_dedup_index.py"
+            "mig", Path(__file__).resolve().parents[1] / "migrations" / "fix_ad_records_dedup_index.py"
         )
         mig_mod = importlib.util.module_from_spec(spec)
         original_engine = None
