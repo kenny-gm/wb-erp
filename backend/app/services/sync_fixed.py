@@ -980,8 +980,10 @@ class SyncService:
                         logger.warning(f"  businessId 请求失败，允许fallback: {result.get('error', 'unknown')}")
                         business_request_succeeded = False
                 except Exception as e:
-                    logger.warning(f"  businessId 请求异常，fallback到campaign: {e}")
-                    business_request_succeeded = False
+                    msg = f"businessId 请求异常（不fallback）: {e}"
+                    logger.error(msg, exc_info=True)
+                    self._finish_sync_log(sync_log, False, 0, msg)
+                    return {"success": False, "error": msg}
 
             # Fallback 只允许：400 参数错误导致 fallback_allowed=True
             # 420 / 超时 / 解析失败 / 缺sheet / 无reportId → 不fallback，直接返回错误
@@ -1041,7 +1043,7 @@ class SyncService:
                     logger.warning(f"  Yandex traffic: 产品 SKU={sku} 不存在，跳过")
                     continue
 
-                record_date = datetime.strptime(rec["date"][:10], "%Y-%m-%d").date()
+                record_date = datetime.strptime(rec["date"][:10], "%Y-%m-%d")
                 existing = self.db.query(AdRecord).filter(
                     AdRecord.shop_id == self.shop_id,
                     AdRecord.product_id == product.id,
@@ -1049,8 +1051,9 @@ class SyncService:
                     AdRecord.ad_type == "product_analytics"
                 ).first()
                 if existing:
-                    # 只更新流量字段，不触碰 order_count/sales
+                    # 只更新流量字段，不触碰 order_count/sales/cost
                     existing.impressions = rec.get("shows", 0) or 0
+                    existing.clicks = rec.get("clicks", 0) or 0
                     existing.visitors = rec.get("clicks", 0) or 0
                     existing.cart_count = rec.get("to_cart", 0) or 0
                 else:
@@ -1060,10 +1063,13 @@ class SyncService:
                         record_date=record_date,
                         ad_type="product_analytics",
                         impressions=rec.get("shows", 0) or 0,
+                        clicks=rec.get("clicks", 0) or 0,
                         visitors=rec.get("clicks", 0) or 0,
                         cart_count=rec.get("to_cart", 0) or 0,
                         order_count=0,
                         sales=0.0,
+                        cost=0.0,
+                        advert_id=0,
                     )
                     self.db.add(ad_record)
                     count += 1

@@ -18,7 +18,8 @@ def start_scheduler():
         # Daily at 6:15 AM Beijing time - Yandex traffic sync (shows-sales)
         scheduler.add_job(sync_yandex_traffic_task, CronTrigger(hour=6, minute=15, timezone="Asia/Shanghai"))
         # Every 2 hours - sync ERP data to DingTalk AI Table
-        scheduler.add_job(sync_dingtalk_task, CronTrigger(minute=0, timezone="Asia/Shanghai"))
+        # Every 2 hours - sync ERP data to DingTalk AI Table
+        scheduler.add_job(sync_dingtalk_task, CronTrigger(hour="*/2", minute=0, timezone="Asia/Shanghai"))
         
         scheduler.start()
         print("定时任务调度器已启动")
@@ -45,7 +46,7 @@ def sync_dingtalk_task():
 
 def sync_yandex_traffic_task():
     """每天 6:15 北京时间同步 Yandex 流量数据（shows-sales 报告）"""
-    from app.core.database import SessionLocal
+    from app.database import SessionLocal
     from app.services.sync_fixed import SyncService
     from app.models.models import Shop
     import logging
