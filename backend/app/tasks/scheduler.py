@@ -1,5 +1,6 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 scheduler = BackgroundScheduler()
 
@@ -17,9 +18,10 @@ def start_scheduler():
         scheduler.add_job(track_operation_effects, CronTrigger(hour=6, minute=10, timezone="Asia/Shanghai"))
         # Daily at 6:15 AM Beijing time - Yandex traffic sync (shows-sales)
         scheduler.add_job(sync_yandex_traffic_task, CronTrigger(hour=6, minute=15, timezone="Asia/Shanghai"))
-        # Every 2 hours - sync ERP data to DingTalk AI Table
-        # Every 2 hours - sync ERP data to DingTalk AI Table
-        scheduler.add_job(sync_dingtalk_task, CronTrigger(hour="*/2", minute=0, timezone="Asia/Shanghai"))
+        # Every 2 hours - sync ERP data to DingTalk AI Table (暂时禁用，待配置 DINGTALK_MCP_URL)
+        # scheduler.add_job(sync_dingtalk_task, CronTrigger(hour="*/2", minute=0, timezone="Asia/Shanghai"))
+        # Every 30 mins - sync shops that are due (based on each shop's sync_interval_hours)
+        scheduler.add_job(sync_due_shops_task, IntervalTrigger(minutes=30, timezone="Asia/Shanghai"))
         
         scheduler.start()
         print("定时任务调度器已启动")
@@ -63,5 +65,54 @@ def sync_yandex_traffic_task():
                 logger.info(f"Yandex traffic sync [{shop.name}]: {result}")
             except Exception as e:
                 logger.error(f"Yandex traffic sync [{shop.name}] 失败: {e}")
+    finally:
+        db.close()
+
+def sync_due_shops_task():
+    """每30分钟检查并同步到期的店铺（按各店铺的 sync_interval_hours）"""
+    import logging
+    from datetime import datetime, timedelta, timezone
+    from app.database import SessionLocal
+    from app.models.models import Shop
+    import httpx
+
+    logger = logging.getLogger("sync")
+    db = SessionLocal()
+    try:
+        shops = db.query(Shop).filter(Shop.is_active == 1).all()
+        now_cst = datetime.now(timezone(timedelta(hours=8)))  # 北京时间 aware
+
+        due_shops = []
+        for shop in shops:
+            interval = shop.sync_interval_hours or 24
+            last = shop.last_sync_at  # naive CST from DB
+            if last is None:
+                due_shops.append(shop)
+            else:
+                # last 是 naive datetime，now_cst 是 aware，直接相减
+                hours_since = (now_cst.replace(tzinfo=None) - last).total_seconds() / 3600
+                if hours_since >= interval:
+                    due_shops.append(shop)
+
+        if not due_shops:
+            logger.info(f"[店铺定时同步] 没有店铺需要同步")
+            return
+
+        logger.info(f"[店铺定时同步] 开始同步 {len(due_shops)} 个到期店铺: {[s.name for s in due_shops]}")
+        from app.config import settings
+        api_key = settings.INTERNAL_API_KEY
+        base_url = "http://localhost:8000"
+
+        for shop in due_shops:
+            try:
+                resp = httpx.post(
+                    f"{base_url}/api/shops/internal-sync/{shop.id}/?api_key={api_key}&sync_type=all",
+                    timeout=600
+                )
+                result = resp.json()
+                ok = result.get("success", False)
+                logger.info(f"[店铺定时同步] {shop.name}: {'成功' if ok else '失败'}")
+            except Exception as e:
+                logger.error(f"[店铺定时同步] {shop.name} 失败: {e}")
     finally:
         db.close()

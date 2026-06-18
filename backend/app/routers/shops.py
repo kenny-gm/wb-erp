@@ -9,6 +9,7 @@ from pydantic import BaseModel, field_serializer
 
 from app.database import get_db
 from app.models.models import Shop, SyncLog, SyncJob
+import app
 from fastapi import BackgroundTasks
 from app.routers.auth import get_current_user, get_current_admin
 from app.services.sync_fixed import SyncService
@@ -536,7 +537,7 @@ def get_traffic_source(
 
 
 # ========== 内部同步端点（使用API密钥）==========
-INTERNAL_API_KEY = "wb-erp-internal-sync-key-2026"
+# INTERNAL_API_KEY 从 app.config.settings 读取，不在此硬编码
 
 
 @router.post("/internal-sync/{shop_id}/")
@@ -551,7 +552,7 @@ def internal_sync_shop_data(
     import logging
     logger = logging.getLogger(__name__)
 
-    if api_key != INTERNAL_API_KEY:
+    if api_key != app.config.settings.INTERNAL_API_KEY:
         raise HTTPException(status_code=401, detail="无效的API密钥")
 
     return _sync_shop_data_internal(shop_id, sync_type, history, db)

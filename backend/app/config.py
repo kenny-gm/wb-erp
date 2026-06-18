@@ -14,18 +14,22 @@ class Settings(BaseSettings):
     APP_NAME: str = "WB ERP"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
-    
+    APP_ENV: str = "development"  # production | development | dev | local — 必须是明确声明的生产环境才强制安全检查
+
     # ========== 时区配置 ==========
     TIMEZONE: str = "Asia/Shanghai"
     TZ: str = "Asia/Shanghai"
-    
+
     # ========== 数据库配置 ==========
     DATABASE_URL: str = "sqlite:////app/db/wb_erp.db"
-    
+
     # ========== JWT 配置 ==========
     SECRET_KEY: str = "your-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 1  # 1天
+
+    # ========== 内部同步密钥 ==========
+    INTERNAL_API_KEY: Optional[str] = None
     
     # ========== WB API 配置 ==========
     WB_API_KEY: Optional[str] = None
@@ -68,7 +72,23 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    # 安全检查：仅在明确声明为生产环境（APP_ENV=production）且非调试模式时强制要求
+    _default_secret = "your-secret-key-change-in-production"
+    _is_prod = not settings.DEBUG and settings.APP_ENV == "production"
+    if _is_prod and settings.SECRET_KEY == _default_secret:
+        raise RuntimeError(
+            "FATAL: SECRET_KEY 使用了生产默认值。"
+            "请在 .env 或环境变量中设置安全的 SECRET_KEY。"
+            "当前: APP_ENV={}, DEBUG={}".format(settings.APP_ENV, settings.DEBUG)
+        )
+    if _is_prod and not settings.INTERNAL_API_KEY:
+        raise RuntimeError(
+            "FATAL: INTERNAL_API_KEY 未设置。"
+            "请在 .env 或环境变量中配置 WB_ERP_INTERNAL_API_KEY。"
+            "当前: APP_ENV={}, DEBUG={}".format(settings.APP_ENV, settings.DEBUG)
+        )
+    return settings
 
 
 settings = get_settings()

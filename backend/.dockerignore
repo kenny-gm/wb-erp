@@ -1,0 +1,45 @@
+# 调试和诊断脚本（包含 token 打印，禁止进入生产镜像）
+debug_*.py
+check_*.py
+test_*.py
+xt_*.py
+diagnose_*.py
+deep_test_*.py
+simple_test.py
+*.backup*
+sync.py.backup*
+products.py.backup*
+chk_xt.py
+
+# IDE 和编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 环境文件（包含密钥）
+.env
+.env.*
+!.env.example
+
+# 数据文件
+*.db
+*.db-shm
+*.db-wal
+
+# 日志
+*.log
+
+# 其他
+*.md
+!requirements.txt
+.DS_Store
