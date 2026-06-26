@@ -20,6 +20,7 @@ export const useAuthStore = defineStore('auth', () => {
     { key: 'customer-service', name: '客服工作台', path: '/customer-service' },
     { key: 'admin', name: '系统管理', path: '/admin' }
   ])
+  // 如果后端菜单表有更多菜单，先用后端数据覆盖
   
   async function fetchMenus() {
     try {

@@ -145,35 +145,40 @@ migrate_add_sync_jobs()
 # ============================================================
 # 迁移：确保客服工作台菜单存在
 # ============================================================
-def migrate_add_customer_service_menu():
-    """幂等补充客服工作台菜单。已有菜单表的生产库也需要补这一项。"""
+def migrate_add_all_menu_items():
+    """幂等补充所有侧边栏菜单项。已有菜单表的生产库也需补全。"""
     from app.database import SessionLocal
     from app.models.models import MenuItem
 
     db = SessionLocal()
     try:
-        existing = db.query(MenuItem).filter(MenuItem.key == "customer-service").first()
-        if existing:
-            print("customer-service 菜单已存在，跳过")
-            return True
-        menu = MenuItem(
-            key="customer-service",
-            name="客服工作台",
-            icon="ChatDotRound",
-            path="/customer-service",
-            sort_order=6,
-            is_visible=True,
-        )
-        db.add(menu)
-        db.commit()
-        print("customer-service 菜单添加成功")
+        existing_keys = {m.key for m in db.query(MenuItem).all()}
+        all_menus = [
+            ("dashboard", "销售看板", "TrendCharts", "/dashboard", 1),
+            ("ads", "广告分析", "DataLine", "/ads", 2),
+            ("operation-logs", "运营日志", "Document", "/operation-logs", 3),
+            ("inventory", "库存管理", "Box", "/inventory", 4),
+            ("orders", "订单管理", "Document", "/orders", 5),
+            ("customer-service", "客服工作台", "ChatDotRound", "/customer-service", 6),
+            ("admin", "系统管理", "Setting", "/admin", 99),
+        ]
+        added = []
+        for key, name, icon, path, sort_order in all_menus:
+            if key not in existing_keys:
+                db.add(MenuItem(key=key, name=name, icon=icon, path=path, sort_order=sort_order, is_visible=True))
+                added.append(key)
+        if added:
+            db.commit()
+            print(f"菜单添加成功: {added}")
+        else:
+            print("所有菜单已存在，跳过")
         return True
     except Exception as e:
         db.rollback()
-        print(f"添加 customer-service 菜单失败: {e}")
+        print(f"菜单迁移失败: {e}")
         return False
     finally:
         db.close()
 
 
-migrate_add_customer_service_menu()
+migrate_add_all_menu_items()

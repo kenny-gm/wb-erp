@@ -342,6 +342,7 @@ async function deleteUser(user) {
 }
 
 onMounted(() => {
+  authStore.fetchMenus()
   fetchUsers()
   fetchOwners()
 })

@@ -315,8 +315,11 @@ async function generateDraft() {
   drafting.value = true
   try {
     const res = await axios.post(`/api/customer-service/items/${activeItem.value.id}/ai-draft`)
-    replyText.value = res.data.draft || ''
+    const draft = res.data.draft || ''
+    // 先保存草稿，再刷新详情（selectItem 会清空 replyText）
+    replyText.value = draft
     await selectItem(activeItem.value)
+    replyText.value = draft
   } finally {
     drafting.value = false
   }
