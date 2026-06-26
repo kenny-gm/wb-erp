@@ -61,7 +61,7 @@
     </div>
 
     <div class="workspace">
-      <section class="queue" v-loading="loading">
+      <section class="queue" v-loading="loading" :class="{ 'hide-on-mobile': !!activeItem }">
         <button
           v-for="item in items"
           :key="item.id"
@@ -92,7 +92,10 @@
         <el-empty v-if="!loading && !items.length" description="暂无客服事项" />
       </section>
 
-      <section class="detail" v-if="activeItem">
+      <section class="detail" v-if="activeItem" :class="{ 'hide-on-mobile': !activeItem }">
+        <div class="detail-head mobile-back">
+          <el-button size="small" @click="activeItem = null" class="back-btn">← 返回列表</el-button>
+        </div>
         <div class="detail-head">
           <div>
             <div class="detail-tags">
@@ -188,7 +191,7 @@
         </div>
       </section>
 
-      <section class="detail empty" v-else>
+      <section class="detail empty hide-on-mobile" v-if="!activeItem">
         <el-empty description="请选择一条客服事项" />
       </section>
     </div>
@@ -755,9 +758,37 @@ function formatHours(hours) {
 
 @media (max-width: 980px) {
   .metrics,
-  .workspace,
   .filters {
     grid-template-columns: 1fr;
+  }
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+  .queue {
+    display: block;
+  }
+  .detail {
+    display: block;
+  }
+  .queue.hide-on-mobile,
+  .detail.hide-on-mobile {
+    display: none;
+  }
+  .queue.show-on-mobile,
+  .detail.show-on-mobile {
+    display: block;
+  }
+  .mobile-back {
+    display: flex;
+  }
+  .back-btn {
+    margin-bottom: 8px;
+  }
+}
+
+@media (min-width: 981px) {
+  .mobile-back {
+    display: none;
   }
 }
 </style>
