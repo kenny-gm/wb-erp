@@ -453,12 +453,13 @@ def _visible_query(query, current_user: User):
     if _is_admin(current_user):
         return query
     owners = _allowed_owners(current_user)
-    if not owners:
-        return query.filter(False)
-    return query.filter(or_(
-        CustomerServiceItem.owner.in_(owners),
-        CustomerServiceItem.assigned_owner.in_(owners),
-    ))
+    # 空数组 allowed_owners=[] 沿用系统语义：表示"可查看全部"，不过滤
+    if owners:
+        return query.filter(or_(
+            CustomerServiceItem.owner.in_(owners),
+            CustomerServiceItem.assigned_owner.in_(owners),
+        ))
+    return query
 
 
 def _get_visible_item(db: Session, item_id: int, current_user: User) -> CustomerServiceItem:
