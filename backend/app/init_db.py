@@ -141,3 +141,39 @@ def migrate_add_sync_jobs(db_url: str = None):
 
 migrate_add_sync_jobs()
 
+
+# ============================================================
+# 迁移：确保客服工作台菜单存在
+# ============================================================
+def migrate_add_customer_service_menu():
+    """幂等补充客服工作台菜单。已有菜单表的生产库也需要补这一项。"""
+    from app.database import SessionLocal
+    from app.models.models import MenuItem
+
+    db = SessionLocal()
+    try:
+        existing = db.query(MenuItem).filter(MenuItem.key == "customer-service").first()
+        if existing:
+            print("customer-service 菜单已存在，跳过")
+            return True
+        menu = MenuItem(
+            key="customer-service",
+            name="客服工作台",
+            icon="ChatDotRound",
+            path="/customer-service",
+            sort_order=6,
+            is_visible=True,
+        )
+        db.add(menu)
+        db.commit()
+        print("customer-service 菜单添加成功")
+        return True
+    except Exception as e:
+        db.rollback()
+        print(f"添加 customer-service 菜单失败: {e}")
+        return False
+    finally:
+        db.close()
+
+
+migrate_add_customer_service_menu()

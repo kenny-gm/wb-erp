@@ -1,0 +1,697 @@
+"""
+客服工作台路由
+
+v1 范围：
+- WB 问答、评价、买家聊天、退货申请统一收件箱
+- 负责人权限基于 User.allowed_owners
+- 每次处理写 CustomerServiceAction，不写 OperationLog
+"""
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
+
+import httpx
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel
+from sqlalchemy import case, or_
+from sqlalchemy.orm import Session
+from starlette.background import BackgroundTask
+
+from app.database import SessionLocal, get_db
+from app.models.models import (
+    CustomerServiceAction,
+    CustomerServiceItem,
+    CustomerServiceMessage,
+    Shop,
+    User,
+)
+from app.routers.auth import get_current_user
+from app.services.customer_service_sync import CustomerServiceSyncService
+from app.services.wb_customer_client import WBCustomerClient, WBCustomerRateLimit
+
+
+router = APIRouter(prefix="/api/customer-service", tags=["客服工作台"])
+SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
+
+
+class ReplyRequest(BaseModel):
+    message: str
+
+
+class AssignOwnerRequest(BaseModel):
+    assigned_owner: str
+    assigned_user_id: Optional[int] = None
+    handover_note: Optional[str] = None
+
+
+class StatusUpdateRequest(BaseModel):
+    status: str
+
+
+class ReturnAnswerRequest(BaseModel):
+    action: str
+    comment: Optional[str] = None
+
+
+class SyncRequest(BaseModel):
+    shop_id: Optional[int] = None
+    channel: str = "all"  # all/questions/feedbacks/chats/return_claims
+    days: int = 30
+
+
+@router.get("/stats")
+def get_customer_service_stats(
+    shop_id: Optional[int] = Query(None),
+    owner: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    query = _visible_query(db.query(CustomerServiceItem), current_user)
+    if shop_id:
+        query = query.filter(CustomerServiceItem.shop_id == shop_id)
+    if owner:
+        query = query.filter(or_(
+            CustomerServiceItem.owner == owner,
+            CustomerServiceItem.assigned_owner == owner,
+        ))
+
+    open_query = query.filter(CustomerServiceItem.is_archived == False)
+    return {
+        "open_total": open_query.filter(CustomerServiceItem.status.in_(["open", "pending_internal"])).count(),
+        "unanswered": open_query.filter(CustomerServiceItem.reply_status == "unanswered").count(),
+        "urgent": open_query.filter(CustomerServiceItem.risk_level == "urgent").count(),
+        "return_claims": open_query.filter(CustomerServiceItem.channel == "return_claim").count(),
+        "overdue": open_query.filter(CustomerServiceItem.is_overdue == True).count(),
+    }
+
+
+@router.get("/inbox")
+def list_customer_service_items(
+    shop_id: Optional[int] = Query(None),
+    owner: Optional[str] = Query(None),
+    channel: str = Query("all"),
+    status: str = Query("open"),
+    search: str = Query(""),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(30, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    query = _visible_query(db.query(CustomerServiceItem), current_user)
+    query = query.filter(CustomerServiceItem.is_archived == False)
+
+    if shop_id:
+        query = query.filter(CustomerServiceItem.shop_id == shop_id)
+    if owner:
+        query = query.filter(or_(
+            CustomerServiceItem.owner == owner,
+            CustomerServiceItem.assigned_owner == owner,
+        ))
+    if channel != "all":
+        query = query.filter(CustomerServiceItem.channel == channel)
+    if status != "all":
+        if status == "open":
+            query = query.filter(CustomerServiceItem.status.in_(["open", "pending_internal"]))
+        else:
+            query = query.filter(CustomerServiceItem.status == status)
+    if search:
+        like = f"%{search.strip()}%"
+        query = query.filter(or_(
+            CustomerServiceItem.nm_id.like(like),
+            CustomerServiceItem.sku.like(like),
+            CustomerServiceItem.product_name.like(like),
+            CustomerServiceItem.product_name_ru.like(like),
+            CustomerServiceItem.customer_name.like(like),
+            CustomerServiceItem.content.like(like),
+            CustomerServiceItem.external_id.like(like),
+        ))
+
+    total = query.count()
+    risk_order = case(
+        (CustomerServiceItem.risk_level == "urgent", 0),
+        (CustomerServiceItem.risk_level == "high", 1),
+        (CustomerServiceItem.risk_level == "normal", 2),
+        else_=3,
+    )
+    items = query.order_by(
+        risk_order,
+        CustomerServiceItem.sla_deadline_at.is_(None),
+        CustomerServiceItem.sla_deadline_at.asc(),
+        CustomerServiceItem.external_created_at.desc(),
+        CustomerServiceItem.id.desc(),
+    ).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [_serialize_item(item) for item in items],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@router.get("/items/{item_id}")
+def get_customer_service_item(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    item = _get_visible_item(db, item_id, current_user)
+    return _serialize_item(item, include_messages=True, include_actions=True)
+
+
+@router.get("/items/{item_id}/related")
+def get_related_items(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """获取同一买家（buyer_key）的其他客服事项，含不同 channel"""
+    item = _get_visible_item(db, item_id, current_user)
+    buyer_key = _buyer_key(item)
+    if not buyer_key:
+        return {"items": []}
+    query = _visible_query(db.query(CustomerServiceItem), current_user)
+    related = query.filter(
+        CustomerServiceItem.id != item_id,
+        CustomerServiceItem.buyer_key == buyer_key,
+        CustomerServiceItem.is_archived == False,
+    ).order_by(CustomerServiceItem.external_created_at.desc()).limit(10).all()
+    return {"items": [_serialize_item(it) for it in related]}
+
+
+@router.post("/sync")
+def sync_customer_service(
+    data: SyncRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_manager(current_user)
+    shops_query = db.query(Shop).filter(
+        Shop.is_active == True,
+        Shop.platform == "wildberries",
+    )
+    if data.shop_id:
+        shops_query = shops_query.filter(Shop.id == data.shop_id)
+    shops = shops_query.all()
+    if not shops:
+        raise HTTPException(status_code=404, detail="未找到可同步的 WB 店铺")
+
+    for shop in shops:
+        background_tasks.add_task(_run_customer_service_sync_task, shop.id, data.channel, data.days)
+    return {
+        "success": True,
+        "status": "queued",
+        "count": len(shops),
+        "message": "客服数据同步已开始，稍后刷新收件箱查看结果",
+    }
+
+
+@router.get("/permission-check/{shop_id}")
+def check_customer_service_permission(
+    shop_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_manager(current_user)
+    shop = db.query(Shop).filter(Shop.id == shop_id, Shop.is_active == True).first()
+    if not shop:
+        raise HTTPException(status_code=404, detail="店铺不存在")
+    if shop.platform != "wildberries":
+        raise HTTPException(status_code=400, detail="当前仅支持 WB 客服权限检测")
+    return WBCustomerClient(shop.api_token).check_permissions()
+
+
+@router.post("/items/{item_id}/ai-draft")
+def generate_ai_reply_draft(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    item = _get_visible_item(db, item_id, current_user)
+    draft = _make_russian_reply_draft(item)
+    _record_action(
+        db,
+        item,
+        current_user,
+        "ai_draft_generated",
+        request={"channel": item.channel, "content": item.content},
+        response={"draft": draft},
+    )
+    _touch_handled(item, current_user)
+    db.commit()
+    return {"success": True, "draft": draft}
+
+
+@router.post("/items/{item_id}/reply")
+def reply_customer_service_item(
+    item_id: int,
+    data: ReplyRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    message = data.message.strip()
+    if len(message) < 8:
+        raise HTTPException(status_code=400, detail="回复内容过短")
+    if _contains_cjk(message):
+        raise HTTPException(status_code=400, detail="回复草稿含中文，请改为俄语后发送")
+
+    item = _get_visible_item(db, item_id, current_user)
+    client = WBCustomerClient(item.shop.api_token)
+    response: Dict[str, Any] = {}
+    action_type = "reply"
+
+    try:
+        if item.channel == "question":
+            response = client.answer_question(item.external_id, message)
+        elif item.channel == "feedback":
+            response = client.answer_feedback(item.external_id, message)
+        elif item.channel == "chat":
+            reply_sign = _raw(item).get("replySign") or _raw(item).get("reply_sign")
+            if not reply_sign:
+                raise HTTPException(status_code=400, detail="该聊天缺少 replySign，不能从系统直接发送")
+            response = client.send_chat_message(reply_sign, message)
+        else:
+            raise HTTPException(status_code=400, detail="该类型不能使用普通回复，请使用退货处理")
+    except WBCustomerRateLimit as exc:
+        _record_action(db, item, current_user, action_type, request={"message": message}, success=False, error=str(exc))
+        db.commit()
+        raise HTTPException(status_code=429, detail=f"WB API 限流: {exc}")
+
+    first_response = item.first_replied_at is None
+    now = _now()
+    if first_response:
+        item.first_replied_by = current_user.username
+        item.first_replied_at = now
+    item.reply_status = "answered"
+    item.status = "replied"
+    _touch_handled(item, current_user, now)
+    db.add(CustomerServiceMessage(
+        item_id=item.id,
+        external_message_id=f"local:{item.id}:{now.isoformat()}",
+        direction="seller",
+        sender_type="seller",
+        sender_name=current_user.username,
+        message_text=message,
+        attachments_json="[]",
+        created_at_external=now,
+        raw_json=_json({"local": True, "response": response}),
+    ))
+    _record_action(
+        db,
+        item,
+        current_user,
+        action_type,
+        request={"message": message},
+        response=response,
+        first_response=first_response,
+    )
+    db.commit()
+    return {"success": True, "message": "回复已发送"}
+
+
+@router.post("/items/{item_id}/assign-owner")
+def assign_customer_service_item(
+    item_id: int,
+    data: AssignOwnerRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    item = _get_visible_item(db, item_id, current_user)
+    item.assigned_owner = data.assigned_owner.strip()
+    item.assigned_user_id = data.assigned_user_id
+    item.handover_note = data.handover_note or ""
+    item.assignment_status = "assigned"
+    item.status = "pending_internal"
+    _touch_handled(item, current_user)
+    _record_action(db, item, current_user, "assign_owner", request=data.dict())
+    db.commit()
+    return {"success": True, "item": _serialize_item(item)}
+
+
+@router.patch("/items/{item_id}/status")
+def update_customer_service_status(
+    item_id: int,
+    data: StatusUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    allowed = {"open", "pending_internal", "replied", "closed", "archived"}
+    if data.status not in allowed:
+        raise HTTPException(status_code=400, detail="无效状态")
+    item = _get_visible_item(db, item_id, current_user)
+    item.status = data.status
+    if data.status == "archived":
+        item.is_archived = True
+    if data.status in ("closed", "archived"):
+        item.closed_by = current_user.username
+        item.closed_at = _now()
+        item.assignment_status = "closed"
+    _touch_handled(item, current_user)
+    _record_action(db, item, current_user, f"status_{data.status}", request=data.dict())
+    db.commit()
+    return {"success": True, "item": _serialize_item(item)}
+
+
+@router.post("/returns/{item_id}/answer")
+def answer_return_claim(
+    item_id: int,
+    data: ReturnAnswerRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    item = _get_visible_item(db, item_id, current_user)
+    if item.channel != "return_claim":
+        raise HTTPException(status_code=400, detail="不是退货申请")
+    client = WBCustomerClient(item.shop.api_token)
+    try:
+        response = client.answer_return_claim(item.external_id, data.action, data.comment)
+    except WBCustomerRateLimit as exc:
+        _record_action(db, item, current_user, f"return_{data.action}", request=data.dict(), success=False, error=str(exc))
+        db.commit()
+        raise HTTPException(status_code=429, detail=f"WB API 限流: {exc}")
+
+    item.reply_status = "answered"
+    item.status = "closed"
+    item.closed_by = current_user.username
+    item.closed_at = _now()
+    _touch_handled(item, current_user)
+    _record_action(db, item, current_user, f"return_{data.action}", request=data.dict(), response=response)
+    db.commit()
+    return {"success": True, "message": "退货申请已处理"}
+
+
+@router.post("/items/{item_id}/mark-read")
+def mark_customer_service_item_read(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    item = _get_visible_item(db, item_id, current_user)
+    item.is_viewed = True
+    _touch_handled(item, current_user)
+    _record_action(db, item, current_user, "mark_read")
+    db.commit()
+    return {"success": True}
+
+
+@router.get("/attachments/{download_id}")
+def proxy_customer_service_attachment(
+    download_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    message = db.query(CustomerServiceMessage).filter(
+        CustomerServiceMessage.attachments_json.contains(download_id)
+    ).first()
+    if not message:
+        raise HTTPException(status_code=404, detail="附件不存在")
+    item = _get_visible_item(db, message.item_id, current_user)
+    url = WBCustomerClient(item.shop.api_token).download_url(download_id)
+    client = httpx.Client(timeout=60.0)
+    request = client.build_request("GET", url, headers={"Authorization": item.shop.api_token})
+    response = client.send(request, stream=True)
+    if response.status_code != 200:
+        response.close()
+        client.close()
+        if response.status_code in (202, 451):
+            raise HTTPException(status_code=202, detail="附件仍在 WB 准备中，请稍后再试")
+        raise HTTPException(status_code=response.status_code, detail=response.text[:500])
+
+    return StreamingResponse(
+        response.iter_bytes(),
+        media_type=response.headers.get("content-type", "application/octet-stream"),
+        background=BackgroundTask(lambda: (response.close(), client.close())),
+    )
+
+
+def _run_customer_service_sync_task(shop_id: int, channel: str, days: int) -> None:
+    db = SessionLocal()
+    try:
+        shop = db.query(Shop).filter(Shop.id == shop_id, Shop.is_active == True).first()
+        if not shop or shop.platform != "wildberries":
+            return
+        service = CustomerServiceSyncService(db, shop)
+        if channel == "questions":
+            service.sync_questions(days=days)
+        elif channel == "feedbacks":
+            service.sync_feedbacks(days=days)
+        elif channel == "chats":
+            service.sync_chats()
+        elif channel == "return_claims":
+            service.sync_return_claims()
+        else:
+            service.sync_all(days=days)
+    finally:
+        db.close()
+
+
+def _visible_query(query, current_user: User):
+    if _is_admin(current_user):
+        return query
+    owners = _allowed_owners(current_user)
+    if not owners:
+        return query.filter(False)
+    return query.filter(or_(
+        CustomerServiceItem.owner.in_(owners),
+        CustomerServiceItem.assigned_owner.in_(owners),
+    ))
+
+
+def _get_visible_item(db: Session, item_id: int, current_user: User) -> CustomerServiceItem:
+    item = _visible_query(
+        db.query(CustomerServiceItem),
+        current_user,
+    ).filter(CustomerServiceItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="客服事项不存在或无权限")
+    return item
+
+
+def _allowed_owners(user: User) -> List[str]:
+    owners = getattr(user, "allowed_owners", None)
+    if isinstance(owners, (list, tuple, set)):
+        return [str(o) for o in owners if o]
+    return []
+
+
+def _role(user: User) -> str:
+    value = getattr(user, "role", "")
+    return getattr(value, "value", value)
+
+
+def _is_admin(user: User) -> bool:
+    return _role(user) == "admin"
+
+
+def _require_manager(user: User) -> None:
+    if _role(user) not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="仅管理员或经理可执行该操作")
+
+
+def _serialize_item(
+    item: CustomerServiceItem,
+    include_messages: bool = False,
+    include_actions: bool = False,
+) -> Dict[str, Any]:
+    data = {
+        "id": item.id,
+        "shop_id": item.shop_id,
+        "shop_name": item.shop.name if item.shop else "",
+        "platform": item.platform,
+        "channel": item.channel,
+        "external_id": item.external_id,
+        "external_status": item.external_status,
+        "product_id": item.product_id,
+        "nm_id": item.nm_id,
+        "sku": item.sku,
+        "product_name": item.product_name,
+        "product_name_ru": item.product_name_ru,
+        "owner": item.owner,
+        "product_matched": item.product_matched,
+        "assigned_owner": item.assigned_owner,
+        "assigned_user_id": item.assigned_user_id,
+        "assignment_status": item.assignment_status,
+        "handover_note": item.handover_note,
+        "customer_name": item.customer_name,
+        "title": item.title,
+        "content": item.content,
+        "rating": item.rating,
+        "rating_display": _rating_stars(item.rating) if item.rating else None,
+        "status": item.status,
+        "reply_status": item.reply_status,
+        "priority": item.priority,
+        "risk_level": item.risk_level,
+        "issue_type": item.issue_type,
+        "is_viewed": item.is_viewed,
+        "first_replied_by": item.first_replied_by,
+        "first_replied_at": _fmt(item.first_replied_at),
+        "last_handled_by": item.last_handled_by,
+        "last_handled_at": _fmt(item.last_handled_at),
+        "closed_by": item.closed_by,
+        "closed_at": _fmt(item.closed_at),
+        "external_created_at": _fmt(item.external_created_at),
+        "external_updated_at": _fmt(item.external_updated_at),
+        "sla_deadline_at": _fmt(item.sla_deadline_at),
+        "sla_hours_left": _hours_left(item.sla_deadline_at),
+        "is_overdue": item.is_overdue,
+        "return_deadline_hours": item.return_deadline_hours,
+        "raw_json": _raw(item),
+        "created_at": _fmt(item.created_at),
+        "updated_at": _fmt(item.updated_at),
+        "buyer_key": _buyer_key(item),
+    }
+    if include_messages:
+        messages = sorted(item.messages or [], key=lambda m: m.created_at_external or m.created_at)
+        data["messages"] = [_serialize_message(m) for m in messages]
+    if include_actions:
+        actions = sorted(item.actions or [], key=lambda a: a.action_time, reverse=True)
+        data["actions"] = [_serialize_action(a) for a in actions[:50]]
+    return data
+
+
+def _serialize_message(message: CustomerServiceMessage) -> Dict[str, Any]:
+    return {
+        "id": message.id,
+        "external_message_id": message.external_message_id,
+        "direction": message.direction,
+        "sender_type": message.sender_type,
+        "sender_name": message.sender_name,
+        "message_text": message.message_text,
+        "attachments": _json_loads(message.attachments_json, []),
+        "created_at_external": _fmt(message.created_at_external),
+        "created_at": _fmt(message.created_at),
+    }
+
+
+def _serialize_action(action: CustomerServiceAction) -> Dict[str, Any]:
+    return {
+        "id": action.id,
+        "user_id": action.user_id,
+        "username": action.user.username if action.user else "",
+        "action_type": action.action_type,
+        "action_time": _fmt(action.action_time),
+        "success": action.success,
+        "error": action.error,
+        "first_response": action.first_response,
+        "effective_response": action.effective_response,
+        "response_minutes": action.response_minutes,
+        "quality_score": action.quality_score,
+        "quality_result": action.quality_result,
+        "quality_reason": action.quality_reason,
+    }
+
+
+def _record_action(
+    db: Session,
+    item: CustomerServiceItem,
+    user: User,
+    action_type: str,
+    request: Optional[Dict[str, Any]] = None,
+    response: Optional[Dict[str, Any]] = None,
+    success: bool = True,
+    error: str = "",
+    first_response: bool = False,
+) -> None:
+    response_minutes = None
+    if first_response and item.external_created_at:
+        response_minutes = max(0, (_now() - item.external_created_at).total_seconds() / 60)
+    db.add(CustomerServiceAction(
+        item_id=item.id,
+        user_id=user.id,
+        action_type=action_type,
+        request_json=_json(request or {}),
+        response_json=_json(response or {}),
+        success=success,
+        error=error,
+        first_response=first_response,
+        effective_response=bool(first_response and response_minutes is not None and response_minutes <= 24 * 60),
+        response_minutes=response_minutes,
+    ))
+
+
+def _touch_handled(item: CustomerServiceItem, user: User, now: Optional[datetime] = None) -> None:
+    item.last_handled_by = user.username
+    item.last_handled_at = now or _now()
+    item.updated_at = now or _now()
+
+
+def _make_russian_reply_draft(item: CustomerServiceItem) -> str:
+    product = item.product_name_ru or item.sku or item.nm_id or "товар"
+    if item.channel == "return_claim":
+        return (
+            f"Здравствуйте. Спасибо за обращение по товару {product}. "
+            "Мы проверим информацию по заявке на возврат и примем решение в ближайшее время."
+        )
+    if item.channel == "feedback" and item.rating and item.rating <= 3:
+        return (
+            f"Здравствуйте. Нам жаль, что товар {product} не полностью оправдал ожидания. "
+            "Спасибо за подробный отзыв, мы передадим информацию ответственному специалисту и проверим качество партии."
+        )
+    if item.channel == "question":
+        return (
+            f"Здравствуйте. Спасибо за вопрос по товару {product}. "
+            "Уточните, пожалуйста, какой именно параметр вас интересует, и мы поможем с выбором."
+        )
+    return (
+        f"Здравствуйте. Спасибо за обращение по товару {product}. "
+        "Мы проверим информацию и вернемся с ответом как можно скорее."
+    )
+
+
+def _buyer_key(item: CustomerServiceItem) -> str:
+    raw = _raw(item)
+    if item.channel in ("feedback", "question"):
+        return raw.get("userName") or item.customer_name or ""
+    if item.channel == "chat":
+        return raw.get("clientName") or item.customer_name or ""
+    if item.channel == "return_claim":
+        # srid 是 WB 内部订单+买家标识，可用于跨 channel 关联同一买家
+        return raw.get("srid") or item.customer_name or ""
+    return item.customer_name or ""
+
+
+def _rating_stars(rating: Optional[int]) -> str:
+    if not rating:
+        return ""
+    return "★" * rating + "☆" * (5 - rating)
+
+
+def _contains_cjk(text: str) -> bool:
+    return any("\u4e00" <= ch <= "\u9fff" for ch in text)
+
+
+def _raw(item: CustomerServiceItem) -> Dict[str, Any]:
+    return _json_loads(item.raw_json, {})
+
+
+def _json(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, default=str)
+
+
+def _json_loads(value: Optional[str], default: Any) -> Any:
+    if not value:
+        return default
+    try:
+        return json.loads(value)
+    except Exception:
+        return default
+
+
+def _fmt(value: Optional[datetime]) -> Optional[str]:
+    if not value:
+        return None
+    return value.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _hours_left(deadline: Optional[datetime]) -> Optional[float]:
+    if not deadline:
+        return None
+    return round((deadline - _now()).total_seconds() / 3600, 2)
+
+
+def _now() -> datetime:
+    return datetime.now(SHANGHAI_TZ).replace(tzinfo=None)

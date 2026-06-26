@@ -33,6 +33,11 @@
           <el-icon><Document /></el-icon>
           <span>运营日志</span>
         </el-menu-item>
+
+        <el-menu-item v-if="authStore.canAccess('customer-service')" index="/customer-service">
+          <el-icon><Document /></el-icon>
+          <span>客服工作台</span>
+        </el-menu-item>
         
         <el-menu-item v-if="authStore.isAdmin" index="/admin">
           <el-icon><Setting /></el-icon>

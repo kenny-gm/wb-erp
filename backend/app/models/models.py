@@ -346,6 +346,139 @@ class SyncLog(Base):
     finished_at = Column(DateTime, nullable=True)
 
 
+class CustomerServiceItem(Base):
+    """客服工单：WB 问答/评价/聊天/退货申请统一入口"""
+    __tablename__ = "customer_service_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shops.id"), nullable=False)
+    platform = Column(String(20), default="wildberries", nullable=False)
+    channel = Column(String(30), nullable=False)  # question/feedback/chat/return_claim
+    external_id = Column(String(120), nullable=False)
+    external_status = Column(String(80), default="")
+
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
+    nm_id = Column(String(50), nullable=True)
+    sku = Column(String(100), nullable=True)
+    product_name = Column(String(500), nullable=True)
+    product_name_ru = Column(String(500), nullable=True)
+    owner = Column(String(100), nullable=True)
+    product_matched = Column(Boolean, default=False)
+
+    assigned_owner = Column(String(100), nullable=True)
+    assigned_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    assignment_status = Column(String(30), default="unassigned")  # unassigned/assigned/pending_internal/closed
+    handover_note = Column(Text, default="")
+
+    customer_name = Column(String(200), nullable=True)
+    title = Column(String(500), default="")
+    content = Column(Text, default="")
+    rating = Column(Integer, nullable=True)
+
+    status = Column(String(30), default="open")  # open/pending_internal/replied/closed/archived
+    reply_status = Column(String(30), default="unanswered")  # unanswered/answered/failed
+    priority = Column(String(20), default="normal")  # low/normal/high/urgent
+    risk_level = Column(String(20), default="normal")  # low/normal/high/urgent
+    issue_type = Column(String(50), default="other")
+    is_viewed = Column(Boolean, default=False)
+    is_archived = Column(Boolean, default=False)
+
+    first_replied_by = Column(String(100), nullable=True)
+    first_replied_at = Column(DateTime, nullable=True)
+    last_handled_by = Column(String(100), nullable=True)
+    last_handled_at = Column(DateTime, nullable=True)
+    closed_by = Column(String(100), nullable=True)
+    closed_at = Column(DateTime, nullable=True)
+
+    external_created_at = Column(DateTime, nullable=True)
+    external_updated_at = Column(DateTime, nullable=True)
+    sla_deadline_at = Column(DateTime, nullable=True)
+    is_overdue = Column(Boolean, default=False)
+    return_deadline_hours = Column(Integer, default=120)
+
+    raw_json = Column(Text, default="{}")
+    created_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")))
+    updated_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")), onupdate=lambda ctx: datetime.now(ZoneInfo("Asia/Shanghai")))
+
+    shop = relationship("Shop")
+    product = relationship("Product")
+    assigned_user = relationship("User")
+    messages = relationship("CustomerServiceMessage", back_populates="item")
+    actions = relationship("CustomerServiceAction", back_populates="item")
+
+    __table_args__ = (
+        Index("ix_customer_service_item_dedup", "shop_id", "platform", "channel", "external_id", unique=True),
+        Index("ix_customer_service_item_inbox", "shop_id", "channel", "status", "external_created_at"),
+        Index("ix_customer_service_item_product", "product_id"),
+        Index("ix_customer_service_item_owner", "owner"),
+        Index("ix_customer_service_item_assigned_owner", "assigned_owner"),
+        Index("ix_customer_service_item_assigned_user", "assigned_user_id"),
+        Index("ix_customer_service_item_reply_status", "reply_status"),
+        Index("ix_customer_service_item_archived", "is_archived"),
+        Index("ix_customer_service_item_risk", "risk_level"),
+        Index("ix_customer_service_item_sla", "sla_deadline_at"),
+    )
+
+
+class CustomerServiceMessage(Base):
+    """客服消息明细：买家/客服/系统消息，不写入运营日志"""
+    __tablename__ = "customer_service_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    item_id = Column(Integer, ForeignKey("customer_service_items.id"), nullable=False)
+    external_message_id = Column(String(120), nullable=True)
+    direction = Column(String(20), default="buyer")  # buyer/seller/system
+    sender_type = Column(String(50), default="")
+    sender_name = Column(String(200), default="")
+    message_text = Column(Text, default="")
+    attachments_json = Column(Text, default="[]")
+    created_at_external = Column(DateTime, nullable=True)
+    raw_json = Column(Text, default="{}")
+    created_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")))
+
+    item = relationship("CustomerServiceItem", back_populates="messages")
+
+    __table_args__ = (
+        Index("ix_customer_service_message_item", "item_id"),
+        Index("ix_customer_service_message_external", "external_message_id"),
+        Index("ix_customer_service_message_time", "created_at_external"),
+    )
+
+
+class CustomerServiceAction(Base):
+    """客服动作审计：每次人工/AI/系统处理都记录处理人和时间"""
+    __tablename__ = "customer_service_actions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    item_id = Column(Integer, ForeignKey("customer_service_items.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    action_type = Column(String(50), nullable=False)  # reply/ai_draft_generated/mark_read/assign_owner/return_approve/return_reject/close/quality_check
+    action_time = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")))
+    request_json = Column(Text, default="{}")
+    response_json = Column(Text, default="{}")
+    success = Column(Boolean, default=True)
+    error = Column(Text, default="")
+
+    first_response = Column(Boolean, default=False)
+    effective_response = Column(Boolean, default=False)
+    response_minutes = Column(Float, nullable=True)
+    quality_score = Column(Float, nullable=True)
+    quality_result = Column(String(20), nullable=True)  # pass/fail/warning
+    quality_reason = Column(Text, default="")
+    ai_quality_json = Column(Text, default="{}")
+
+    created_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")))
+
+    item = relationship("CustomerServiceItem", back_populates="actions")
+    user = relationship("User")
+
+    __table_args__ = (
+        Index("ix_customer_service_action_item", "item_id"),
+        Index("ix_customer_service_action_user", "user_id"),
+        Index("ix_customer_service_action_type_time", "action_type", "action_time"),
+    )
+
+
 
 
 

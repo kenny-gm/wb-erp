@@ -41,6 +41,12 @@ const routes = [
         component: () => import('../views/admin/OperationLogs.vue'),
         meta: { title: '运营日志' }
       },
+      {
+        path: 'customer-service',
+        name: 'CustomerService',
+        component: () => import('../views/CustomerService.vue'),
+        meta: { title: '客服工作台' }
+      },
       // 后台管理路由
       {
         path: 'admin',

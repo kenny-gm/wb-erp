@@ -17,6 +17,7 @@ export const useAuthStore = defineStore('auth', () => {
     { key: 'dashboard', name: '销售看板', path: '/dashboard' },
     { key: 'ads', name: '广告分析', path: '/ads' },
     { key: 'operation-logs', name: '运营日志', path: '/operation-logs' },
+    { key: 'customer-service', name: '客服工作台', path: '/customer-service' },
     { key: 'admin', name: '系统管理', path: '/admin' }
   ])
   

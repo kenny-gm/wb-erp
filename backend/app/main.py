@@ -19,7 +19,7 @@ from migrations.fix_ad_records_dedup_index import migrate_fix_ad_records_dedup_i
 migrate_fix_ad_records_dedup_index()  # 幂等，重复执行无影响
 
 # 导入路由
-from app.routers import auth, dashboard, products, shops, admin, users, inventory, orders, ads
+from app.routers import auth, dashboard, products, shops, admin, users, inventory, orders, ads, customer_service
 from app.routers import metric_thresholds
 from app.routers import alerts, operation_logs, effect_analysis
 
@@ -28,7 +28,8 @@ from app.routers import alerts, operation_logs, effect_analysis
 from app.models.models import (
     User, Shop, Product, ProductPermission, InventoryRecord, InventorySnapshot,
     Order, OrderItem, AdRecord, SystemSetting, UISetting, MenuItem, SyncLog,
-    MetricHistory, OperationLog, Alert, AlertRule
+    MetricHistory, OperationLog, Alert, AlertRule,
+    CustomerServiceItem, CustomerServiceMessage, CustomerServiceAction
 )
 
 # 创建数据库表
@@ -86,6 +87,7 @@ app.include_router(users.router)
 app.include_router(inventory.router)
 app.include_router(orders.router)
 app.include_router(ads.router)
+app.include_router(customer_service.router)
 app.include_router(metric_thresholds.router)
 app.include_router(alerts.router)
 app.include_router(operation_logs.router)
