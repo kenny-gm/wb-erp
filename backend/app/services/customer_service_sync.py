@@ -244,10 +244,11 @@ class CustomerServiceSyncService:
         created_at = self._parse_dt(rec.get("addTimestamp")) or self._parse_dt(rec.get("addTime")) or self._parse_dt(rec.get("createdAt")) or self._parse_dt(rec.get("date"))
         direction = "seller" if rec.get("isSeller") or rec.get("sender") == "seller" else "buyer"
         external_id_str = str(chat_id or event_id)
-        # 跨 channel 去重：检查是否已存在（不同 channel 可能有相同 external_id）
+        # 同 channel 去重：检查是否已存在同 channel 的聊天事项
         existing = self.db.query(CustomerServiceItem).filter(
             CustomerServiceItem.shop_id == self.shop.id,
             CustomerServiceItem.platform == "wildberries",
+            CustomerServiceItem.channel == "chat",
             CustomerServiceItem.external_id == external_id_str,
         ).first()
         if existing:
