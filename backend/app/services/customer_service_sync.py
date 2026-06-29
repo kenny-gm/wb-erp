@@ -381,6 +381,15 @@ class CustomerServiceSyncService:
         item.risk_level = self._risk_level(channel, item.rating, item.sla_deadline_at)
         item.priority = item.risk_level
         item.raw_json = self._json(raw)
+        # buyer_key：跨 channel 聚合同一买家
+        if channel in ("feedback", "question"):
+            item.buyer_key = raw.get("userName") or customer_name or item.buyer_key
+        elif channel == "chat":
+            item.buyer_key = raw.get("clientName") or customer_name or item.buyer_key
+        elif channel == "return_claim":
+            item.buyer_key = raw.get("srid") or customer_name or item.buyer_key
+        else:
+            item.buyer_key = customer_name or item.buyer_key
         item.updated_at = self._now()
         return item
 

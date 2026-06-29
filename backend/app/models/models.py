@@ -397,6 +397,7 @@ class CustomerServiceItem(Base):
     return_deadline_hours = Column(Integer, default=120)
 
     raw_json = Column(Text, default="{}")
+    buyer_key = Column(String(200), nullable=True, index=True)  # 同买家跨 channel 聚合标识
     created_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")))
     updated_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")), onupdate=lambda ctx: datetime.now(ZoneInfo("Asia/Shanghai")))
 
