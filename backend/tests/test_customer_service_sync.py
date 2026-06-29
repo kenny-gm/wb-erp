@@ -167,7 +167,7 @@ def test_sync_all_all_subtasks_success(mock_db, mock_shop_wb, mock_product):
 
 
 # ============================================================
-# Test 2: 已有 chat 同步时 reply_sign / buyer_key 被刷新
+# Test 2: 已有 chat 同步时 reply_sign 刷新、buyer_key 不再刷新
 # ============================================================
 
 def test_existing_chat_refreshes_reply_sign_on_resync(mock_db, mock_shop_wb, mock_product):
@@ -346,7 +346,7 @@ def test_reply_sign_null_continues_without_reply_sign_in_response(mock_db, mock_
 def test_migration_idempotent_adds_columns_and_backfills(mock_db):
     """
     migrate_add_buyer_key_and_reply_sign() 幂等：
-    - 首次执行：添加列 + 回填 + 建索引
+    - 首次执行：添加 buyer_key + reply_sign 列 + 建索引（buyer_key 为历史兼容字段，非跨渠道聚合）
     - 再次执行：列/索引已存在则跳过
     """
     from app.database import engine

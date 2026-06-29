@@ -295,7 +295,7 @@ async function syncCustomerService() {
     const promises = logIds.map((logId) => pollSyncStatus(logId))
     await Promise.all(promises)
     ElMessage.success('同步完成，刷新收件箱查看结果')
-    await loadItems()
+    await reload()
   } catch (err) {
     ElMessage.error(err?.response?.data?.detail || '同步失败')
   } finally {
@@ -612,11 +612,6 @@ function formatHours(hours) {
   color: #f59e0b;
   font-size: 12px;
   letter-spacing: 1px;
-}
-
-.buyer-key {
-  color: #7c3aed;
-  font-size: 11px;
 }
 
 

@@ -169,7 +169,8 @@ def get_related_items(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """跨渠道聚合已禁用，WB 无稳定跨渠道买家ID，始终返回空列表"""
+    """跨渠道聚合已禁用，WB 无稳定跨渠道买家ID，始终返回空列表（保留权限检查和404行为）"""
+    _get_visible_item(db, item_id, current_user)  # 权限验证，item不存在或无权访问时抛404
     return {"items": []}
 
 
