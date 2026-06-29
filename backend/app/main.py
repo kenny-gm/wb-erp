@@ -18,6 +18,10 @@ migrate_add_platform_config()
 from migrations.fix_ad_records_dedup_index import migrate_fix_ad_records_dedup_index
 migrate_fix_ad_records_dedup_index()  # 幂等，重复执行无影响
 
+# 迁移：增加 buyer_key 和 reply_sign 字段（支持跨 channel 同买家聚合、聊天凭证刷新）
+from migrations.add_buyer_key_column import migrate_add_buyer_key_and_reply_sign
+migrate_add_buyer_key_and_reply_sign()  # 幂等，重复执行无影响
+
 # 导入路由
 from app.routers import auth, dashboard, products, shops, admin, users, inventory, orders, ads, customer_service
 from app.routers import metric_thresholds
