@@ -27,6 +27,7 @@ from app.models.models import (
     CustomerServiceItem,
     CustomerServiceMessage,
     Shop,
+    SyncLog,
     User,
 )
 from app.routers.auth import get_current_user
@@ -200,13 +201,48 @@ def sync_customer_service(
     if not shops:
         raise HTTPException(status_code=404, detail="未找到可同步的 WB 店铺")
 
+    log_ids = []
     for shop in shops:
-        background_tasks.add_task(_run_customer_service_sync_task, shop.id, data.channel, data.days)
+        sync_log = SyncLog(
+            shop_id=shop.id,
+            sync_type="customer_service",
+            status="running",
+            message=f"客服同步进行中（{shop.name}）",
+            records_count=0,
+        )
+        db.add(sync_log)
+        db.commit()
+        db.refresh(sync_log)
+        log_ids.append(sync_log.id)
+        background_tasks.add_task(_run_customer_service_sync_task, shop.id, data.channel, data.days, sync_log.id)
     return {
         "success": True,
         "status": "queued",
+        "log_ids": log_ids,
         "count": len(shops),
         "message": "客服数据同步已开始，稍后刷新收件箱查看结果",
+    }
+
+
+@router.get("/sync-status/{log_id}")
+def get_sync_status(
+    log_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """查询客服同步任务状态，前端轮询使用"""
+    _require_manager(current_user)
+    sync_log = db.query(SyncLog).filter(SyncLog.id == log_id).first()
+    if not sync_log:
+        raise HTTPException(status_code=404, detail="同步记录不存在")
+    return {
+        "id": sync_log.id,
+        "shop_id": sync_log.shop_id,
+        "status": sync_log.status,
+        "message": sync_log.message,
+        "records_count": sync_log.records_count,
+        "started_at": sync_log.started_at.isoformat() if sync_log.started_at else None,
+        "finished_at": sync_log.finished_at.isoformat() if sync_log.finished_at else None,
     }
 
 
@@ -449,23 +485,61 @@ def proxy_customer_service_attachment(
     )
 
 
-def _run_customer_service_sync_task(shop_id: int, channel: str, days: int) -> None:
+def _run_customer_service_sync_task(shop_id: int, channel: str, days: int, log_id: int) -> None:
     db = SessionLocal()
     try:
         shop = db.query(Shop).filter(Shop.id == shop_id, Shop.is_active == True).first()
         if not shop or shop.platform != "wildberries":
             return
         service = CustomerServiceSyncService(db, shop)
-        if channel == "questions":
-            service.sync_questions(days=days)
-        elif channel == "feedbacks":
-            service.sync_feedbacks(days=days)
-        elif channel == "chats":
-            service.sync_chats()
-        elif channel == "return_claims":
-            service.sync_return_claims()
-        else:
-            service.sync_all(days=days)
+        result = {"questions": None, "feedbacks": None, "chats": None, "return_claims": None}
+        try:
+            if channel == "questions":
+                result["questions"] = service.sync_questions(days=days)
+            elif channel == "feedbacks":
+                result["feedbacks"] = service.sync_feedbacks(days=days)
+            elif channel == "chats":
+                result["chats"] = service.sync_chats()
+            elif channel == "return_claims":
+                result["return_claims"] = service.sync_return_claims()
+            else:
+                result = service.sync_all(days=days)
+
+            # 统计总条数
+            total = 0
+            if isinstance(result, dict):
+                for v in result.values():
+                    if isinstance(v, dict):
+                        total += v.get("count", 0)
+
+            sync_log = db.query(SyncLog).filter(SyncLog.id == log_id).first()
+            if sync_log:
+                sync_log.status = "completed"
+                sync_log.records_count = total
+                sync_log.message = f"同步完成（{shop.name}）"
+                sync_log.finished_at = datetime.now(SHANGHAI_TZ)
+                db.commit()
+        except WBCustomerRateLimit as exc:
+            sync_log = db.query(SyncLog).filter(SyncLog.id == log_id).first()
+            if sync_log:
+                sync_log.status = "rate_limited"
+                sync_log.message = f"WB 限流: {exc}"
+                sync_log.finished_at = datetime.now(SHANGHAI_TZ)
+                db.commit()
+        except WBCustomerAPIError as exc:
+            sync_log = db.query(SyncLog).filter(SyncLog.id == log_id).first()
+            if sync_log:
+                sync_log.status = "failed"
+                sync_log.message = f"WB API 错误: {exc}"
+                sync_log.finished_at = datetime.now(SHANGHAI_TZ)
+                db.commit()
+        except Exception as exc:
+            sync_log = db.query(SyncLog).filter(SyncLog.id == log_id).first()
+            if sync_log:
+                sync_log.status = "failed"
+                sync_log.message = f"同步异常: {exc}"
+                sync_log.finished_at = datetime.now(SHANGHAI_TZ)
+                db.commit()
     finally:
         db.close()
 

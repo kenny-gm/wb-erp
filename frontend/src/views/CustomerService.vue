@@ -302,15 +302,58 @@ async function selectItem(item) {
 async function syncCustomerService() {
   syncing.value = true
   try {
-    await axios.post('/api/customer-service/sync', {
+    const syncRes = await axios.post('/api/customer-service/sync', {
       shop_id: filters.shop_id || null,
       channel: filters.channel === 'all' ? 'all' : `${filters.channel}s`,
       days: 30
     })
-    ElMessage.success('同步任务已开始，稍后刷新查看')
+    const logIds = syncRes.data.log_ids || []
+    if (logIds.length === 0) {
+      ElMessage.warning('没有可同步的店铺')
+      return
+    }
+    // 轮询每个店铺的同步状态
+    const promises = logIds.map((logId) => pollSyncStatus(logId))
+    await Promise.all(promises)
+    ElMessage.success('同步完成，刷新收件箱查看结果')
+    await loadItems()
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.detail || '同步失败')
   } finally {
     syncing.value = false
   }
+}
+
+async function pollSyncStatus(logId, interval = 2000) {
+  return new Promise((resolve) => {
+    const timer = setInterval(async () => {
+      try {
+        const res = await axios.get(`/api/customer-service/sync-status/${logId}`)
+        const status = res.data.status
+        if (status === 'completed') {
+          clearInterval(timer)
+          resolve(res.data)
+        } else if (status === 'rate_limited') {
+          clearInterval(timer)
+          ElMessage.warning(`店铺 ${res.data.shop_id} 同步被限流: ${res.data.message}`)
+          resolve(res.data)
+        } else if (status === 'failed') {
+          clearInterval(timer)
+          ElMessage.error(`店铺 ${res.data.shop_id} 同步失败: ${res.data.message}`)
+          resolve(res.data)
+        }
+        // running: 继续等待
+      } catch {
+        clearInterval(timer)
+        resolve(null)
+      }
+    }, interval)
+    // 超时 5 分钟
+    setTimeout(() => {
+      clearInterval(timer)
+      resolve(null)
+    }, 300000)
+  })
 }
 
 async function generateDraft() {
