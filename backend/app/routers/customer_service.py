@@ -505,18 +505,42 @@ def _run_customer_service_sync_task(shop_id: int, channel: str, days: int, log_i
             else:
                 result = service.sync_all(days=days)
 
-            # 统计总条数
+            # 统计总条数（单 channel 用 result.count；sync_all 用 result.count）
             total = 0
             if isinstance(result, dict):
-                for v in result.values():
-                    if isinstance(v, dict):
-                        total += v.get("count", 0)
+                # sync_all 返回结构：{success, count, results, ...}
+                if "results" in result:
+                    total = result.get("count", 0)
+                else:
+                    # 单 channel：result 就是 {success, count, ...}
+                    total = result.get("count", 0)
+
+            # 检查子任务实际是否成功
+            overall_success = True
+            rate_limited = False
+            if isinstance(result, dict):
+                if "results" in result:
+                    # sync_all：顶层 success
+                    overall_success = result.get("success", True)
+                    if not overall_success:
+                        rate_limited = bool(result.get("rate_limited_channels"))
+                else:
+                    # 单 channel：success 在 result 本身
+                    overall_success = result.get("success", True)
+                    if not overall_success:
+                        rate_limited = result.get("rate_limited", False)
 
             sync_log = db.query(SyncLog).filter(SyncLog.id == log_id).first()
             if sync_log:
-                sync_log.status = "completed"
-                sync_log.records_count = total
-                sync_log.message = f"同步完成（{shop.name}）"
+                if not overall_success:
+                    sync_log.status = "rate_limited" if rate_limited else "failed"
+                    err_msg = result.get("errors", []) if isinstance(result, dict) else []
+                    sync_log.message = f"同步失败: {err_msg}" if err_msg else ("WB 限流" if rate_limited else "同步失败")
+                    sync_log.records_count = total
+                else:
+                    sync_log.status = "completed"
+                    sync_log.records_count = total
+                    sync_log.message = f"同步完成（{shop.name}）"
                 sync_log.finished_at = datetime.now(SHANGHAI_TZ)
                 db.commit()
         except WBCustomerRateLimit as exc:
