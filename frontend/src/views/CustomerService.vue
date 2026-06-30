@@ -461,12 +461,34 @@ async function sendReply() {
 
 async function answerReturn(action) {
   if (!activeItem.value) return
-  await ElMessageBox.confirm(`确认执行此操作？`, '退货处理确认', { type: 'warning' })
+  let comment = ''
+  if (action === 'rejectcustom') {
+    // 拒绝并自定义回复：弹出文本框
+    const { value } = await ElMessageBox.prompt(
+      '请输入要发送给买家的拒绝原因（俄语）',
+      '自定义拒绝回复',
+      { confirmButtonText: '确认发送', cancelButtonText: '取消', inputType: 'textarea' }
+    )
+    if (!value || !value.trim()) {
+      ElMessage.warning('请填写拒绝原因')
+      return
+    }
+    comment = value.trim()
+  } else {
+    const labelMap = {
+      autorefund1: '批准无需退货',
+      approve2: '批准并回收商品',
+      reject1: '拒绝退货：商品无缺陷',
+      reject2: '拒绝退货：申请填写错误',
+      reject3: '拒绝退货：请买家联系售后',
+    }
+    await ElMessageBox.confirm(`确认执行「${labelMap[action] || action}」？`, '退货处理确认', { type: 'warning' })
+  }
   answeringReturn.value = true
   try {
     await axios.post(`/api/customer-service/returns/${activeItem.value.id}/answer`, {
       action,
-      comment: ''
+      comment,
     })
     ElMessage.success('退货申请已处理')
     await Promise.all([selectItem(activeItem.value), reload()])

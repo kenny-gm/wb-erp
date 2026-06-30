@@ -536,10 +536,10 @@ def get_return_claim_actions(
     actions: list = raw.get("actions") or raw.get("availableActions") or []
     if not actions:
         return {"actions": []}
-    # 映射 WB 6个技术 action -> 3个业务按钮
+    # 映射 WB 6个技术 action -> 4个业务按钮
     # autorefund1 = 批准无需退货
     # approve2 = 批准并回收商品
-    # reject1/2/3/custom = 拒绝退货（统一发 reject1）
+    # reject1/2/3/custom = 4个拒绝选项（对应WB卖家后台）
     buttons = []
     if "autorefund1" in actions:
         buttons.append({"action": "autorefund1", "label": "批准无需退货"})
@@ -547,10 +547,16 @@ def get_return_claim_actions(
         buttons.append({"action": "approve2", "label": "批准并回收商品"})
     reject_actions = [a for a in actions if a in ("reject1", "reject2", "reject3", "rejectcustom", "reject")]
     if reject_actions:
-        # 优先用 reject1，其次 rejectcustom，其次第一个
-        chosen = "reject1" if "reject1" in reject_actions else \
-                 "rejectcustom" if "rejectcustom" in reject_actions else reject_actions[0]
-        buttons.append({"action": chosen, "label": "拒绝退货"})
+        for act in ("reject1", "reject2", "reject3", "rejectcustom", "reject"):
+            if act in reject_actions:
+                labels = {
+                    "reject1": "拒绝退货：商品无缺陷",
+                    "reject2": "拒绝退货：申请填写错误",
+                    "reject3": "拒绝退货：请买家联系售后",
+                    "rejectcustom": "拒绝退货：自定义回复",
+                    "reject": "拒绝退货",
+                }
+                buttons.append({"action": act, "label": labels.get(act, f"拒绝({act})")})
     return {"actions": buttons}
 
 
