@@ -484,33 +484,6 @@ class CustomerServiceAction(Base):
 
 
 
-class AIConfig(Base):
-    """AI配置表"""
-    __tablename__ = "ai_configs"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False)
-    config_key = Column(String(50), unique=True, nullable=False)
-    prompt_template = Column(Text, nullable=False)
-    variables = Column(String(500), default="")
-    api_provider = Column(String(50), default="deepseek")
-    api_model = Column(String(50), default="deepseek-chat")
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-
-
-class AIReport(Base):
-    """AI报告表"""
-    __tablename__ = "ai_reports"
-    
-    id = Column(Integer, primary_key=True)
-    type = Column(String(20))  # day, week, month
-    date_range = Column(String(100))  # "2026-04-01" or "2026年第14周" or "2026年3月"
-    content = Column(Text)
-    created_at = Column(DateTime, default=datetime.now)
-
-
 class MetricHistory(Base):
     """产品每日指标历史"""
     __tablename__ = "metric_histories"
