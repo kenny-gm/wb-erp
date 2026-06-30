@@ -35,7 +35,7 @@
         </el-menu-item>
 
         <el-menu-item v-if="authStore.canAccess('customer-service')" index="/customer-service">
-          <el-icon><Service /></el-icon>
+          <el-icon><ChatDotRound /></el-icon>
           <span>客服工作台</span>
         </el-menu-item>
         
@@ -82,7 +82,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { DataLine, TrendCharts, Wallet, Setting, User, Fold, Expand, Menu, Bell, Box, Service } from '@element-plus/icons-vue'
+import { DataLine, TrendCharts, Wallet, Setting, User, Fold, Expand, Menu, Bell, Box, ChatDotRound } from '@element-plus/icons-vue'
 import axios from 'axios'
 
 const router = useRouter()
