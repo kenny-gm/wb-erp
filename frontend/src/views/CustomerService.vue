@@ -232,7 +232,26 @@
               <strong>建议联系售后/服务中心</strong>
               <p>将通知买家：请前往售后或服务中心处理</p>
             </div>
+            <div class="reject-choice-item reject-choice-custom" @click="openRejectCustom">
+              <strong>💬 自定义回复内容</strong>
+              <p>手动输入要发送给买家的俄语拒绝理由</p>
+            </div>
           </div>
+        </el-dialog>
+
+        <!-- 自定义拒绝内容弹窗 -->
+        <el-dialog v-model="rejectCustomDialogVisible" title="自定义拒绝回复" width="500px" :close-on-click-modal="false">
+          <p style="margin-bottom:12px;color:#b45309;font-size:13px">请输入要发送给买家的俄语拒绝理由，将直接发送至买家。</p>
+          <el-input
+            v-model="rejectCustomText"
+            type="textarea"
+            :rows="5"
+            placeholder="在此输入俄语拒绝理由..."
+          />
+          <template #footer>
+            <el-button @click="rejectCustomDialogVisible = false">取消</el-button>
+            <el-button type="primary" :loading="answeringReturn" @click="confirmRejectCustom">确认发送</el-button>
+          </template>
         </el-dialog>
 
         <div v-if="activeItem.channel === 'return_claim'" class="return-actions">
@@ -295,6 +314,8 @@ const sending = ref(false)
 const answeringReturn = ref(false)
 const rejectingQuestion = ref(false)
 const rejectDialogVisible = ref(false)
+const rejectCustomDialogVisible = ref(false)
+const rejectCustomText = ref('')
 const shops = ref([])
 const items = ref([])
 const activeItem = ref(null)
@@ -499,6 +520,21 @@ async function answerReturn(action) {
 async function answerReturnConfirm(rejectAction) {
   rejectDialogVisible.value = false
   await doAnswerReturn(rejectAction, '')
+}
+
+function openRejectCustom() {
+  rejectCustomText.value = ''
+  rejectDialogVisible.value = false
+  rejectCustomDialogVisible.value = true
+}
+
+async function confirmRejectCustom() {
+  if (!rejectCustomText.value.trim()) {
+    ElMessage.warning('请输入拒绝理由')
+    return
+  }
+  rejectCustomDialogVisible.value = false
+  await doAnswerReturn('rejectcustom', rejectCustomText.value.trim())
 }
 
 async function doAnswerReturn(action, comment) {
@@ -923,6 +959,16 @@ function formatHours(hours) {
   display: block;
   margin-bottom: 4px;
   color: #303133;
+}
+
+.reject-choice-custom {
+  border-color: #f56c6c;
+  background: #fef0f0;
+}
+
+.reject-choice-custom:hover {
+  border-color: #f56c6c;
+  background: #fde2e2;
 }
 
 .reject-choice-item p {
