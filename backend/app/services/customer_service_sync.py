@@ -37,6 +37,7 @@ class CustomerServiceSyncService:
         self.db = db
         self.shop = shop
         self.client = WBCustomerClient(shop.api_token)
+        self._chat_items: Dict[str, CustomerServiceItem] = {}  # 本次同步批次内缓存: external_id -> item
 
     def sync_all(self, days: int = 30) -> Dict[str, Any]:
         results = {
@@ -128,6 +129,7 @@ class CustomerServiceSyncService:
             seen_ids: set = set()
             page_count = 0
             next_cursor = cursor
+            self._chat_items.clear()  # 清空上批次缓存，防止残留
 
             while True:
                 page_count += 1
@@ -317,14 +319,17 @@ class CustomerServiceSyncService:
         created_at = self._parse_dt(rec.get("addTimestamp")) or self._parse_dt(rec.get("addTime")) or self._parse_dt(rec.get("createdAt")) or self._parse_dt(rec.get("date"))
         direction = "seller" if rec.get("isSeller") or rec.get("sender") == "seller" else "buyer"
         external_id_str = str(chat_id or event_id)
-        # 同 channel 去重：检查是否已存在同 channel 的聊天事项
-        existing = self.db.query(CustomerServiceItem).filter(
-            CustomerServiceItem.shop_id == self.shop.id,
-            CustomerServiceItem.platform == "wildberries",
-            CustomerServiceItem.channel == "chat",
-            CustomerServiceItem.external_id == external_id_str,
-        ).first()
+        # 同 channel 去重：先查本次批次内缓存（解决同事务内 SQL query 看不到未 flush 新item 的问题），再查 DB
+        existing = self._chat_items.get(external_id_str)
+        if not existing:
+            existing = self.db.query(CustomerServiceItem).filter(
+                CustomerServiceItem.shop_id == self.shop.id,
+                CustomerServiceItem.platform == "wildberries",
+                CustomerServiceItem.channel == "chat",
+                CustomerServiceItem.external_id == external_id_str,
+            ).first()
         if existing:
+            self._chat_items[external_id_str] = existing  # 缓存更新
             # 已有记录，追加消息
             self._add_message(
                 item=existing,
@@ -366,6 +371,7 @@ class CustomerServiceSyncService:
             external_updated_at=created_at,
             raw=rec,
         )
+        self._chat_items[external_id_str] = item  # 缓存，防止同批次内重复创建
         self._add_message(
             item=item,
             external_message_id=str(event_id or f"{item.external_id}:{created_at or self._now()}"),
@@ -477,7 +483,9 @@ class CustomerServiceSyncService:
             self.db.add(item)
 
         item.external_status = external_status or ""
-        item.nm_id = str(nm_id) if nm_id is not None else item.nm_id
+        if nm_id is not None:
+            item.nm_id = str(nm_id)
+        # nm_id 已有值不覆盖为 None（保留首次设置的产品）
         item.product_id = product.id if product else None
         item.sku = product.sku if product else item.sku
         item.product_name = product.custom_name or product.name if product else (title or item.product_name)
