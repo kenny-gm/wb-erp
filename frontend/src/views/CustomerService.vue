@@ -142,7 +142,8 @@
               <span class="time">{{ item.external_created_at || '-' }}</span>
             </div>
             <div class="product-line">
-              <strong>{{ item.product_name || item.product_name_ru || item.sku || item.nm_id || '未匹配产品' }}</strong>
+              <strong>{{ item.nm_id || '-' }} / {{ item.sku || '-' }}</strong>
+              <span v-if="item.product_name || item.product_name_ru" class="product-name"> {{ item.product_name || item.product_name_ru }}</span>
               <span v-if="item.channel === 'feedback' && item.rating" class="rating-stars">{{ item.rating_display || '' }}</span>
             </div>
             <div class="content-line">{{ item.content_zh || item.content || '无文本内容' }}</div>
@@ -175,7 +176,8 @@
               </el-tag>
               <el-tag type="info" class="external-id-tag">WB #{{ activeItem.external_id?.slice(0, 8) || '-' }}</el-tag>
             </div>
-            <h3>{{ activeItem.product_name || activeItem.product_name_ru || activeItem.sku || activeItem.nm_id }}</h3>
+            <h3>nmId: {{ activeItem.nm_id || '-' }} / SKU: {{ activeItem.sku || '-' }}</h3>
+            <p v-if="activeItem.product_name || activeItem.product_name_ru" class="product-name">{{ activeItem.product_name || activeItem.product_name_ru }}</p>
             <p>{{ activeItem.shop_name }} / {{ activeItem.owner || activeItem.assigned_owner || '未分配负责人' }}</p>
           </div>
           <el-dropdown @command="handleStatusCommand">
