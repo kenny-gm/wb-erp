@@ -153,7 +153,35 @@ const form = reactive({
   max_tokens: 1200,
 })
 
-const testVariables = ref('{\n  "text": "пример"\n}')
+const testVariables = ref('')
+const lastAutoFilledKey = ref('')
+
+const DEFAULT_VARIABLES = {
+  customer_reply: {
+    channel: 'feedback',
+    product_name: 'Air fryer 5L',
+    content: 'Товар пришел с повреждением, очень расстроена.',
+    content_zh: '商品到货有破损，买家很不满意。',
+  },
+  translate_to_zh: {
+    text: 'Товар пришел с повреждением, очень расстроена.',
+  },
+  product_analysis: {
+    product: '{"sku":"TEST-001","name":"Air fryer 5L"}',
+    facts: '{"bad_feedback_count":2,"return_claim_count":1}',
+    evidence: '["买家反馈包装破损", "退货原因：商品损坏"]',
+  },
+  task_suggestion: {
+    signals: '加购率下降 20%，广告花费超标',
+    evidence: '昨日加购率 1.2%，今日 0.9%；广告 ROAS 0.8',
+  },
+}
+
+function getDefaultVariables(key) {
+  const vars = DEFAULT_VARIABLES[key]
+  if (!vars) return ''
+  return JSON.stringify(vars, null, 2)
+}
 
 function formatDate(iso) {
   if (!iso) return '-'
@@ -179,6 +207,14 @@ async function selectTemplate(key) {
   activeKey.value = key
   renderResult.value = null
   variablesError.value = null
+  // 自动填入测试变量（如果为空或是旧模板的默认值）
+  const currentVars = testVariables.value.trim()
+  const isEmpty = currentVars === ''
+  const isStale = lastAutoFilledKey.value !== key && currentVars !== ''
+  if (isEmpty || isStale) {
+    testVariables.value = getDefaultVariables(key)
+    lastAutoFilledKey.value = key
+  }
   try {
     const res = await axios.get(`/api/ai-prompts/${key}`)
     versions.value = res.data

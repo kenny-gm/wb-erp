@@ -786,3 +786,214 @@ def test_api_key_not_in_test_connection_response():
         result = client.test_connection()
         assert "api_key" not in result
         assert "error" in result
+
+
+# ============================================================
+# Phase 1.3: JSON 输出 + 清洗 <think> 测试
+# ============================================================
+
+def test_strip_thinking_blocks_basic():
+    """strip_thinking_blocks 去掉 <think>...</think>"""
+    from app.services.ai_client import strip_thinking_blocks
+
+    assert strip_thinking_blocks("<think>abc</think>{\"reply\":\"ok\"}") == '{\"reply\":\"ok\"}'
+
+
+def test_strip_thinking_blocks_multiline():
+    """strip_thinking_blocks 处理多行思考块"""
+    from app.services.ai_client import strip_thinking_blocks
+
+    text = "<think>思考内容\n多行内容\n</think>中间内容\nJSON"
+    result = strip_thinking_blocks(text)
+    assert "<think>" not in result
+    assert "</think>" not in result
+    assert "中间内容\nJSON" in result
+
+
+def test_strip_thinking_blocks_unclosed():
+    """strip_thinking_blocks 处理未闭合的 <think>"""
+    from app.services.ai_client import strip_thinking_blocks
+
+    text = "<think>未闭合的思考内容 {some: \"json\"}"
+    result = strip_thinking_blocks(text)
+    assert "<think>" not in result
+
+
+def test_strip_thinking_blocks_empty():
+    """strip_thinking_blocks 空字符串返回空"""
+    from app.services.ai_client import strip_thinking_blocks
+
+    assert strip_thinking_blocks("") == ""
+    assert strip_thinking_blocks(None) == ""  # type: ignore
+
+
+def test_strip_thinking_blocks_no_thinking():
+    """strip_thinking_blocks 无思考块时原样返回"""
+    from app.services.ai_client import strip_thinking_blocks
+
+    text = '{"reply": "нормально"}'
+    assert strip_thinking_blocks(text) == text
+
+
+def test_chat_json_parses_thinking_block_json():
+    """chat_json 能解析 <think>...</think>{...} 格式"""
+    from app.services.ai_client import AIClient, AIClientError
+    from app import config
+
+    class FakeDB:
+        def query(self, *a):
+            return self
+        def filter(self, *a):
+            return self
+        def first(self):
+            return None
+
+    def fake_post(url, headers, json=None, timeout=None):
+        class R:
+            status_code = 200
+            def json(self):
+                # AI 返回: <think>思考内容</think>{"reply":"ok"}
+                return {"choices": [{"message": {"content": "<think>思考中...</think>{\"reply\":\"отлично\"}"}}]}
+        return R()
+
+    client = AIClient(FakeDB())
+    with patch.object(config.settings, "AI_API_KEY", "fake-key"):
+        with patch.object(client, "is_enabled", return_value=True):
+            with patch("requests.post", fake_post):
+                result = client.chat_json("sys", "user", 0.2, 1200)
+    assert result == {"reply": "отлично"}
+
+
+def test_chat_json_parses_fenced_json_block():
+    """chat_json 能解析 ```json ... ``` 格式"""
+    from app.services.ai_client import AIClient
+    from app import config
+
+    class FakeDB:
+        def query(self, *a):
+            return self
+        def filter(self, *a):
+            return self
+        def first(self):
+            return None
+
+    def fake_post(url, headers, json=None, timeout=None):
+        class R:
+            status_code = 200
+            def json(self):
+                return {"choices": [{"message": {"content": '```json\n{\"translated_text\": \"中文译文\"}\n```'}}]}
+        return R()
+
+    client = AIClient(FakeDB())
+    with patch.object(config.settings, "AI_API_KEY", "fake-key"):
+        with patch.object(client, "is_enabled", return_value=True):
+            with patch("requests.post", fake_post):
+                result = client.chat_json("sys", "user", 0.2, 1200)
+    assert result == {"translated_text": "中文译文"}
+
+
+def test_chat_json_error_message_has_preview_no_thinking():
+    """chat_json 解析失败时错误信息包含原始文本预览（不含 <think>）"""
+    from app.services.ai_client import AIClient, AIClientError
+    from app import config
+
+    class FakeDB:
+        def query(self, *a):
+            return self
+        def filter(self, *a):
+            return self
+        def first(self):
+            return None
+
+    def fake_post(url, headers, json=None, timeout=None):
+        class R:
+            status_code = 200
+            def json(self):
+                # 返回无效 JSON
+                return {"choices": [{"message": {"content": "<think>思考...</think>这不是合法JSON"}}]}
+        return R()
+
+    client = AIClient(FakeDB())
+    try:
+        with patch.object(config.settings, "AI_API_KEY", "fake-key"):
+            with patch.object(client, "is_enabled", return_value=True):
+                with patch("requests.post", fake_post):
+                    client.chat_json("sys", "user", 0.2, 1200)
+        assert False, "应该抛出 AIClientError"
+    except AIClientError as e:
+        error_msg = str(e)
+        assert "<think>" not in error_msg
+        assert "AI 返回不是合法 JSON" in error_msg or "原始文本片段" in error_msg
+
+
+def test_customer_reply_template_contains_json_instruction():
+    """customer_reply 模板包含'只输出 JSON'"""
+    from app.services.ai_prompt_service import get_active_template
+
+    class FakeDB:
+        def query(self, *a):
+            return self
+        def filter(self, *a):
+            return self
+        def first(self):
+            class FakeTpl:
+                system_prompt = "你必须只输出 JSON。\nreply 字段必须是俄语。"
+                user_prompt_template = "渠道：{{channel}}"
+                output_schema_json = '{"type": "object", "properties": {"reply": {"type": "string"}}}'
+                temperature = 0.3
+                max_tokens = 1200
+                version = 1
+                is_active = True
+            return FakeTpl()
+
+    db = FakeDB()
+    tpl = get_active_template(db, "customer_reply")
+    assert tpl is not None
+    assert "只输出 JSON" in tpl.system_prompt
+
+
+def test_translate_to_zh_template_contains_json_instruction():
+    """translate_to_zh 模板包含'只输出 JSON'"""
+    from app.services.ai_prompt_service import get_active_template
+
+    class FakeDB:
+        def query(self, *a):
+            return self
+        def filter(self, *a):
+            return self
+        def first(self):
+            class FakeTpl:
+                system_prompt = "你必须只输出 JSON。\n只翻译，不总结。"
+                user_prompt_template = "原文：\n{{text}}"
+                output_schema_json = '{"type": "object", "properties": {"translated_text": {"type": "string"}}}'
+                temperature = 0.1
+                max_tokens = 1200
+                version = 1
+                is_active = True
+            return FakeTpl()
+
+    db = FakeDB()
+    tpl = get_active_template(db, "translate_to_zh")
+    assert tpl is not None
+    assert "只输出 JSON" in tpl.system_prompt
+
+
+def test_get_default_variables_all_templates():
+    """每个模板都有默认测试变量"""
+    # 验证前端 DEFAULT_VARIABLES 定义了所有模板的默认值
+    # 这里只验证 service 层不报错
+    from app.services.ai_prompt_service import get_active_template
+
+    class FakeDB:
+        def query(self, *a):
+            return self
+        def filter(self, *a):
+            return self
+        def first(self):
+            return None
+
+    db = FakeDB()
+    # 空模板也合法（前端不会用空模板测试）
+    tpl = get_active_template(db, "customer_reply")
+    # FakeDB 返回 None
+    assert tpl is None

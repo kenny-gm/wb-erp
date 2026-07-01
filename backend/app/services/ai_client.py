@@ -20,6 +20,17 @@ from app.models.models import SystemSetting
 from app.services.secret_crypto import decrypt_secret, encrypt_secret, SecretCryptoError
 
 
+def strip_thinking_blocks(text: str) -> str:
+    """去掉 <think>...</think> 思考块，不留痕迹"""
+    if not text:
+        return ""
+    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    # 如果清理后以 <think> 开头但没有闭合，也清理掉
+    if cleaned.strip().lower().startswith("<think>"):
+        cleaned = re.sub(r"^<think>.*", "", cleaned, flags=re.DOTALL | re.IGNORECASE)
+    return cleaned.strip()
+
+
 def get_system_setting(db: Session, key: str, default: str = "") -> str:
     """读取 SystemSetting，优先数据库，没有则用 default"""
     row = db.query(SystemSetting).filter(SystemSetting.key == key).first()
@@ -137,7 +148,7 @@ class AIClient:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
     ) -> str:
-        """返回纯文本"""
+        """返回纯文本，自动去掉 <think> 思考块"""
         key = self.get_effective_api_key()
         if not key:
             raise AIClientDisabled("AI_API_KEY 未配置")
@@ -149,7 +160,7 @@ class AIClient:
         temperature = temperature if temperature is not None else 0.2
         max_tokens = max_tokens or eff.get("max_tokens", 1200)
 
-        return self._openai_compatible_request(
+        content = self._openai_compatible_request(
             url,
             eff["model"],
             system_prompt,
@@ -158,6 +169,7 @@ class AIClient:
             max_tokens,
             eff["timeout"],
         )
+        return strip_thinking_blocks(content)
 
     def chat_json(
         self,
@@ -166,15 +178,47 @@ class AIClient:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
     ) -> dict:
-        """解析 JSON 输出（支持 ```json fenced block 和纯 JSON）"""
-        text = self.chat_text(system_prompt, user_prompt, temperature, max_tokens)
-        text = re.sub(r"^```json\s*", "", text.strip())
-        text = re.sub(r"^```\s*", "", text.strip())
-        text = re.sub(r"\s*```$", "", text.strip())
+        """
+        解析 JSON 输出（chat_text 已清洗 <think>，再按以下顺序解析）：
+        1. 直接 json.loads
+        2. 匹配 ```json ... ``` fenced block
+        3. 提取第一个 { ... } JSON 对象
+        4. 仍失败则抛 AIClientError（原始文本最多 500 字符，不含 <think>）
+        """
+        raw = self.chat_text(system_prompt, user_prompt, temperature, max_tokens)
+
+        # 尝试 1：直接解析
         try:
-            return json.loads(text)
-        except json.JSONDecodeError as exc:
-            raise AIClientError(f"AI 返回不是合法 JSON: {exc}\n原始: {text[:200]}")
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
+
+        # 尝试 2： fenced JSON block
+        fenced = re.search(r"```json\s*([\s\S]*?)\s*```", raw)
+        if fenced:
+            try:
+                return json.loads(fenced.group(1).strip())
+            except json.JSONDecodeError:
+                pass
+
+        # 尝试 3：提取第一个 { ... } 对象（配对大括号）
+        start = raw.find("{")
+        if start != -1:
+            depth = 0
+            for i, ch in enumerate(raw[start:], start):
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        try:
+                            return json.loads(raw[start:i+1])
+                        except json.JSONDecodeError:
+                            break
+
+        # 所有尝试都失败
+        preview = raw[:500]
+        raise AIClientError(f"AI 返回不是合法 JSON. 原始文本片段: {preview}")
 
     def test_connection(self) -> dict:
         """返回连接测试结果"""
@@ -198,7 +242,7 @@ class AIClient:
                 20,
                 eff["timeout"],
             )
-            return {"success": True, "model": eff["model"], "content": content[:100]}
+            return {"success": True, "model": eff["model"], "content": strip_thinking_blocks(content)[:100]}
         except requests.exceptions.Timeout:
             return {"success": False, "error": "请求超时"}
         except AIClientError as e:

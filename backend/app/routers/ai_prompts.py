@@ -161,6 +161,10 @@ def test_prompt(
         except AIClientError as e:
             result["success"] = False
             result["error"] = str(e)
+            # 从错误信息中提取原始文本片段（不含 <think>）
+            raw = str(e)
+            if "原始文本片段:" in raw:
+                result["raw_output_preview"] = raw.split("原始文本片段:", 1)[1].strip()
 
     return result
 
