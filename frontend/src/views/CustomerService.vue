@@ -142,8 +142,9 @@
               <span class="time">{{ item.external_created_at || '-' }}</span>
             </div>
             <div class="product-line">
-              <strong>{{ item.nm_id || '-' }} / {{ item.sku || '-' }}</strong>
-              <span v-if="item.product_name || item.product_name_ru" class="product-name"> {{ item.product_name || item.product_name_ru }}</span>
+              <el-tag type="info" size="small">nmId {{ item.nm_id || '-' }}</el-tag>
+              <el-tag type="warning" size="small">SKU {{ item.sku || '-' }}</el-tag>
+              <span v-if="item.product_name || item.product_name_ru" class="product-name">{{ item.product_name || item.product_name_ru }}</span>
               <span v-if="item.channel === 'feedback' && item.rating" class="rating-stars">{{ item.rating_display || '' }}</span>
             </div>
             <div class="content-line">{{ item.content_zh || item.content || '无文本内容' }}</div>
@@ -176,8 +177,11 @@
               </el-tag>
               <el-tag type="info" class="external-id-tag">WB #{{ activeItem.external_id?.slice(0, 8) || '-' }}</el-tag>
             </div>
-            <h3>nmId: {{ activeItem.nm_id || '-' }} / SKU: {{ activeItem.sku || '-' }}</h3>
-            <p v-if="activeItem.product_name || activeItem.product_name_ru" class="product-name">{{ activeItem.product_name || activeItem.product_name_ru }}</p>
+            <div class="product-badges">
+              <el-tag type="info">nmId: {{ activeItem.nm_id || '-' }}</el-tag>
+              <el-tag type="warning">SKU: {{ activeItem.sku || '-' }}</el-tag>
+              <el-tag v-if="activeItem.product_name || activeItem.product_name_ru" type="success">{{ activeItem.product_name || activeItem.product_name_ru }}</el-tag>
+            </div>
             <p>{{ activeItem.shop_name }} / {{ activeItem.owner || activeItem.assigned_owner || '未分配负责人' }}</p>
           </div>
           <el-dropdown @command="handleStatusCommand">
@@ -952,6 +956,13 @@ function formatHours(hours) {
 
 .countdown.danger {
   color: #dc2626;
+  font-weight: 700;
+  font-size: 14px;
+  animation: pulse-red 1.5s ease-in-out infinite;
+}
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 .detail {
@@ -976,9 +987,16 @@ function formatHours(hours) {
 }
 
 .detail-head h3 {
-  margin: 10px 0 4px;
+  margin: 0;
   color: #0f172a;
-  font-size: 20px;
+}
+
+.product-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
 }
 
 .detail-head p {
