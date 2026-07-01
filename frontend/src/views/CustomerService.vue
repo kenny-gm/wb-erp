@@ -805,7 +805,7 @@ function formatHours(hours) {
   grid-template-rows: 1fr;
   align-items: stretch;
   gap: 14px;
-  min-height: calc(100vh - 260px);
+  height: calc(100vh - 60px);
 }
 
 .queue,
@@ -954,7 +954,7 @@ function formatHours(hours) {
 
 .detail {
   padding: 16px;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .detail.empty {
@@ -1105,12 +1105,21 @@ function formatHours(hours) {
   }
   .workspace {
     grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    height: auto;
+    min-height: auto;
+    overflow: visible;
   }
-  .queue {
-    display: block;
-  }
+  .queue,
   .detail {
     display: block;
+    height: auto;
+    overflow: visible;
+  }
+  .queue-items-wrapper {
+    flex: none;
+    overflow: visible;
+    max-height: none;
   }
   .queue.hide-on-mobile,
   .detail.hide-on-mobile {
