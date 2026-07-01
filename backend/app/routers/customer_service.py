@@ -346,18 +346,34 @@ def generate_ai_reply_draft(
     item = _get_visible_item(db, item_id, current_user)
     try:
         template = get_active_template(db, "customer_reply")
-        variables = {
-            "channel": item.channel,
-            "product_name": item.product_name or item.product_name_ru or item.sku or str(item.nm_id) or "",
-            "content": item.content or "",
-            "content_zh": item.content_zh or "",
-        }
+
+        # 补齐所有 Prompt 变量
         messages = sorted(item.messages or [], key=lambda m: m.created_at_external or m.created_at)
-        variables["messages"] = "\n".join([
+        messages_text = "\n".join([
             f"{'客服' if m.direction == 'seller' else '买家'}: {m.message_text}"
             for m in messages[-10:]
             if m.message_text
         ])
+
+        raw = _json_loads(item.raw_json, {})
+        is_return_related = item.channel == "return_claim" or "return" in raw
+
+        variables = {
+            "channel": item.channel or "",
+            "shop_name": item.shop.name if item.shop else "",
+            "product_name": item.product_name or item.title or "",
+            "rating": item.rating or "",
+            "status": item.status or "",
+            "reply_status": item.reply_status or "",
+            "is_archived": str(bool(getattr(item, "is_archived", False))),
+            "is_return_related": str(is_return_related),
+            "content": item.content or item.title or "",
+            "content_zh": item.content_zh or item.title_zh or "",
+            "messages": messages_text,
+            "return_context": "",
+            "existing_answer": "",
+            "internal_note": "",
+        }
         system_prompt = template.system_prompt
         user_prompt = render_template(template.user_prompt_template, variables)
         output = AIClient(db).chat_json(
@@ -368,9 +384,19 @@ def generate_ai_reply_draft(
         )
         draft = (output.get("reply") or output.get("draft") or "").strip()
         if not draft:
-            raise AIClientError("AI 未返回 reply")
+            raise AIClientError("AI 未返回回复内容")
         if _contains_cjk(draft):
             raise HTTPException(status_code=400, detail="AI 草稿含中文，已拦截，请调整 Prompt 后重试")
+        if not draft.lower().startswith("здравствуйте"):
+            raise HTTPException(status_code=400, detail="AI 草稿未以 Здравствуйте 开头，已拦截")
+        # 拦截内部商品编码
+        blocked_tokens = [
+            str(item.nm_id or ""),
+            str(item.sku or ""),
+        ]
+        for token in blocked_tokens:
+            if token and len(token) >= 4 and token.lower() in draft.lower():
+                raise HTTPException(status_code=400, detail="AI 草稿包含内部商品编码，已拦截")
     except AIClientError as exc:
         _record_action(
             db,
