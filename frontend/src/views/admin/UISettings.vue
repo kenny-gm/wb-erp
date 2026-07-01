@@ -17,7 +17,7 @@
                 :before-upload="beforeBrowserLogoUpload"
                 accept="image/*"
               >
-                <el-button icon="Upload">上传</el-button>
+                <el-button :icon="Upload">上传</el-button>
               </el-upload>
             </template>
           </el-input>
@@ -40,7 +40,7 @@
                 :before-upload="beforeLoginLogoUpload"
                 accept="image/*"
               >
-                <el-button icon="Upload">上传</el-button>
+                <el-button :icon="Upload">上传</el-button>
               </el-upload>
             </template>
           </el-input>
@@ -110,6 +110,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Upload } from '@element-plus/icons-vue'
 import axios from 'axios'
 
 const saving = ref(false)
