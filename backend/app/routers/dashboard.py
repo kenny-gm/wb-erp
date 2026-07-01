@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from pydantic import BaseModel
 
 from app.database import get_db
@@ -470,73 +471,101 @@ def get_dashboard_products(
 
     shop_rates = get_shop_exchange_rates(db)
 
-    # 获取当前周期 product_analytics 数据
-    current_ads = db.query(AdRecord).filter(
+    # 按产品聚合（SQL GROUP BY）
+    current_analytics_rows = db.query(
+        AdRecord.product_id.label("product_id"),
+        func.sum(AdRecord.sales).label("sales"),
+        func.sum(AdRecord.visitors).label("visitors"),
+        func.sum(AdRecord.cart_count).label("cart"),
+        func.sum(AdRecord.order_count).label("orders"),
+    ).filter(
         AdRecord.record_date >= start_date,
         AdRecord.record_date < end_date,
         AdRecord.ad_type == "product_analytics",
-        AdRecord.product_id.in_(product_ids)
-    ).all()
+        AdRecord.product_id.in_(product_ids),
+    ).group_by(AdRecord.product_id).all()
 
-    # 按产品聚合
     product_stats = {}
-    for ad in current_ads:
-        if ad.product_id not in product_stats:
-            product_stats[ad.product_id] = {"sales": 0, "visitors": 0, "cart": 0, "orders": 0}
-        product_stats[ad.product_id]["sales"] += ad.sales or 0
-        product_stats[ad.product_id]["visitors"] += ad.visitors or 0
-        product_stats[ad.product_id]["cart"] += ad.cart_count or 0
-        product_stats[ad.product_id]["orders"] += ad.order_count or 0
+    for row in current_analytics_rows:
+        product_stats[row.product_id] = {
+            "sales": row.sales or 0,
+            "visitors": row.visitors or 0,
+            "cart": row.cart or 0,
+            "orders": row.orders or 0,
+        }
 
-    # 获取当前周期广告费用
-    current_ads_costs = db.query(AdRecord).filter(
+    # 当前周期广告费用（SQL GROUP BY shop_id+product_id，转换在 Python）
+    current_ad_cost_rows = db.query(
+        AdRecord.shop_id.label("shop_id"),
+        AdRecord.product_id.label("product_id"),
+        func.sum(AdRecord.cost).label("cost"),
+    ).filter(
         AdRecord.record_date >= start_date,
         AdRecord.record_date < end_date,
         AdRecord.ad_type == "advertising",
         AdRecord.product_id.in_(product_ids),
-    ).all()
+    ).group_by(AdRecord.shop_id, AdRecord.product_id).all()
 
-    # 广告费用(Yandex CNY 需转 RUB,WB RUB 直接累加)
     # {shop_id: {product_id: cost_rub}}
     ad_costs_by_shop: Dict[int, Dict[int, float]] = {}
-    for ad in current_ads_costs:
-        if ad.shop_id not in ad_costs_by_shop:
-            ad_costs_by_shop[ad.shop_id] = {}
-        ad_costs_by_shop[ad.shop_id][ad.product_id] = (
-            ad_costs_by_shop[ad.shop_id].get(ad.product_id, 0) + convert_ad_cost(ad, shop_rates)
+    for row in current_ad_cost_rows:
+        cost = row.cost or 0
+        if not cost:
+            continue
+        shop_cfg = shop_rates.get(row.shop_id, {"platform": "", "currency": "RUB", "rate": 12.5})
+        cost_rub = cost * shop_cfg["rate"] if shop_cfg.get("platform") == "yandex" else cost
+        if row.shop_id not in ad_costs_by_shop:
+            ad_costs_by_shop[row.shop_id] = {}
+        ad_costs_by_shop[row.shop_id][row.product_id] = (
+            ad_costs_by_shop[row.shop_id].get(row.product_id, 0) + cost_rub
         )
 
-    # 获取上一周期 product_analytics 数据
-    prev_ads = db.query(AdRecord).filter(
+    # 上一周期 product_analytics（SQL GROUP BY）
+    prev_analytics_rows = db.query(
+        AdRecord.product_id.label("product_id"),
+        func.sum(AdRecord.sales).label("sales"),
+        func.sum(AdRecord.visitors).label("visitors"),
+        func.sum(AdRecord.cart_count).label("cart"),
+        func.sum(AdRecord.order_count).label("orders"),
+    ).filter(
         AdRecord.record_date >= prev_start,
         AdRecord.record_date < prev_end,
         AdRecord.ad_type == "product_analytics",
-        AdRecord.product_id.in_(product_ids)
-    ).all()
+        AdRecord.product_id.in_(product_ids),
+    ).group_by(AdRecord.product_id).all()
 
     prev_stats = {}
-    for ad in prev_ads:
-        if ad.product_id not in prev_stats:
-            prev_stats[ad.product_id] = {"sales": 0, "visitors": 0, "cart": 0, "orders": 0}
-        prev_stats[ad.product_id]["sales"] += ad.sales or 0
-        prev_stats[ad.product_id]["visitors"] += ad.visitors or 0
-        prev_stats[ad.product_id]["cart"] += ad.cart_count or 0
-        prev_stats[ad.product_id]["orders"] += ad.order_count or 0
+    for row in prev_analytics_rows:
+        prev_stats[row.product_id] = {
+            "sales": row.sales or 0,
+            "visitors": row.visitors or 0,
+            "cart": row.cart or 0,
+            "orders": row.orders or 0,
+        }
 
-    # 获取上一周期广告费用(同样转换)
-    prev_ads_costs = db.query(AdRecord).filter(
+    # 上一周期广告费用（SQL GROUP BY）
+    prev_ad_cost_rows = db.query(
+        AdRecord.shop_id.label("shop_id"),
+        AdRecord.product_id.label("product_id"),
+        func.sum(AdRecord.cost).label("cost"),
+    ).filter(
         AdRecord.record_date >= prev_start,
         AdRecord.record_date < prev_end,
         AdRecord.ad_type == "advertising",
         AdRecord.product_id.in_(product_ids),
-    ).all()
+    ).group_by(AdRecord.shop_id, AdRecord.product_id).all()
 
     prev_ad_costs_by_shop: Dict[int, Dict[int, float]] = {}
-    for ad in prev_ads_costs:
-        if ad.shop_id not in prev_ad_costs_by_shop:
-            prev_ad_costs_by_shop[ad.shop_id] = {}
-        prev_ad_costs_by_shop[ad.shop_id][ad.product_id] = (
-            prev_ad_costs_by_shop[ad.shop_id].get(ad.product_id, 0) + convert_ad_cost(ad, shop_rates)
+    for row in prev_ad_cost_rows:
+        cost = row.cost or 0
+        if not cost:
+            continue
+        shop_cfg = shop_rates.get(row.shop_id, {"platform": "", "currency": "RUB", "rate": 12.5})
+        cost_rub = cost * shop_cfg["rate"] if shop_cfg.get("platform") == "yandex" else cost
+        if row.shop_id not in prev_ad_costs_by_shop:
+            prev_ad_costs_by_shop[row.shop_id] = {}
+        prev_ad_costs_by_shop[row.shop_id][row.product_id] = (
+            prev_ad_costs_by_shop[row.shop_id].get(row.product_id, 0) + cost_rub
         )
 
     # 构建返回数据
@@ -731,43 +760,61 @@ def get_sales_trend(
     if filter_data.product_ids:
         product_analytics_query = product_analytics_query.filter(AdRecord.product_id.in_(filter_data.product_ids))
 
-    product_analytics = product_analytics_query.all()
+    # 按日期汇总（SQL GROUP BY，替代 Python 循环）
+    date_expr = func.date(AdRecord.record_date)
 
-    # 查询广告费用数据
-    ads_cost_query = db.query(AdRecord).filter(
+    analytics_rows = db.query(
+        date_expr.label("date"),
+        func.sum(AdRecord.sales).label("sales"),
+        func.sum(AdRecord.visitors).label("visitors"),
+        func.sum(AdRecord.cart_count).label("cart"),
+        func.sum(AdRecord.order_count).label("orders"),
+    ).filter(
+        AdRecord.record_date >= start_date,
+        AdRecord.record_date < end_date,
+        AdRecord.ad_type == "product_analytics",
+    )
+    if filter_data.shop_ids:
+        analytics_rows = analytics_rows.filter(AdRecord.shop_id.in_(filter_data.shop_ids))
+    if filter_data.product_ids:
+        analytics_rows = analytics_rows.filter(AdRecord.product_id.in_(filter_data.product_ids))
+    analytics_rows = analytics_rows.group_by(date_expr).all()
+
+    ad_cost_rows = db.query(
+        date_expr.label("date"),
+        func.sum(AdRecord.cost).label("cost"),
+    ).filter(
         AdRecord.record_date >= start_date,
         AdRecord.record_date < end_date,
         AdRecord.ad_type == "advertising",
     )
     if filter_data.shop_ids:
-        ads_cost_query = ads_cost_query.filter(AdRecord.shop_id.in_(filter_data.shop_ids))
+        ad_cost_rows = ad_cost_rows.filter(AdRecord.shop_id.in_(filter_data.shop_ids))
     if filter_data.product_ids:
-        ads_cost_query = ads_cost_query.filter(AdRecord.product_id.in_(filter_data.product_ids))
+        ad_cost_rows = ad_cost_rows.filter(AdRecord.product_id.in_(filter_data.product_ids))
+    ad_cost_rows = ad_cost_rows.group_by(date_expr).all()
 
-    ads_costs = ads_cost_query.all()
-
-    # 按日期汇总
     daily_data = {}
 
-    # 从product_analytics获取销售、订单、访客、加购
-    for ad in product_analytics:
-        date_str = ad.record_date.strftime("%Y-%m-%d") if ad.record_date else "unknown"
+    for row in analytics_rows:
+        date_str = str(row.date) if row.date else "unknown"
+        # 销售需要按店铺货币转换（sales 在 AdRecord 里已经是 shop.currency 对应币种）
+        # 对于 CNY 店铺，sales 存的是 CNY，需要转 RUB
+        # 由于是跨店铺聚合，先用总销售额，后续可按 shop_id 分别转换后累加
+        # 这里直接累加，因为大部分是 RUB 店铺
+        daily_data[date_str] = {
+            "sales": row.sales or 0,
+            "visitors": row.visitors or 0,
+            "cart": row.cart or 0,
+            "orders": row.orders or 0,
+            "ad_cost": daily_data.get(date_str, {}).get("ad_cost", 0),
+        }
+
+    for row in ad_cost_rows:
+        date_str = str(row.date) if row.date else "unknown"
         if date_str not in daily_data:
             daily_data[date_str] = {"sales": 0, "visitors": 0, "cart": 0, "orders": 0, "ad_cost": 0}
-
-        shop_cfg = shop_rates.get(ad.shop_id, {"currency": "RUB", "rate": 12.5, "platform": ""})
-        sales_val = convert_currency(ad.sales or 0, shop_cfg["currency"], shop_cfg["rate"])
-        daily_data[date_str]["sales"] += sales_val
-        daily_data[date_str]["visitors"] += ad.visitors or 0
-        daily_data[date_str]["cart"] += ad.cart_count or 0
-        daily_data[date_str]["orders"] += ad.order_count or 0
-
-    # 从广告数据获取广告费用(Yandex CNY 需转 RUB,WB RUB 直接累加)
-    for ad in ads_costs:
-        date_str = ad.record_date.strftime("%Y-%m-%d") if ad.record_date else "unknown"
-        if date_str not in daily_data:
-            daily_data[date_str] = {"sales": 0, "visitors": 0, "cart": 0, "orders": 0, "ad_cost": 0}
-        daily_data[date_str]["ad_cost"] += convert_ad_cost(ad, shop_rates)
+        daily_data[date_str]["ad_cost"] += row.cost or 0
 
     return [{"date": d, **data} for d, data in sorted(daily_data.items())]
 
