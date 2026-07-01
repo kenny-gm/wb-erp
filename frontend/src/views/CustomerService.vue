@@ -142,9 +142,9 @@
               <span class="time">{{ item.external_created_at || '-' }}</span>
             </div>
             <div class="product-line">
+              <strong class="product-name" v-if="item.product_name || item.product_name_ru">{{ item.product_name || item.product_name_ru }}</strong>
               <el-tag type="info" size="small">nmId {{ item.nm_id || '-' }}</el-tag>
               <el-tag type="warning" size="small">SKU {{ item.sku || '-' }}</el-tag>
-              <span v-if="item.product_name || item.product_name_ru" class="product-name">{{ item.product_name || item.product_name_ru }}</span>
               <span v-if="item.channel === 'feedback' && item.rating" class="rating-stars">{{ item.rating_display || '' }}</span>
             </div>
             <div class="content-line">{{ item.content_zh || item.content || '无文本内容' }}</div>
@@ -1004,6 +1004,12 @@ function formatHours(hours) {
 .product-name-primary {
   font-weight: 700;
   font-size: 15px;
+  color: #166534;
+  margin-right: 4px;
+}
+
+.product-line .product-name {
+  font-weight: 700;
   color: #166534;
   margin-right: 4px;
 }
