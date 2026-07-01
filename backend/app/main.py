@@ -38,6 +38,9 @@ migrate_add_customer_translation_fields()  # 幂等，重复执行无影响
 from migrations.optimize_customer_reply_prompt import migrate_optimize_customer_reply_prompt
 migrate_optimize_customer_reply_prompt()  # 幂等，重复执行无影响
 
+from migrations.add_dashboard_performance_indexes import migrate_add_dashboard_performance_indexes
+migrate_add_dashboard_performance_indexes()  # 幂等，重复执行无影响
+
 # 导入路由
 from app.routers import auth, dashboard, products, shops, admin, users, inventory, orders, ads, customer_service
 from app.routers import metric_thresholds
