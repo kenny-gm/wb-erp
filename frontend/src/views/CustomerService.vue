@@ -139,6 +139,13 @@
           >
             <div class="queue-head">
               <el-tag size="small" :type="channelTag(item.channel)">{{ channelLabel(item.channel) }}</el-tag>
+              <el-tag
+                v-if="item.display_status"
+                size="small"
+                :type="item.display_status.type"
+                effect="dark"
+                class="status-tag"
+              >{{ item.display_status.label }}</el-tag>
               <el-tag v-if="item.risk_level === 'urgent'" size="small" type="danger">紧急</el-tag>
               <el-tag v-else-if="item.risk_level === 'high'" size="small" type="warning">高风险</el-tag>
               <span class="time">{{ item.external_created_at || '-' }}</span>
@@ -178,7 +185,14 @@
             <!-- 第一层：类型 · 状态 · 风险 · WB ID · 时间 -->
             <div class="detail-meta-row">
               <el-tag size="small" :type="channelTag(activeItem.channel)">{{ channelLabel(activeItem.channel) }}</el-tag>
-              <el-tag size="small" :type="statusTag(activeItem.status)">{{ statusLabel(activeItem.status) }}</el-tag>
+              <el-tag
+                v-if="activeItem.display_status"
+                size="small"
+                :type="activeItem.display_status.type"
+                effect="dark"
+                class="status-tag"
+              >{{ activeItem.display_status.label }}</el-tag>
+              <el-tag v-else size="small" :type="statusTag(activeItem.status)">{{ statusLabel(activeItem.status) }}</el-tag>
               <el-tag v-if="activeItem.risk_level === 'urgent'" size="small" type="danger">紧急</el-tag>
               <el-tag v-else-if="activeItem.risk_level === 'high'" size="small" type="warning">高风险</el-tag>
               <span class="detail-id">WB #{{ activeItem.external_id?.slice(0, 8) || '-' }}</span>
@@ -1008,16 +1022,17 @@ function formatHours(hours) {
 .queue-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 5px;
   font-size: 12px;
   color: #64748b;
-  white-space: nowrap;
-  overflow: hidden;
+  min-height: 24px;
 }
 
 .queue-head .time {
   margin-left: auto;
   flex-shrink: 0;
+  font-size: 11px;
 }
 
 .product-line {
@@ -1028,6 +1043,12 @@ function formatHours(hours) {
   margin: 8px 0 4px;
   font-size: 13px;
   line-height: 1.5;
+}
+
+/* 状态 tag */
+.status-tag {
+  font-weight: 600;
+  font-size: 11px;
 }
 
 .product-line .product-name {

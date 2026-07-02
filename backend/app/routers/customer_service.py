@@ -947,6 +947,37 @@ def _require_manager(user: User) -> None:
         raise HTTPException(status_code=403, detail="仅管理员或经理可执行该操作")
 
 
+def _service_display_status(item: CustomerServiceItem) -> Dict[str, str]:
+    """返回卡片/详情页展示用的业务状态，不暴露内部字段名。"""
+    if item.status == "archived":
+        return {"key": "archived", "label": "已归档", "type": "info"}
+    if item.status == "closed":
+        if item.channel == "return_claim":
+            return {"key": "return_closed", "label": "退货已处理", "type": "info"}
+        return {"key": "closed", "label": "已关闭", "type": "info"}
+    if item.status == "pending_internal":
+        return {"key": "pending_internal", "label": "内部处理中", "type": "warning"}
+
+    if item.channel == "chat":
+        if item.reply_status == "unanswered":
+            return {"key": "waiting_seller", "label": "待卖家回复", "type": "danger"}
+        if item.status == "replied" or item.reply_status == "answered":
+            return {"key": "waiting_buyer", "label": "待买家回复", "type": "success"}
+        return {"key": "chat_open", "label": "聊天处理中", "type": "warning"}
+
+    if item.channel == "return_claim":
+        if item.status == "open" and item.reply_status == "unanswered":
+            return {"key": "return_pending", "label": "退货待处理", "type": "danger"}
+        return {"key": "return_open", "label": "退货处理中", "type": "warning"}
+
+    if item.reply_status == "unanswered":
+        return {"key": "unanswered", "label": "待回复", "type": "danger"}
+    if item.reply_status == "answered":
+        return {"key": "answered", "label": "已回复", "type": "success"}
+
+    return {"key": item.status or "open", "label": "待处理", "type": "danger"}
+
+
 def _serialize_item(
     item: CustomerServiceItem,
     include_messages: bool = False,
@@ -998,6 +1029,7 @@ def _serialize_item(
         "sla_deadline_at": _fmt(item.sla_deadline_at),
         "sla_hours_left": _hours_left(item.sla_deadline_at),
         "is_overdue": item.is_overdue,
+        "display_status": _service_display_status(item),
         "return_deadline_hours": item.return_deadline_hours,
         "raw_json": _raw(item),
         "created_at": _fmt(item.created_at),
