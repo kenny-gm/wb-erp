@@ -857,37 +857,49 @@ function formatHours(hours) {
   return `${h.toFixed(1)} 小时`
 }
 
+/**
+ * 退货时间显示：统一用 elapsed = now - created（不用 deadline）
+ * - closed: 用时 = closed_at - created_at
+ * - open:   已等待 = now - created_at
+ */
 function getReturnSlaText(item) {
   if (!item) return '-'
+  const created = item.external_created_at ? new Date(item.external_created_at) : null
+  if (!created || isNaN(created)) return '-'
+
   if (item.status === 'closed') {
-    // 已处理：计算实际处理用时
-    const created = item.external_created_at ? new Date(item.external_created_at) : null
     const closed = item.closed_at ? new Date(item.closed_at) : null
-    if (created && closed && !isNaN(created) && !isNaN(closed)) {
+    if (closed && !isNaN(closed)) {
       const diffMs = closed - created
       const diffH = diffMs / (1000 * 60 * 60)
-      if (diffH < 1) return `退货已处理，用时 ${Math.round(diffMs / 1000 / 60)} 分钟`
+      if (diffH < 1) return `已处理，用时 ${Math.round(diffMs / 1000 / 60)} 分钟`
       const h = Math.round(diffH * 10) / 10
-      if (h === Math.round(h)) return `退货已处理，用时 ${h} 小时`
-      return `退货已处理，用时 ${h.toFixed(1)} 小时`
+      if (h === Math.round(h)) return `已处理，用时 ${h} 小时`
+      return `已处理，用时 ${h.toFixed(1)} 小时`
     }
-    return '退货已处理'
+    return '已处理'
   }
-  // 未处理：显示剩余时间
-  return `退货处理剩余 ${formatHours(item.sla_hours_left)}`
+
+  // 未处理：显示已等待时间
+  const now = Date.now()
+  const elapsedMs = now - created
+  const elapsedH = elapsedMs / (1000 * 60 * 60)
+  if (elapsedH < 1) return `已等待 ${Math.round(elapsedMs / 1000 / 60)} 分钟`
+  const h = Math.round(elapsedH * 10) / 10
+  if (h === Math.round(h)) return `已等待 ${h} 小时`
+  return `已等待 ${h.toFixed(1)} 小时`
 }
 
 function getReturnSlaClass(item) {
   if (!item) return ''
-  if (item.status === 'closed') {
-    // 已处理：绿色
-    return 'success'
-  }
-  // 未处理：按剩余时间判断颜色
-  const h = item.sla_hours_left
-  if (h === null || h === undefined) return ''
-  if (h <= 6) return 'danger'
-  if (h <= 24) return 'warning'
+  if (item.status === 'closed') return 'success'
+
+  // 未处理：按已等待时间判断颜色
+  const created = item.external_created_at ? new Date(item.external_created_at) : null
+  if (!created || isNaN(created)) return ''
+  const elapsedH = (Date.now() - created) / (1000 * 60 * 60)
+  if (elapsedH >= 120) return 'danger'   // 超过 WB 120h 警戒线
+  if (elapsedH >= 72) return 'warning'   // 超过 72 小时预警
   return ''
 }
 </script>
