@@ -41,6 +41,10 @@ migrate_optimize_customer_reply_prompt()  # 幂等，重复执行无影响
 from migrations.add_dashboard_performance_indexes import migrate_add_dashboard_performance_indexes
 migrate_add_dashboard_performance_indexes()  # 幂等，重复执行无影响
 
+# 迁移：新增客服内部备注字段
+from migrations.add_customer_service_internal_note import migrate_add_customer_service_internal_note
+migrate_add_customer_service_internal_note()  # 幂等，重复执行无影响
+
 # 导入路由
 from app.routers import auth, dashboard, products, shops, admin, users, inventory, orders, ads, customer_service
 from app.routers import metric_thresholds

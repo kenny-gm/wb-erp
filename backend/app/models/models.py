@@ -399,6 +399,9 @@ class CustomerServiceItem(Base):
     assigned_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     assignment_status = Column(String(30), default="unassigned")  # unassigned/assigned/pending_internal/closed
     handover_note = Column(Text, default="")
+    internal_note = Column(Text, default="")
+    internal_note_updated_by = Column(String(100), nullable=True)
+    internal_note_updated_at = Column(DateTime, nullable=True)
 
     customer_name = Column(String(200), nullable=True)
     title = Column(String(500), default="")

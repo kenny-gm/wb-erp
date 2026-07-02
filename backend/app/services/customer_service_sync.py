@@ -350,11 +350,14 @@ class CustomerServiceSyncService:
             if created_at and created_at > (existing.external_updated_at or existing.external_created_at or self._now()):
                 existing.external_updated_at = created_at
             # 聊天状态映射规则：
-            # - 买家新消息进来：open/unanswered
+            # - 买家新消息进来：open/unanswered，重开会话
             # - 客服消息进来：replied/answered
             if direction == "buyer":
                 existing.status = "open"
                 existing.reply_status = "unanswered"
+                existing.is_archived = False
+                existing.closed_by = None
+                existing.closed_at = None
             else:  # seller
                 existing.status = "replied"
                 existing.reply_status = "answered"

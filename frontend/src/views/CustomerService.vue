@@ -179,6 +179,12 @@
               <span>{{ item.shop_name || '-' }}</span>
               <span>{{ item.owner || item.assigned_owner || '未分配' }}</span>
             </div>
+
+            <!-- 备注摘要 -->
+            <div v-if="canUseInternalNote(item) && item.internal_note" class="note-line">
+              <span class="note-label">备注</span>
+              <span class="note-text">{{ item.internal_note }}</span>
+            </div>
           </button>
 
           <el-empty v-if="!loading && !items.length" description="暂无客服事项" />
@@ -238,7 +244,8 @@
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item command="pending_internal">转内部处理</el-dropdown-item>
-                  <el-dropdown-item command="closed">关闭</el-dropdown-item>
+                  <el-dropdown-item v-if="activeItem.channel !== 'chat'" command="closed">关闭</el-dropdown-item>
+                  <el-dropdown-item v-if="activeItem.channel === 'chat'" command="closed">标记完结</el-dropdown-item>
                   <el-dropdown-item command="open">重新打开</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -262,6 +269,23 @@
           <span>最后处理时间：{{ activeItem.last_handled_at || '-' }}</span>
           <span>首响人：{{ activeItem.first_replied_by || '-' }}</span>
           <span>首响时间：{{ activeItem.first_replied_at || '-' }}</span>
+        </div>
+
+        <!-- 客服备注编辑区 -->
+        <div v-if="canUseInternalNote(activeItem)" class="internal-note-box">
+          <div class="internal-note-head">
+            <div>
+              <strong>客服备注</strong>
+              <span>仅系统内可见，不会发送给 WB 买家</span>
+            </div>
+            <span v-if="activeItem.internal_note_updated_by" class="internal-note-meta">
+              {{ activeItem.internal_note_updated_by }} · {{ activeItem.internal_note_updated_at || '-' }}
+            </span>
+          </div>
+          <el-input v-model="noteText" type="textarea" :rows="3" maxlength="5000" show-word-limit placeholder="记录客户要求、协商状态、后续跟进事项。" />
+          <div class="internal-note-actions">
+            <el-button size="small" :loading="savingNote" @click="saveInternalNote">保存备注</el-button>
+          </div>
         </div>
 
         <div class="message-list">
@@ -406,6 +430,8 @@ const activeItem = ref(null)
 const stats = ref({})
 const replyText = ref('')
 const returnActions = ref([])
+const noteText = ref('')
+const savingNote = ref(false)
 const translatingItem = ref(false)
 const translatingMessageId = ref(null)
 
@@ -461,6 +487,20 @@ function getDisplayStatus(item) {
   if (item.status === 'archived') {
     return { key: 'archived', label: '已归档', type: 'info' }
   }
+
+  if (item.channel === 'chat') {
+    if (item.status === 'closed') {
+      return { key: 'chat_finished', label: '已完结', type: 'info' }
+    }
+    if (item.reply_status === 'unanswered') {
+      return { key: 'waiting_seller', label: '待卖家回复', type: 'danger' }
+    }
+    if (item.status === 'replied' || item.reply_status === 'answered') {
+      return { key: 'waiting_buyer', label: '待买家回复', type: 'success' }
+    }
+    return { key: 'waiting_seller', label: '待卖家回复', type: 'danger' }
+  }
+
   if (item.status === 'closed') {
     if (item.channel === 'return_claim') {
       // 已处理：label 追加用时
@@ -478,16 +518,6 @@ function getDisplayStatus(item) {
   }
   if (item.status === 'pending_internal') {
     return { key: 'pending_internal', label: '内部处理中', type: 'warning' }
-  }
-
-  if (item.channel === 'chat') {
-    if (item.reply_status === 'unanswered') {
-      return { key: 'waiting_seller', label: '待卖家回复', type: 'danger' }
-    }
-    if (item.status === 'replied' || item.reply_status === 'answered') {
-      return { key: 'waiting_buyer', label: '待买家回复', type: 'success' }
-    }
-    return { key: 'chat_open', label: '聊天处理中', type: 'warning' }
   }
 
   if (item.channel === 'return_claim') {
@@ -613,6 +643,7 @@ async function selectItem(item) {
   const res = await axios.get(`/api/customer-service/items/${item.id}`)
   activeItem.value = res.data
   replyText.value = ''
+  noteText.value = res.data.internal_note || ''
   returnActions.value = []
   if (res.data.channel === 'return_claim') {
     try {
@@ -845,6 +876,31 @@ function channelTag(channel) {
     chat: 'info',
     return_claim: 'warning'
   }[channel] || ''
+}
+
+function canUseInternalNote(item) {
+  return item && ['chat', 'return_claim'].includes(item.channel)
+}
+
+async function saveInternalNote() {
+  if (!activeItem.value || !canUseInternalNote(activeItem.value)) return
+  savingNote.value = true
+  try {
+    const res = await axios.patch(`/api/customer-service/items/${activeItem.value.id}/note`, {
+      internal_note: noteText.value || ''
+    })
+    activeItem.value = res.data.item
+    noteText.value = activeItem.value.internal_note || ''
+    const idx = items.value.findIndex(item => item.id === activeItem.value.id)
+    if (idx >= 0) {
+      items.value[idx] = { ...items.value[idx], internal_note: activeItem.value.internal_note }
+    }
+    ElMessage.success('备注已保存')
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.detail || '备注保存失败')
+  } finally {
+    savingNote.value = false
+  }
 }
 
 function statusLabel(status) {
@@ -1849,5 +1905,73 @@ function getReturnSlaClass(item) {
   .countdown.danger {
     animation: none;
   }
+}
+
+/* ── 客服备注样式 ─────────────────────────── */
+.note-line {
+  margin-top: 7px;
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.note-label {
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.note-text {
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.internal-note-box {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  background: #fffbeb;
+}
+
+.internal-note-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+  color: #92400e;
+}
+
+.internal-note-head strong {
+  display: block;
+  font-size: 13px;
+}
+
+.internal-note-head span {
+  font-size: 12px;
+  color: #a16207;
+}
+
+.internal-note-meta {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #a16207;
+}
+
+.internal-note-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
 }
 </style>

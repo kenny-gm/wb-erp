@@ -56,6 +56,10 @@ class StatusUpdateRequest(BaseModel):
     status: str
 
 
+class InternalNoteUpdateRequest(BaseModel):
+    internal_note: str = ""
+
+
 class ReturnAnswerRequest(BaseModel):
     action: str
     comment: Optional[str] = None
@@ -442,7 +446,7 @@ def generate_ai_reply_draft(
             "messages": messages_text,
             "return_context": "",
             "existing_answer": "",
-            "internal_note": "",
+            "internal_note": item.internal_note or "",
         }
         system_prompt = template.system_prompt
         user_prompt = render_template(template.user_prompt_template, variables)
@@ -675,6 +679,30 @@ def update_customer_service_status(
     _record_action(db, item, current_user, f"status_{data.status}", request=data.dict())
     db.commit()
     return {"success": True, "item": _serialize_item(item)}
+
+
+@router.patch("/items/{item_id}/note")
+def update_customer_service_internal_note(
+    item_id: int,
+    data: InternalNoteUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    item = _get_visible_item(db, item_id, current_user)
+    if item.channel not in ("chat", "return_claim"):
+        raise HTTPException(status_code=400, detail="仅买家聊天和买家退货支持客服备注")
+    old_note = item.internal_note or ""
+    note = (data.internal_note or "").strip()
+    if len(note) > 5000:
+        raise HTTPException(status_code=400, detail="备注不能超过 5000 字")
+    item.internal_note = note
+    item.internal_note_updated_by = current_user.username
+    item.internal_note_updated_at = _now()
+    _touch_handled(item, current_user)
+    _record_action(db, item, current_user, "update_internal_note", request={"old_note": old_note, "new_note": note})
+    db.commit()
+    db.refresh(item)
+    return {"success": True, "item": _serialize_item(item, include_messages=True, include_actions=True)}
 
 
 @router.post("/returns/{item_id}/answer")
@@ -978,6 +1006,8 @@ def _service_display_status(item: CustomerServiceItem) -> Dict[str, str]:
                 else:
                     label += f"（{round(diff_h * 10) / 10}小时）"
             return {"key": "return_closed", "label": label, "type": "info"}
+        if item.channel == "chat":
+            return {"key": "chat_finished", "label": "已完结", "type": "info"}
         return {"key": "closed", "label": "已关闭", "type": "info"}
     if item.status == "pending_internal":
         return {"key": "pending_internal", "label": "内部处理中", "type": "warning"}
@@ -987,7 +1017,7 @@ def _service_display_status(item: CustomerServiceItem) -> Dict[str, str]:
             return {"key": "waiting_seller", "label": "待卖家回复", "type": "danger"}
         if item.status == "replied" or item.reply_status == "answered":
             return {"key": "waiting_buyer", "label": "待买家回复", "type": "success"}
-        return {"key": "chat_open", "label": "聊天处理中", "type": "warning"}
+        return {"key": "waiting_seller", "label": "待卖家回复", "type": "danger"}
 
     if item.channel == "return_claim":
         if item.status == "open" and item.reply_status == "unanswered":
@@ -1026,6 +1056,9 @@ def _serialize_item(
         "assigned_user_id": item.assigned_user_id,
         "assignment_status": item.assignment_status,
         "handover_note": item.handover_note,
+        "internal_note": item.internal_note or "",
+        "internal_note_updated_by": item.internal_note_updated_by,
+        "internal_note_updated_at": _fmt(item.internal_note_updated_at),
         "customer_name": item.customer_name,
         "title": item.title,
         "content": item.content,
