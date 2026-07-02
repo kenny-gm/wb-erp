@@ -44,7 +44,7 @@
                 </td>
                 <td>{{ row.shop_name || '-' }}</td>
                 <td class="num">{{ formatNumber(row.orders) }}</td>
-                <td class="num">{{ formatNumber(row.sales) }}{{ row.currency === 'RUB' ? '₽' : '' }}</td>
+                <td class="num">{{ formatNumber(row.sales) }}{{ (row.currency || 'RUB') === 'RUB' ? '₽' : '' }}</td>
                 <td class="num">{{ formatNumber(row.ad_cost) }}</td>
                 <td class="num" :class="getRateClass(row.ad_ratio, 'ad_ratio')">{{ row.ad_ratio != null ? row.ad_ratio + '%' : '-' }}</td>
                 <td class="num">{{ formatNumber(row.visitors) }}</td>
@@ -320,7 +320,8 @@ function buildTreeData(apiData, isRange) {
       nm_id: item.nm_id,
       product_id: item.product_id,
       sku: item.sku,
-      currency: item.currency,
+      currency: item.display_currency || 'RUB',
+      shop_currency: item.shop_currency || item.currency || 'RUB',
       orders: item.orders || 0,
       sales: item.sales || 0,
       ad_cost: item.ad_cost || 0,
@@ -379,7 +380,8 @@ function buildTreeData(apiData, isRange) {
         shop_name: shop.shop_name,
         shop_id: shop.shop_id,
         shop_platform: shop.shop_platform,
-        currency: shop.currency,
+        currency: shop.display_currency || shop.currency || 'RUB',
+        shop_currency: shop.currency,
         orders: shop.orders,
         sales: shop.sales,
         ad_cost: shop.ad_cost,
@@ -406,7 +408,8 @@ function buildTreeData(apiData, isRange) {
           shop_id: shop.shop_id,
           shop_platform: shop.shop_platform,
           product_id: shop.product_id,
-          currency: shop.currency,
+          currency: shop.display_currency || shop.currency || 'RUB',
+          shop_currency: shop.currency,
           orders: d.orders,
           sales: d.sales,
           ad_cost: d.ad_cost,

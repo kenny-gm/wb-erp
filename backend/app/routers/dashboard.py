@@ -106,6 +106,21 @@ def convert_currency(amount: float, to_currency: str, exchange_rate: float) -> f
 
 
 
+def convert_sales_value(amount: float, shop_id: int, shop_rates: dict) -> float:
+    shop_cfg = shop_rates.get(shop_id, {"currency": "RUB", "rate": 12.5})
+    return convert_currency(amount or 0, shop_cfg.get("currency", "RUB"), shop_cfg.get("rate", 12.5))
+
+
+def convert_ad_cost_value(cost: float, shop_id: int, shop_rates: dict) -> float:
+    cost = cost or 0
+    if not cost:
+        return 0.0
+    shop_cfg = shop_rates.get(shop_id, {"platform": "", "currency": "RUB", "rate": 12.5})
+    if shop_cfg.get("platform") == "yandex":
+        return cost * shop_cfg.get("rate", 12.5)
+    return cost
+
+
 def _add_data_info(db: Session, stats: DashboardStats) -> DashboardStats:
     """为 stats 添加数据时间信息和延迟提示(使用同步完成时间)"""
     from sqlalchemy import text
@@ -765,6 +780,7 @@ def get_sales_trend(
 
     analytics_rows = db.query(
         date_expr.label("date"),
+        AdRecord.shop_id.label("shop_id"),
         func.sum(AdRecord.sales).label("sales"),
         func.sum(AdRecord.visitors).label("visitors"),
         func.sum(AdRecord.cart_count).label("cart"),
@@ -778,10 +794,11 @@ def get_sales_trend(
         analytics_rows = analytics_rows.filter(AdRecord.shop_id.in_(filter_data.shop_ids))
     if filter_data.product_ids:
         analytics_rows = analytics_rows.filter(AdRecord.product_id.in_(filter_data.product_ids))
-    analytics_rows = analytics_rows.group_by(date_expr).all()
+    analytics_rows = analytics_rows.group_by(date_expr, AdRecord.shop_id).all()
 
     ad_cost_rows = db.query(
         date_expr.label("date"),
+        AdRecord.shop_id.label("shop_id"),
         func.sum(AdRecord.cost).label("cost"),
     ).filter(
         AdRecord.record_date >= start_date,
@@ -792,29 +809,24 @@ def get_sales_trend(
         ad_cost_rows = ad_cost_rows.filter(AdRecord.shop_id.in_(filter_data.shop_ids))
     if filter_data.product_ids:
         ad_cost_rows = ad_cost_rows.filter(AdRecord.product_id.in_(filter_data.product_ids))
-    ad_cost_rows = ad_cost_rows.group_by(date_expr).all()
+    ad_cost_rows = ad_cost_rows.group_by(date_expr, AdRecord.shop_id).all()
 
     daily_data = {}
 
     for row in analytics_rows:
         date_str = str(row.date) if row.date else "unknown"
-        # 销售需要按店铺货币转换（sales 在 AdRecord 里已经是 shop.currency 对应币种）
-        # 对于 CNY 店铺，sales 存的是 CNY，需要转 RUB
-        # 由于是跨店铺聚合，先用总销售额，后续可按 shop_id 分别转换后累加
-        # 这里直接累加，因为大部分是 RUB 店铺
-        daily_data[date_str] = {
-            "sales": row.sales or 0,
-            "visitors": row.visitors or 0,
-            "cart": row.cart or 0,
-            "orders": row.orders or 0,
-            "ad_cost": daily_data.get(date_str, {}).get("ad_cost", 0),
-        }
+        if date_str not in daily_data:
+            daily_data[date_str] = {"sales": 0.0, "visitors": 0, "cart": 0, "orders": 0, "ad_cost": 0.0}
+        daily_data[date_str]["sales"] += convert_sales_value(row.sales or 0, row.shop_id, shop_rates)
+        daily_data[date_str]["visitors"] += row.visitors or 0
+        daily_data[date_str]["cart"] += row.cart or 0
+        daily_data[date_str]["orders"] += row.orders or 0
 
     for row in ad_cost_rows:
         date_str = str(row.date) if row.date else "unknown"
         if date_str not in daily_data:
-            daily_data[date_str] = {"sales": 0, "visitors": 0, "cart": 0, "orders": 0, "ad_cost": 0}
-        daily_data[date_str]["ad_cost"] += row.cost or 0
+            daily_data[date_str] = {"sales": 0.0, "visitors": 0, "cart": 0, "orders": 0, "ad_cost": 0.0}
+        daily_data[date_str]["ad_cost"] += convert_ad_cost_value(row.cost or 0, row.shop_id, shop_rates)
 
     return [{"date": d, **data} for d, data in sorted(daily_data.items())]
 
