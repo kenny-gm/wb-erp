@@ -445,7 +445,16 @@ function getDisplayStatus(item) {
   }
   if (item.status === 'closed') {
     if (item.channel === 'return_claim') {
-      return { key: 'return_closed', label: '退货已处理', type: 'info' }
+      // 已处理：label 追加用时
+      const created = item.external_created_at ? new Date(item.external_created_at) : null
+      const closed = item.closed_at ? new Date(item.closed_at) : null
+      let label = '退货已处理'
+      if (created && closed && !isNaN(created) && !isNaN(closed)) {
+        const diffH = (closed - created) / (1000 * 60 * 60)
+        if (diffH < 1) label += `（${Math.round((closed - created) / 1000 / 60)}分钟）`
+        else label += `（${Math.round(diffH * 10) / 10}小时）`
+      }
+      return { key: 'return_closed', label, type: 'info' }
     }
     return { key: 'closed', label: '已关闭', type: 'info' }
   }
