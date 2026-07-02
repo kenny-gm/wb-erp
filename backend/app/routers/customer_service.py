@@ -137,13 +137,20 @@ def get_customer_service_stats(
         CustomerServiceItem.status == "closed"
     ).count()
 
-    # ---- 聊天卡片：待回复 / 已回复 ----
-    chat_query = active_query.filter(CustomerServiceItem.channel == "chat")
-    chat_unanswered = chat_query.filter(
+    # ---- 聊天卡片：待卖家回复 / 待买家回复 / 已完结 ----
+    chat_open_query = open_query.filter(
+        CustomerServiceItem.channel == "chat",
+        CustomerServiceItem.status.notin_(["closed", "archived"]),
+    )
+    chat_waiting_seller = chat_open_query.filter(
         CustomerServiceItem.reply_status == "unanswered"
     ).count()
-    chat_answered = chat_query.filter(
+    chat_waiting_buyer = chat_open_query.filter(
         CustomerServiceItem.status == "replied"
+    ).count()
+    chat_finished = open_query.filter(
+        CustomerServiceItem.channel == "chat",
+        CustomerServiceItem.status == "closed",
     ).count()
 
     # ---- 全局 ----
@@ -162,8 +169,11 @@ def get_customer_service_stats(
         "return_pending": return_pending,
         "return_closed": return_closed,
         # 聊天
-        "chat_unanswered": chat_unanswered,
-        "chat_answered": chat_answered,
+        "chat_unanswered": chat_waiting_seller,
+        "chat_answered": chat_waiting_buyer,
+        "chat_waiting_seller": chat_waiting_seller,
+        "chat_waiting_buyer": chat_waiting_buyer,
+        "chat_finished": chat_finished,
         # 全局
         "overdue": overdue,
     }
@@ -257,6 +267,22 @@ def list_customer_service_items(
             query = query.filter(
                 CustomerServiceItem.channel == "chat",
                 CustomerServiceItem.status == "replied",
+            )
+        elif quick_key == "chat_waiting_seller":
+            query = query.filter(
+                CustomerServiceItem.channel == "chat",
+                CustomerServiceItem.reply_status == "unanswered",
+                CustomerServiceItem.status.notin_(["closed", "archived"]),
+            )
+        elif quick_key == "chat_waiting_buyer":
+            query = query.filter(
+                CustomerServiceItem.channel == "chat",
+                CustomerServiceItem.status == "replied",
+            )
+        elif quick_key == "chat_finished":
+            query = query.filter(
+                CustomerServiceItem.channel == "chat",
+                CustomerServiceItem.status == "closed",
             )
     else:
         # ── 普通 channel / status 过滤 ───────────────────

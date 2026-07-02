@@ -78,14 +78,18 @@
         <div class="channel-card-title">
           <span>买家聊天</span>
         </div>
-        <div class="channel-card-items">
-          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'chat_unanswered', 'has-count': stats.chat_unanswered }" @click="setQuickKey('chat_unanswered')">
-            <span class="channel-item-label">待回复</span>
-            <span class="channel-item-num danger">{{ stats.chat_unanswered || 0 }}</span>
+        <div class="channel-card-items channel-card-items-3">
+          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'chat_waiting_seller', 'has-count': stats.chat_waiting_seller || stats.chat_unanswered }" @click="setQuickKey('chat_waiting_seller')">
+            <span class="channel-item-label">待卖家回复</span>
+            <span class="channel-item-num danger">{{ stats.chat_waiting_seller ?? stats.chat_unanswered ?? 0 }}</span>
           </div>
-          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'chat_answered' }" @click="setQuickKey('chat_answered')">
-            <span class="channel-item-label">已回复</span>
-            <span class="channel-item-num">{{ stats.chat_answered || 0 }}</span>
+          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'chat_waiting_buyer' }" @click="setQuickKey('chat_waiting_buyer')">
+            <span class="channel-item-label">待买家回复</span>
+            <span class="channel-item-num">{{ stats.chat_waiting_buyer ?? stats.chat_answered ?? 0 }}</span>
+          </div>
+          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'chat_finished' }" @click="setQuickKey('chat_finished')">
+            <span class="channel-item-label">已完结</span>
+            <span class="channel-item-num">{{ stats.chat_finished || 0 }}</span>
           </div>
         </div>
       </div>
@@ -457,6 +461,9 @@ const QUICK_KEY_MAP = {
   return_closed: '退货已处理',
   chat_unanswered: '聊天待回复',
   chat_answered: '聊天已回复',
+  chat_waiting_seller: '聊天待卖家回复',
+  chat_waiting_buyer: '聊天待买家回复',
+  chat_finished: '聊天已完结',
 }
 
 const QUICK_FILTER_STATE = {
@@ -470,6 +477,9 @@ const QUICK_FILTER_STATE = {
   return_closed: { channel: 'return_claim', status: 'closed' },
   chat_unanswered: { channel: 'chat', status: 'unanswered' },
   chat_answered: { channel: 'chat', status: 'all' },
+  chat_waiting_seller: { channel: 'chat', status: 'unanswered' },
+  chat_waiting_buyer: { channel: 'chat', status: 'replied' },
+  chat_finished: { channel: 'chat', status: 'closed' },
 }
 
 const quickKeyLabel = computed(() => QUICK_KEY_MAP[filters.quick_key] || null)
@@ -1112,6 +1122,15 @@ function getReturnSlaClass(item) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.channel-card-items-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.channel-card-items-3 .channel-item-label {
+  white-space: normal;
+  line-height: 1.25;
 }
 
 .channel-item {
