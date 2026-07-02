@@ -952,7 +952,15 @@ def _service_display_status(item: CustomerServiceItem) -> Dict[str, str]:
         return {"key": "archived", "label": "已归档", "type": "info"}
     if item.status == "closed":
         if item.channel == "return_claim":
-            return {"key": "return_closed", "label": "退货已处理", "type": "info"}
+            label = "退货已处理"
+            if item.external_created_at and item.closed_at:
+                diff = item.closed_at - item.external_created_at
+                diff_h = diff.total_seconds() / 3600
+                if diff_h < 1:
+                    label += f"（{round(diff.total_seconds() / 60)}分钟）"
+                else:
+                    label += f"（{round(diff_h * 10) / 10}小时）"
+            return {"key": "return_closed", "label": label, "type": "info"}
         return {"key": "closed", "label": "已关闭", "type": "info"}
     if item.status == "pending_internal":
         return {"key": "pending_internal", "label": "内部处理中", "type": "warning"}
