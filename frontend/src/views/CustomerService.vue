@@ -137,28 +137,46 @@
             :class="['queue-item', { active: activeItem?.id === item.id }]"
             @click="selectItem(item)"
           >
-            <div class="queue-head">
-              <el-tag size="small" :type="channelTag(item.channel)">{{ channelLabel(item.channel) }}</el-tag>
-              <el-tag v-if="item.risk_level === 'urgent'" size="small" type="danger">紧急</el-tag>
-              <el-tag v-else-if="item.risk_level === 'high'" size="small" type="warning">高风险</el-tag>
-              <span class="time">{{ item.external_created_at || '-' }}</span>
+            <!-- 第一行：渠道 + 业务状态 + 时间 -->
+            <div class="queue-card-top">
+              <div class="queue-card-state">
+                <span class="queue-card-channel">{{ channelLabel(item.channel) }}</span>
+                <span
+                  v-if="getDisplayStatus(item)"
+                  class="queue-card-status"
+                  :class="'status-' + getDisplayStatus(item).key"
+                >
+                  {{ getDisplayStatus(item).label }}
+                </span>
+                <span v-if="item.risk_level === 'urgent'" class="queue-card-risk risk-urgent">紧急</span>
+                <span v-else-if="item.risk_level === 'high'" class="queue-card-risk risk-high">高风险</span>
+              </div>
+              <span class="queue-card-time">{{ item.external_created_at || '-' }}</span>
             </div>
-            <div v-if="getDisplayStatus(item)" class="status-line" :class="'status-' + getDisplayStatus(item).key">
-              <span class="status-dot"></span>
-              <span class="status-label">{{ getDisplayStatus(item).label }}</span>
+
+            <!-- 第二行：产品名称 -->
+            <div class="queue-card-product-name" :class="{ empty: !item.product_name && !item.product_name_ru }">
+              {{ item.product_name || item.product_name_ru || '(无产品名)' }}
             </div>
-            <div class="product-line">
-              <span class="product-name" :class="{ 'product-name-empty': !item.product_name && !item.product_name_ru }">
-                {{ item.product_name || item.product_name_ru || '(无产品名)' }}
+
+            <!-- 第三行：产品id + SKU + 评分星级 -->
+            <div class="queue-card-product-meta">
+              <span>产品id：{{ item.nm_id || '-' }}</span>
+              <span>SKU：{{ item.sku || '-' }}</span>
+              <span v-if="item.channel === 'feedback' && item.rating" class="queue-card-rating">
+                {{ item.rating_display || '' }}
               </span>
-              <el-tag type="info" size="small" class="nmid-tag">nmId {{ item.nm_id || '-' }}</el-tag>
-              <el-tag type="warning" size="small" class="sku-tag">SKU {{ item.sku || '-' }}</el-tag>
-              <span v-if="item.channel === 'feedback' && item.rating" class="rating-stars">{{ item.rating_display || '' }}</span>
+              <span v-else></span>
             </div>
-            <div class="content-line">{{ item.content_zh || item.content || '无文本内容' }}</div>
-            <div v-if="item.content_zh" class="original-hint">已翻译，详情可查看俄语原文</div>
-            <div class="meta-line">
-              <span>{{ item.shop_name }}</span>
+
+            <!-- 第四行：内容 -->
+            <div class="queue-card-content">
+              {{ item.content_zh || item.content || '无文本内容' }}
+            </div>
+
+            <!-- 底部：店铺 + 负责人 -->
+            <div class="queue-card-footer">
+              <span>{{ item.shop_name || '-' }}</span>
               <span>{{ item.owner || item.assigned_owner || '未分配' }}</span>
             </div>
           </button>
@@ -1082,27 +1100,12 @@ function getReturnSlaClass(item) {
   padding: 8px;
 }
 
+/* ── 左侧卡片列表 ─────────────────────────────── */
 .queue-items-wrapper {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
-}
-
-.queue-item {
-  width: 100%;
-  display: block;
-  text-align: left;
-  padding: 12px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: #fff;
-  cursor: pointer;
-  min-height: 104px;
-}
-
-.queue-item + .queue-item {
-  margin-top: 8px;
 }
 
 .queue-items-wrapper::-webkit-scrollbar {
@@ -1114,171 +1117,205 @@ function getReturnSlaClass(item) {
   border-radius: 2px;
 }
 
+/* ── 卡片主体 ──────────────────────────────── */
+.queue-item {
+  width: 100%;
+  display: block;
+  text-align: left;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  min-height: 190px;
+}
+
+.queue-item + .queue-item {
+  margin-top: 10px;
+}
+
 .queue-item:hover,
 .queue-item.active {
-  background: #f0f7ff;
-  border-color: #bfdbfe;
+  background: #f8fbff;
+  border-color: #93c5fd;
 }
 
-.queue-head {
+/* ── 第一行：渠道 + 状态 + 时间 ───────────── */
+.queue-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.queue-card-state {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 5px;
-  font-size: 12px;
-  color: #64748b;
-  min-height: 24px;
+  gap: 8px;
+  min-width: 0;
 }
 
-.queue-head .time {
-  margin-left: auto;
-  flex-shrink: 0;
-  font-size: 11px;
-}
-
-.product-line {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 8px 0 4px;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-/* 状态 tag */
-.status-tag {
-  font-weight: 600;
-  font-size: 11px;
-}
-
-/* ── 状态独立行（卡片顶部） ───────────────────── */
-.status-line {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 6px 0 0;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  border: 1px solid transparent;
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-/* danger：待卖家回复 / 退货待处理 / 待回复 */
-.status-line.status-waiting_seller,
-.status-line.status-return_pending,
-.status-line.status-unanswered,
-.status-line.status-return_open {
-  background: #fef2f2;
-  border-color: #fca5a5;
-  color: #dc2626;
-}
-.status-line.status-waiting_seller .status-dot,
-.status-line.status-return_pending .status-dot,
-.status-line.status-unanswered .status-dot {
-  background: #dc2626;
-}
-
-/* success：待买家回复 / 已回复 / 退货已处理 */
-.status-line.status-waiting_buyer,
-.status-line.status-answered,
-.status-line.status-return_closed,
-.status-line.status-closed {
-  background: #f0fdf4;
-  border-color: #86efac;
-  color: #16a34a;
-}
-.status-line.status-waiting_buyer .status-dot,
-.status-line.status-answered .status-dot,
-.status-line.status-return_closed .status-dot {
-  background: #16a34a;
-}
-
-/* warning：内部处理中 / 聊天处理中 */
-.status-line.status-pending_internal,
-.status-line.status-chat_open {
-  background: #fffbeb;
-  border-color: #fcd34d;
-  color: #b45309;
-}
-.status-line.status-pending_internal .status-dot,
-.status-line.status-chat_open .status-dot {
-  background: #b45309;
-}
-
-/* info：已归档 */
-.status-line.status-archived {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-  color: #64748b;
-}
-.status-line.status-archived .status-dot {
-  background: #64748b;
-}
-
-.product-line .product-name {
+.queue-card-channel {
+  font-size: 14px;
   font-weight: 700;
   color: #0f172a;
-  margin-right: 4px;
 }
 
-.product-line .product-name-empty {
+.queue-card-status,
+.queue-card-risk {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.queue-card-time {
+  flex-shrink: 0;
+  font-size: 12px;
   color: #94a3b8;
-  font-style: italic;
+  line-height: 22px;
 }
 
-.product-line .nmid-tag,
-.product-badges .nmid-tag {
-  background: #ede9fe;
-  border-color: #c4b5fd;
-  color: #5b21b6;
-  font-weight: 600;
-}
-
-.product-line .sku-tag,
-.product-badges .sku-tag {
-  background: #fef3c7;
-  border-color: #fcd34d;
-  color: #92400e;
-  font-weight: 600;
-}
-
-.content-line {
-  font-size: 13px;
-  color: #475569;
+/* ── 第二行：产品名称 ──────────────────────── */
+.queue-card-product-name {
+  margin-top: 10px;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 700;
   line-height: 1.45;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   overflow-wrap: anywhere;
-  word-break: break-word;
-  margin-top: 6px;
 }
 
-.original-hint {
-  font-size: 11px;
+.queue-card-product-name.empty {
   color: #94a3b8;
-  cursor: pointer;
-  margin-top: 2px;
+  font-style: italic;
+  font-weight: 500;
 }
 
-.meta-line {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: #94a3b8;
+/* ── 第三行：产品id + SKU + 评分 ─────────── */
+.queue-card-product-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 10px;
   margin-top: 8px;
+  font-size: 12px;
+  color: #64748b;
   line-height: 1.5;
 }
+
+.queue-card-product-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-card-rating {
+  color: #f59e0b;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+/* ── 第四行：内容 ──────────────────────────── */
+.queue-card-content {
+  margin-top: 16px;
+  min-height: 58px;
+  color: #334155;
+  font-size: 14px;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* ── 底部：店铺 + 负责人 ─────────────────── */
+.queue-card-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.queue-card-footer span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 状态颜色（pill 样式） ────────────────── */
+.queue-card-status.status-waiting_seller,
+.queue-card-status.status-return_pending,
+.queue-card-status.status-unanswered,
+.queue-card-status.status-return_open {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.queue-card-status.status-waiting_buyer,
+.queue-card-status.status-answered {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.queue-card-status.status-return_closed,
+.queue-card-status.status-closed,
+.queue-card-status.status-archived {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.queue-card-status.status-pending_internal,
+.queue-card-status.status-return_open,
+.queue-card-status.status-chat_open {
+  background: #fffbeb;
+  color: #a16207;
+  border: 1px solid #fde68a;
+}
+
+.queue-card-risk.risk-urgent {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.queue-card-risk.risk-high {
+  background: #fffbeb;
+  color: #a16207;
+  border: 1px solid #fde68a;
+}
+
+/* ── 移动端适配 ──────────────────────────── */
+@media (max-width: 980px) {
+  .queue-card-product-meta {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .queue-card-footer {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
 
 .countdown {
   margin-top: 8px;
