@@ -19,19 +19,19 @@
           <el-tag size="small" type="danger" effect="plain">差评紧急</el-tag>
         </div>
         <div class="channel-card-items">
-          <div class="channel-item" :class="{ 'has-count': stats.feedback_low_bad_unanswered }">
+          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'feedback_low_bad_unanswered', 'has-count': stats.feedback_low_bad_unanswered }" @click="setQuickKey('feedback_low_bad_unanswered')">
             <span class="channel-item-label">差评待回复</span>
             <span class="channel-item-num danger">{{ stats.feedback_low_bad_unanswered || 0 }}</span>
           </div>
-          <div class="channel-item">
+          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'feedback_low_bad_replied' }" @click="setQuickKey('feedback_low_bad_replied')">
             <span class="channel-item-label">差评已回复</span>
             <span class="channel-item-num">{{ stats.feedback_low_bad_replied || 0 }}</span>
           </div>
-          <div class="channel-item">
+          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'feedback_high_good_unanswered' }" @click="setQuickKey('feedback_high_good_unanswered')">
             <span class="channel-item-label">好评待回复</span>
             <span class="channel-item-num">{{ stats.feedback_high_bad_unanswered || 0 }}</span>
           </div>
-          <div class="channel-item">
+          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'feedback_high_good_replied' }" @click="setQuickKey('feedback_high_good_replied')">
             <span class="channel-item-label">好评已回复</span>
             <span class="channel-item-num">{{ stats.feedback_high_bad_replied || 0 }}</span>
           </div>
@@ -44,11 +44,11 @@
           <span>买家问答</span>
         </div>
         <div class="channel-card-items">
-          <div class="channel-item" :class="{ 'has-count': stats.question_unanswered }">
+          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'question_unanswered', 'has-count': stats.question_unanswered }" @click="setQuickKey('question_unanswered')">
             <span class="channel-item-label">待回复</span>
             <span class="channel-item-num danger">{{ stats.question_unanswered || 0 }}</span>
           </div>
-          <div class="channel-item">
+          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'question_answered' }" @click="setQuickKey('question_answered')">
             <span class="channel-item-label">已回复</span>
             <span class="channel-item-num">{{ stats.question_answered || 0 }}</span>
           </div>
@@ -62,7 +62,7 @@
           <el-tag size="small" type="danger" effect="plain">紧急</el-tag>
         </div>
         <div class="channel-card-items">
-          <div class="channel-item" :class="{ 'has-count': stats.return_pending }">
+          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'return_pending', 'has-count': stats.return_pending }" @click="setQuickKey('return_pending')">
             <span class="channel-item-label">待处理</span>
             <span class="channel-item-num danger">{{ stats.return_pending || 0 }}</span>
           </div>
@@ -83,16 +83,22 @@
           <span>买家聊天</span>
         </div>
         <div class="channel-card-items">
-          <div class="channel-item" :class="{ 'has-count': stats.chat_unanswered }">
+          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'chat_unanswered', 'has-count': stats.chat_unanswered }" @click="setQuickKey('chat_unanswered')">
             <span class="channel-item-label">待回复</span>
             <span class="channel-item-num danger">{{ stats.chat_unanswered || 0 }}</span>
           </div>
-          <div class="channel-item">
+          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'chat_answered' }" @click="setQuickKey('chat_answered')">
             <span class="channel-item-label">已回复</span>
             <span class="channel-item-num">{{ stats.chat_answered || 0 }}</span>
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- 快速筛选标签 -->
+    <div v-if="filters.quick_key" class="quick-filter-tag">
+      <span>当前筛选：{{ quickKeyLabel }}</span>
+      <el-button size="small" circle @click="clearQuickKey" class="clear-quick-btn">✕</el-button>
     </div>
 
     <div class="filters">
@@ -109,14 +115,14 @@
       <el-select v-model="filters.owner" placeholder="负责人" clearable @change="reload">
         <el-option v-for="owner in ownerOptions" :key="owner" :label="owner" :value="owner" />
       </el-select>
-      <el-select v-model="filters.channel" placeholder="类型" @change="reload">
+      <el-select v-model="filters.channel" placeholder="类型" @change="handleChannelStatusChange">
         <el-option label="全部类型" value="all" />
         <el-option label="问答" value="question" />
         <el-option label="评价" value="feedback" />
         <el-option label="买家聊天" value="chat" />
         <el-option label="退货申请" value="return_claim" />
       </el-select>
-      <el-select v-model="filters.status" placeholder="状态" @change="reload">
+      <el-select v-model="filters.status" placeholder="状态" @change="handleChannelStatusChange">
         <el-option label="待回复" value="unanswered" />
         <el-option label="全部状态" value="all" />
         <el-option label="已回复待买家" value="replied" />
@@ -142,9 +148,11 @@
               <span class="time">{{ item.external_created_at || '-' }}</span>
             </div>
             <div class="product-line">
-              <strong class="product-name" v-if="item.product_name || item.product_name_ru">{{ item.product_name || item.product_name_ru }}</strong>
-              <el-tag type="info" size="small">nmId {{ item.nm_id || '-' }}</el-tag>
-              <el-tag type="warning" size="small">SKU {{ item.sku || '-' }}</el-tag>
+              <span class="product-name" :class="{ 'product-name-empty': !item.product_name && !item.product_name_ru }">
+                {{ item.product_name || item.product_name_ru || '(无产品名)' }}
+              </span>
+              <el-tag type="info" size="small" class="nmid-tag">nmId {{ item.nm_id || '-' }}</el-tag>
+              <el-tag type="warning" size="small" class="sku-tag">SKU {{ item.sku || '-' }}</el-tag>
               <span v-if="item.channel === 'feedback' && item.rating" class="rating-stars">{{ item.rating_display || '' }}</span>
             </div>
             <div class="content-line">{{ item.content_zh || item.content || '无文本内容' }}</div>
@@ -164,39 +172,58 @@
       </section>
 
       <section class="detail" v-if="activeItem" :class="{ 'hide-on-mobile': !activeItem }">
-        <div class="detail-head mobile-back">
+        <div class="mobile-back">
           <el-button size="small" @click="activeItem = null" class="back-btn">← 返回列表</el-button>
         </div>
-        <div class="detail-head">
-          <div>
-            <div class="detail-tags">
-              <el-tag :type="channelTag(activeItem.channel)">{{ channelLabel(activeItem.channel) }}</el-tag>
-              <el-tag :type="statusTag(activeItem.status)">{{ statusLabel(activeItem.status) }}</el-tag>
-              <el-tag v-if="activeItem.channel === 'return_claim'" :type="countdownTag(activeItem)">
-                剩余 {{ formatHours(activeItem.sla_hours_left) }}
-              </el-tag>
-              <el-tag type="info" class="external-id-tag">WB #{{ activeItem.external_id?.slice(0, 8) || '-' }}</el-tag>
+
+        <!-- ── 三层结构详情头部 ─────────────────── -->
+        <div class="detail-header">
+          <div class="detail-main">
+            <!-- 第一层：类型 · 状态 · 风险 · WB ID · 时间 -->
+            <div class="detail-meta-row">
+              <el-tag size="small" :type="channelTag(activeItem.channel)">{{ channelLabel(activeItem.channel) }}</el-tag>
+              <el-tag size="small" :type="statusTag(activeItem.status)">{{ statusLabel(activeItem.status) }}</el-tag>
+              <el-tag v-if="activeItem.risk_level === 'urgent'" size="small" type="danger">紧急</el-tag>
+              <el-tag v-else-if="activeItem.risk_level === 'high'" size="small" type="warning">高风险</el-tag>
+              <span class="detail-id">WB #{{ activeItem.external_id?.slice(0, 8) || '-' }}</span>
+              <span class="detail-time">{{ activeItem.external_created_at || '-' }}</span>
             </div>
-            <div class="product-badges">
-              <strong class="product-name-primary" v-if="activeItem.product_name || activeItem.product_name_ru">
-                {{ activeItem.product_name || activeItem.product_name_ru }}
-              </strong>
-              <el-tag type="info">nmId {{ activeItem.nm_id || '-' }}</el-tag>
-              <el-tag type="warning">SKU {{ activeItem.sku || '-' }}</el-tag>
+
+            <!-- 第二层：产品名称 -->
+            <div class="detail-title-row">
+              <h3 :class="{ 'product-name-empty': !activeItem.product_name && !activeItem.product_name_ru }">
+                {{ activeItem.product_name || activeItem.product_name_ru || '(无产品名)' }}
+              </h3>
             </div>
-            <p>{{ activeItem.shop_name }} / {{ activeItem.owner || activeItem.assigned_owner || '未分配负责人' }}</p>
+
+            <!-- 第三层：店铺 · 负责人 · nmId · SKU -->
+            <div class="detail-sub-row">
+              <span>店铺：{{ activeItem.shop_name || '-' }}</span>
+              <span>负责人：{{ activeItem.owner || activeItem.assigned_owner || '未分配' }}</span>
+              <el-tag size="small" type="info" class="nmid-tag">nmId {{ activeItem.nm_id || '-' }}</el-tag>
+              <el-tag size="small" type="warning" class="sku-tag">SKU {{ activeItem.sku || '-' }}</el-tag>
+            </div>
+
+            <!-- 退货倒计时 ────────────────────────── -->
+            <div v-if="activeItem.channel === 'return_claim'" class="detail-sla" :class="countdownClass(activeItem)">
+              退货处理剩余 {{ formatHours(activeItem.sla_hours_left) }}
+            </div>
           </div>
-          <el-dropdown @command="handleStatusCommand">
-            <el-button>处理状态</el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="pending_internal">转内部处理</el-dropdown-item>
-                <el-dropdown-item command="closed">关闭</el-dropdown-item>
-                <el-dropdown-item command="open">重新打开</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-          <el-button :loading="translatingItem" @click="translateItem">翻译事项</el-button>
+
+          <!-- 右侧操作按钮 ────────────────────────── -->
+          <div class="detail-actions">
+            <el-button size="small" plain :loading="translatingItem" @click="translateItem">翻译事项</el-button>
+            <el-dropdown @command="handleStatusCommand" size="small">
+              <el-button plain size="small">处理状态</el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="pending_internal">转内部处理</el-dropdown-item>
+                  <el-dropdown-item command="closed">关闭</el-dropdown-item>
+                  <el-dropdown-item command="open">重新打开</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
         </div>
 
         <!-- item 翻译结果 -->
@@ -367,10 +394,46 @@ const filters = reactive({
   shop_id: null,
   owner: '',
   channel: 'all',
-  status: 'open'
+  status: 'open',
+  quick_key: null
 })
 
 const canManage = computed(() => ['admin', 'manager'].includes(authStore.user?.role))
+
+const QUICK_KEY_MAP = {
+  feedback_low_bad_unanswered: '差评待回复',
+  feedback_low_bad_replied: '差评已回复',
+  feedback_high_good_unanswered: '好评待回复',
+  feedback_high_good_replied: '好评已回复',
+  question_unanswered: '问答待回复',
+  question_answered: '问答已回复',
+  return_pending: '退货待处理',
+  chat_unanswered: '聊天待回复',
+  chat_answered: '聊天已回复',
+}
+
+const quickKeyLabel = computed(() => QUICK_KEY_MAP[filters.quick_key] || null)
+
+function setQuickKey(key) {
+  if (filters.quick_key === key) {
+    clearQuickKey()
+  } else {
+    filters.quick_key = key
+    reload()
+  }
+}
+
+function clearQuickKey() {
+  filters.quick_key = null
+  reload()
+}
+
+async function handleChannelStatusChange() {
+  // 手动切换类型/状态时清除 quick_key，避免与顶部快捷筛选冲突
+  filters.quick_key = null
+  activeItem.value = null
+  await Promise.all([loadStats(), loadItems()])
+}
 const ownerOptions = computed(() => {
   const set = new Set()
   const allowed = authStore.user?.allowed_owners
@@ -414,6 +477,7 @@ async function loadItems() {
       owner: filters.owner,
       channel: filters.channel,
       status: filters.status,
+      quick_key: filters.quick_key || undefined,
       page: 1,
       page_size: 50
     }
@@ -712,13 +776,16 @@ function formatHours(hours) {
 </script>
 
 <style scoped>
+/* ── 整体：自然文档流，不固定高度 ─────────────── */
 .customer-service-page {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-height: 100%;
 }
 
 .toolbar {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -737,9 +804,11 @@ function formatHours(hours) {
   font-size: 13px;
 }
 
+/* ── 统计卡片自适应 ──────────────────────────── */
 .channel-cards {
+  flex-shrink: 0;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
 }
 
@@ -781,6 +850,21 @@ function formatHours(hours) {
   background: #fef2f2;
 }
 
+.channel-item.clickable {
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.channel-item.clickable:hover {
+  background: #f0f7ff;
+  border-color: #bfdbfe;
+}
+
+.channel-item.clickable.active {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
 .channel-item-label {
   font-size: 11px;
   color: #64748b;
@@ -797,9 +881,11 @@ function formatHours(hours) {
   color: #dc2626;
 }
 
+/* ── 筛选栏自适应 ───────────────────────────── */
 .filters {
+  flex-shrink: 0;
   display: grid;
-  grid-template-columns: minmax(240px, 1.6fr) repeat(4, minmax(130px, 1fr)) auto;
+  grid-template-columns: minmax(220px, 1.6fr) repeat(auto-fit, minmax(140px, 1fr));
   gap: 10px;
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -807,15 +893,44 @@ function formatHours(hours) {
   padding: 12px;
 }
 
-.workspace {
-  display: grid;
-  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
-  grid-template-rows: 1fr;
-  align-items: stretch;
-  gap: 14px;
-  height: calc(100vh - 60px);
+/* 快速筛选标签 */
+.quick-filter-tag {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #1d4ed8;
+  font-weight: 500;
 }
 
+.clear-quick-btn {
+  font-size: 11px;
+  padding: 2px 5px;
+  min-height: auto;
+  line-height: 1;
+  color: #60a5fa;
+  border-color: #bfdbfe;
+}
+
+.filters .el-button {
+  min-width: 88px;
+}
+
+/* ── Workspace：双栏 grid，左侧顶部对齐 ─────── */
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(360px, 460px) minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  min-height: 720px;
+  height: auto;
+}
+
+/* ── 左侧列表：有最大高度，内部滚动 ─────────── */
 .queue,
 .detail {
   background: #fff;
@@ -827,13 +942,17 @@ function formatHours(hours) {
 .queue {
   display: flex;
   flex-direction: column;
+  min-height: 720px;
+  max-height: calc(100vh - 120px);
+  overflow: hidden;
   padding: 8px;
 }
 
 .queue-items-wrapper {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding-right: 2px;
+  padding-right: 4px;
 }
 
 .queue-item {
@@ -842,9 +961,10 @@ function formatHours(hours) {
   text-align: left;
   padding: 12px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
   cursor: pointer;
+  min-height: 104px;
 }
 
 .queue-item + .queue-item {
@@ -857,103 +977,102 @@ function formatHours(hours) {
 
 .queue-items-wrapper::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 .queue-item:hover,
 .queue-item.active {
-  border-color: #7b2d8e;
-  background: #faf7fc;
+  background: #f0f7ff;
+  border-color: #bfdbfe;
 }
 
-.queue-head,
-.meta-line,
-.detail-tags,
-.handler-box,
-.reply-toolbar,
-.reply-actions {
+.queue-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .queue-head .time {
   margin-left: auto;
-  color: #94a3b8;
-  font-size: 12px;
+  flex-shrink: 0;
 }
 
 .product-line {
-  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 4px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.product-line .product-name {
+  font-weight: 700;
   color: #0f172a;
-  font-size: 14px;
+  margin-right: 4px;
+}
+
+.product-line .product-name-empty {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.product-line .nmid-tag,
+.product-badges .nmid-tag {
+  background: #ede9fe;
+  border-color: #c4b5fd;
+  color: #5b21b6;
+  font-weight: 600;
+}
+
+.product-line .sku-tag,
+.product-badges .sku-tag {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #92400e;
+  font-weight: 600;
 }
 
 .content-line {
-  margin-top: 6px;
-  color: #334155;
   font-size: 13px;
+  color: #475569;
   line-height: 1.45;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-.meta-line {
-  margin-top: 8px;
-  color: #64748b;
-  font-size: 12px;
-  justify-content: space-between;
-}
-
-.rating-stars {
-  margin-left: 6px;
-  color: #f59e0b;
-  font-size: 12px;
-  letter-spacing: 1px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  margin-top: 6px;
 }
 
 .original-hint {
-  margin-top: 4px;
+  font-size: 11px;
   color: #94a3b8;
-  font-size: 12px;
   cursor: pointer;
+  margin-top: 2px;
 }
 
-.translation-box {
-  margin: 12px 0;
-  padding: 12px;
-  border-radius: 8px;
-  background: #f0f9ff;
-  border: 1px solid #bae6fd;
-}
-
-.translation-title {
-  font-weight: 600;
-  color: #0369a1;
-  margin-bottom: 6px;
-  font-size: 14px;
-}
-
-.message-translation {
+.meta-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #94a3b8;
   margin-top: 8px;
-  color: #0369a1;
-  line-height: 1.6;
-  white-space: pre-wrap;
+  line-height: 1.5;
 }
-
 
 .countdown {
   margin-top: 8px;
-  color: #166534;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
-}
-
-.countdown.warning {
-  color: #b45309;
+  color: #64748b;
+  line-height: 1.5;
 }
 
 .countdown.danger {
@@ -962,14 +1081,20 @@ function formatHours(hours) {
   font-size: 14px;
   animation: pulse-red 1.5s ease-in-out infinite;
 }
+
 @keyframes pulse-red {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
 }
 
+/* ── 右侧详情区：自然高度 ───────────────────── */
 .detail {
+  min-height: 720px;
+  height: auto;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
   padding: 16px;
-  overflow-y: auto;
   box-sizing: border-box;
 }
 
@@ -979,47 +1104,127 @@ function formatHours(hours) {
   justify-content: center;
 }
 
-.detail-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+/* ── 三层结构详情头部 ─────────────────────── */
+.detail-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 16px;
+  padding-bottom: 16px;
   border-bottom: 1px solid #e2e8f0;
-  padding-bottom: 14px;
 }
 
-.detail-head h3 {
-  margin: 0;
-  color: #0f172a;
+.detail-main {
+  min-width: 0;
 }
 
-.product-badges {
+.detail-meta-row {
   display: flex;
   align-items: center;
-  gap: 6px;
   flex-wrap: wrap;
-  margin-bottom: 6px;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
-.product-name-primary {
-  font-weight: 700;
-  font-size: 15px;
-  color: #166534;
-  margin-right: 4px;
+.detail-id,
+.detail-time {
+  font-size: 12px;
+  color: #94a3b8;
 }
 
-.product-line .product-name {
-  font-weight: 700;
-  color: #166534;
-  margin-right: 4px;
-}
-
-.detail-head p {
+.detail-title-row h3 {
   margin: 0;
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.detail-title-row h3.product-name-empty {
+  color: #94a3b8;
+  font-style: italic;
+  font-weight: 400;
+}
+
+.detail-sub-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 8px;
+  font-size: 13px;
   color: #64748b;
 }
 
+/* 退货倒计时醒目样式 */
+.detail-sla {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 10px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.detail-sla.warning {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.detail-sla.danger {
+  background: #fef2f2;
+  color: #dc2626;
+  animation: pulse-red 1.5s ease-in-out infinite;
+}
+
+/* 右侧操作按钮区 */
+.detail-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ── 长文本防溢出 ───────────────────────────── */
+.message,
+.message-text,
+.message-translation,
+.translation-box,
+.product-line,
+.product-badges {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.message-text,
+.message-translation {
+  white-space: pre-wrap;
+}
+
+.translation-box {
+  margin: 12px 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.translation-title {
+  font-size: 11px;
+  color: #16a34a;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
 .handler-box {
+  flex-shrink: 0;
   margin: 14px 0;
   padding: 10px;
   border-radius: 8px;
@@ -1028,19 +1233,25 @@ function formatHours(hours) {
   font-size: 13px;
 }
 
+/* ── 消息列表：可滚动，回复框始终可见 ───────── */
 .message-list {
+  flex: 1;
+  min-height: 260px;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 16px;
+  margin: 14px 0 16px;
+  padding-right: 4px;
 }
 
 .message {
-  max-width: 82%;
-  padding: 12px;
+  max-width: 86%;
+  padding: 13px 14px;
   border-radius: 8px;
   border: 1px solid #e2e8f0;
   background: #f8fafc;
+  line-height: 1.55;
 }
 
 .message.seller {
@@ -1060,8 +1271,20 @@ function formatHours(hours) {
 .message-text {
   margin-top: 8px;
   color: #0f172a;
-  line-height: 1.6;
-  white-space: pre-wrap;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.message-translation {
+  margin-top: 6px;
+  color: #15803d;
+  font-size: 13px;
+  line-height: 1.65;
+  border-top: 1px dashed #bbf7d0;
+  padding-top: 6px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .attachments {
@@ -1071,8 +1294,11 @@ function formatHours(hours) {
   flex-wrap: wrap;
 }
 
+/* ── 回复区 ─────────────────────────────────── */
 .return-actions,
 .reply-box {
+  flex-shrink: 0;
+  background: #fff;
   border-top: 1px solid #e2e8f0;
   padding-top: 14px;
 }
@@ -1081,6 +1307,11 @@ function formatHours(hours) {
   margin-bottom: 12px;
   color: #b45309;
   font-weight: 600;
+}
+
+.return-no-action {
+  font-size: 13px;
+  color: #94a3b8;
 }
 
 .reject-choice-list {
@@ -1125,57 +1356,110 @@ function formatHours(hours) {
 }
 
 .reply-toolbar {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
+  min-height: 32px;
   margin-bottom: 10px;
 }
 
 .reply-actions {
   justify-content: flex-end;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
+.reply-box :deep(.el-textarea__inner),
+.return-actions :deep(.el-textarea__inner) {
+  min-height: 150px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+/* ── 移动端 ─────────────────────────────────── */
 @media (max-width: 980px) {
-  .channel-cards,
-  .filters {
-    grid-template-columns: 1fr;
+  .quick-filter-tag {
+    font-size: 12px;
   }
+
   .workspace {
     grid-template-columns: 1fr;
-    grid-template-rows: auto;
-    height: auto;
     min-height: auto;
-    overflow: visible;
+    height: auto;
   }
+
   .queue,
   .detail {
     display: block;
     height: auto;
     overflow: visible;
+    min-height: auto;
+    max-height: none;
   }
-  .queue-items-wrapper {
+
+  .queue {
+    min-height: auto;
+    max-height: none;
+  }
+
+  .queue-item {
+    min-height: 104px;
+  }
+
+  .queue-items-wrapper,
+  .message-list {
     flex: none;
     overflow: visible;
     max-height: none;
+    min-height: auto;
   }
+
   .queue.hide-on-mobile,
   .detail.hide-on-mobile {
     display: none;
   }
+
   .queue.show-on-mobile,
   .detail.show-on-mobile {
     display: block;
   }
+
   .mobile-back {
     display: flex;
   }
+
   .back-btn {
     margin-bottom: 8px;
+  }
+
+  .reply-box :deep(.el-textarea__inner) {
+    min-height: 130px;
+  }
+
+  .detail-header {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .detail-title-row h3 {
+    font-size: 16px;
   }
 }
 
 @media (min-width: 981px) {
   .mobile-back {
     display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .countdown.danger {
+    animation: none;
   }
 }
 </style>

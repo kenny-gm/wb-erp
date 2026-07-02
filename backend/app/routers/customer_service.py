@@ -17,7 +17,7 @@ import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import case, or_
+from sqlalchemy import and_, case, or_
 from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
@@ -172,6 +172,7 @@ def list_customer_service_items(
     channel: str = Query("all"),
     status: str = Query("open"),
     search: str = Query(""),
+    quick_key: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(30, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -187,24 +188,88 @@ def list_customer_service_items(
             CustomerServiceItem.owner == owner,
             CustomerServiceItem.assigned_owner == owner,
         ))
-    if channel != "all":
-        query = query.filter(CustomerServiceItem.channel == channel)
-    if status != "all":
-        if status == "unanswered":
-            # 待回复：reply_status=unanswered 且未关闭
+
+    # ── quick_key 精确过滤 ──────────────────────────────────
+    rating_range = case(
+        (CustomerServiceItem.rating.in_([1, 2, 3]), "low"),
+        (CustomerServiceItem.rating.in_([4, 5]), "high"),
+        else_="other",
+    )
+
+    if quick_key:
+        if quick_key == "feedback_low_bad_unanswered":
             query = query.filter(
+                CustomerServiceItem.channel == "feedback",
+                rating_range == "low",
                 CustomerServiceItem.reply_status == "unanswered",
                 CustomerServiceItem.status.notin_(["closed", "archived"]),
             )
-        elif status == "replied":
-            # 已回复待买家：status=replied
-            query = query.filter(CustomerServiceItem.status == "replied")
-        elif status == "pending_internal":
-            query = query.filter(CustomerServiceItem.status == "pending_internal")
-        elif status == "closed":
-            query = query.filter(CustomerServiceItem.status == "closed")
-        else:
-            query = query.filter(CustomerServiceItem.status == status)
+        elif quick_key == "feedback_low_bad_replied":
+            query = query.filter(
+                CustomerServiceItem.channel == "feedback",
+                rating_range == "low",
+                CustomerServiceItem.reply_status == "answered",
+            )
+        elif quick_key == "feedback_high_good_unanswered":
+            query = query.filter(
+                CustomerServiceItem.channel == "feedback",
+                rating_range == "high",
+                CustomerServiceItem.reply_status == "unanswered",
+                CustomerServiceItem.status.notin_(["closed", "archived"]),
+            )
+        elif quick_key == "feedback_high_good_replied":
+            query = query.filter(
+                CustomerServiceItem.channel == "feedback",
+                rating_range == "high",
+                CustomerServiceItem.reply_status == "answered",
+            )
+        elif quick_key == "question_unanswered":
+            query = query.filter(
+                CustomerServiceItem.channel == "question",
+                CustomerServiceItem.reply_status == "unanswered",
+                CustomerServiceItem.status.notin_(["closed", "archived"]),
+            )
+        elif quick_key == "question_answered":
+            query = query.filter(
+                CustomerServiceItem.channel == "question",
+                CustomerServiceItem.reply_status == "answered",
+            )
+        elif quick_key == "return_pending":
+            query = query.filter(
+                CustomerServiceItem.channel == "return_claim",
+                CustomerServiceItem.reply_status == "unanswered",
+                CustomerServiceItem.status.notin_(["closed", "archived"]),
+            )
+        elif quick_key == "chat_unanswered":
+            query = query.filter(
+                CustomerServiceItem.channel == "chat",
+                CustomerServiceItem.reply_status == "unanswered",
+                CustomerServiceItem.status.notin_(["closed", "archived"]),
+            )
+        elif quick_key == "chat_answered":
+            query = query.filter(
+                CustomerServiceItem.channel == "chat",
+                CustomerServiceItem.reply_status == "answered",
+            )
+    else:
+        # ── 普通 channel / status 过滤 ───────────────────
+        if channel != "all":
+            query = query.filter(CustomerServiceItem.channel == channel)
+        if status != "all":
+            if status == "unanswered":
+                query = query.filter(
+                    CustomerServiceItem.reply_status == "unanswered",
+                    CustomerServiceItem.status.notin_(["closed", "archived"]),
+                )
+            elif status == "replied":
+                query = query.filter(CustomerServiceItem.status == "replied")
+            elif status == "pending_internal":
+                query = query.filter(CustomerServiceItem.status == "pending_internal")
+            elif status == "closed":
+                query = query.filter(CustomerServiceItem.status == "closed")
+            else:
+                query = query.filter(CustomerServiceItem.status == status)
+
     if search:
         like = f"%{search.strip()}%"
         query = query.filter(or_(

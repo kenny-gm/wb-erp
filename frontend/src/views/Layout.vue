@@ -82,7 +82,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { DataLine, TrendCharts, Wallet, Setting, User, Fold, Expand, Menu, Bell, Box, ChatDotRound } from '@element-plus/icons-vue'
+import { DataLine, TrendCharts, Document, Setting, User, Menu, ChatDotRound } from '@element-plus/icons-vue'
 import axios from 'axios'
 
 const router = useRouter()
