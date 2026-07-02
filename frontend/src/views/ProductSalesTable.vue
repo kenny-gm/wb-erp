@@ -130,10 +130,18 @@ const props = defineProps({
   startDate: { type: String, default: '' },
   endDate: { type: String, default: '' },
   selectedShop: { type: [String, Number], default: '' },
+  selectedShops: { type: Array, default: () => [] },
   selectedOwner: { type: String, default: '' },
   selectedProduct: { type: [String, Number], default: '' },
   quickType: { type: String, default: '' }
 })
+
+function selectedShopIds() {
+  if (Array.isArray(props.selectedShops) && props.selectedShops.length) {
+    return props.selectedShops.filter(Boolean)
+  }
+  return props.selectedShop ? [props.selectedShop] : []
+}
 
 const emit = defineEmits(['update:startDate', 'update:endDate', 'update:selectedShop', 'update:selectedOwner', 'update:quickType'])
 
@@ -512,7 +520,7 @@ async function fetchData() {
     const resp = await axios.post('/api/dashboard/products/', {
       start_date: props.startDate,
       end_date: props.endDate,
-      shop_ids: props.selectedShop ? [props.selectedShop] : undefined,
+      shop_ids: selectedShopIds(),
       owners: props.selectedOwner ? [props.selectedOwner] : undefined,
       product_name: props.selectedProduct || undefined
     })
@@ -533,7 +541,9 @@ watch(
   { immediate: true }
 )
 
-watch([() => props.startDate, () => props.endDate, () => props.selectedShop, () => props.selectedOwner, () => props.selectedProduct], () => {
+watch(
+  [() => props.startDate, () => props.endDate, () => selectedShopIds().join(','), () => props.selectedOwner, () => props.selectedProduct],
+  () => {
   setTimeout(() => prefetchLogsForDateRange(), 0)
 })
 

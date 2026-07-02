@@ -26,7 +26,7 @@
         <el-date-picker v-model="filters.dateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" format="YYYY-MM-DD" value-format="YYYY-MM-DD" @change="handleDateChange" style="width: 240px" />
       </div>
       <div class="filter-item">
-        <el-select v-model="filters.shopId" placeholder="全部店铺" clearable style="width: 130px">
+        <el-select v-model="filters.shopIds" placeholder="全部店铺" clearable multiple collapse-tags collapse-tags-tooltip filterable style="width: 220px">
           <el-option v-for="shop in shops" :key="shop.id" :label="shop.name" :value="shop.id" />
         </el-select>
       </div>
@@ -58,7 +58,7 @@
       :loading="loading"
       :start-date="filters.start_date" 
       :end-date="filters.end_date" 
-      :selected-shop="filters.shopId" 
+      :selected-shops="selectedShopIds()" 
       :selected-owner="filters.owner"
       :selected-product="filters.productId"
       :quick-type="quickType" 
@@ -83,7 +83,11 @@ const owners = ref([])
 const logCounts = ref({})
 const quickType = ref('yesterday')
 
-const filters = reactive({ dateRange: null, start_date: '', end_date: '', shopId: null, productId: null, owner: null })
+const filters = reactive({ dateRange: null, start_date: '', end_date: '', shopIds: [], productId: null, owner: null })
+
+function selectedShopIds() {
+  return Array.isArray(filters.shopIds) ? filters.shopIds.filter(Boolean) : []
+}
 const pagination = reactive({ page: 1, pageSize: 50 })
 const expandedRows = ref([])
 const logDialogVisible = ref(false)
@@ -146,7 +150,7 @@ async function fetchData() {
     const resp = await axios.post('/api/dashboard/products/', {
           start_date: filters.start_date,
           end_date: filters.end_date,
-          shop_ids: filters.shopId ? [filters.shopId] : [],
+          shop_ids: selectedShopIds(),
           owners: filters.owner ? [filters.owner] : [],
           product_name: filters.productId || undefined
         })
@@ -192,7 +196,7 @@ async function generateDailyData() {
     const resp = await axios.post('/api/dashboard/trend/', {
       start_date: filters.start_date,
       end_date: filters.end_date,
-      shop_ids: filters.shopId ? [filters.shopId] : [],
+      shop_ids: selectedShopIds(),
       product_ids: productIdsForTrend.length > 0 ? productIdsForTrend : []
     })
     const data = resp.data || []
@@ -248,7 +252,7 @@ async function handleExpandChange(row, expanded) {
         const resp = await axios.post('/api/dashboard/trend/', {
           start_date: filters.start_date,
           end_date: filters.end_date,
-          shop_ids: filters.shopId ? [filters.shopId] : [],
+          shop_ids: selectedShopIds(),
           product_ids: [row.product_id]
         })
         const data = resp.data || []
@@ -291,7 +295,10 @@ function getRateClass(rate, metric) { const t = thresholds[metric]; if (!t || !r
 
 // initialized 防止 setQuickDate 触发 watch 与 onMounted 手动调用重复请求
 const initialized = ref(false)
-watch(() => [filters.start_date, filters.end_date, filters.shopId, filters.owner, filters.productId], () => { if (initialized.value) fetchData() })
+watch(
+  () => [filters.start_date, filters.end_date, selectedShopIds().join(','), filters.owner, filters.productId],
+  () => { if (initialized.value) fetchData() }
+)
 onMounted(async () => {
   await Promise.all([fetchShops(), fetchProducts(), fetchOwners(), fetchThresholds()])
   setQuickDate('yesterday')
