@@ -13,7 +13,7 @@
     <!-- 4个模块统计卡片 -->
     <div class="channel-cards">
       <!-- 评论卡片 -->
-      <div class="channel-card">
+      <div class="channel-card channel-card-feedback">
         <div class="channel-card-title">
           <span>买家评论</span>
           <el-tag size="small" type="danger" effect="plain">差评紧急</el-tag>
@@ -39,7 +39,7 @@
       </div>
 
       <!-- 问答卡片 -->
-      <div class="channel-card">
+      <div class="channel-card channel-card-question">
         <div class="channel-card-title">
           <span>买家问答</span>
         </div>
@@ -56,7 +56,7 @@
       </div>
 
       <!-- 退货卡片 -->
-      <div class="channel-card">
+      <div class="channel-card channel-card-return_claim">
         <div class="channel-card-title">
           <span>买家退货</span>
           <el-tag size="small" type="danger" effect="plain">紧急</el-tag>
@@ -74,7 +74,7 @@
       </div>
 
       <!-- 聊天卡片 -->
-      <div class="channel-card">
+      <div class="channel-card channel-card-chat">
         <div class="channel-card-title">
           <span>买家聊天</span>
         </div>
@@ -983,6 +983,75 @@ function getReturnSlaClass(item) {
   border-bottom: 1px solid #f1f5f9;
 }
 
+/* ── 顶部统计卡片渠道颜色 ─────────────────── */
+.channel-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.channel-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+}
+
+.channel-card-feedback {
+  background: linear-gradient(90deg, #f0fdf4 0, #ffffff 34%);
+  border-color: #bbf7d0;
+}
+
+.channel-card-feedback::before {
+  background: #22c55e;
+}
+
+.channel-card-question {
+  background: linear-gradient(90deg, #f5f3ff 0, #ffffff 34%);
+  border-color: #ddd6fe;
+}
+
+.channel-card-question::before {
+  background: #8b5cf6;
+}
+
+.channel-card-return_claim {
+  background: linear-gradient(90deg, #fef2f2 0, #ffffff 34%);
+  border-color: #fecaca;
+}
+
+.channel-card-return_claim::before {
+  background: #ef4444;
+}
+
+.channel-card-chat {
+  background: linear-gradient(90deg, #fff7ed 0, #ffffff 34%);
+  border-color: #fed7aa;
+}
+
+.channel-card-chat::before {
+  background: #f97316;
+}
+
+/* ── 顶部卡片标题颜色 ─────────────────── */
+.channel-card-feedback .channel-card-title {
+  color: #166534;
+}
+
+.channel-card-question .channel-card-title {
+  color: #5b21b6;
+}
+
+.channel-card-return_claim .channel-card-title {
+  color: #991b1b;
+}
+
+.channel-card-chat .channel-card-title {
+  color: #9a3412;
+}
+
+
 .channel-card-items {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1008,13 +1077,12 @@ function getReturnSlaClass(item) {
 }
 
 .channel-item.clickable:hover {
-  background: #f0f7ff;
-  border-color: #bfdbfe;
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.25);
 }
 
 .channel-item.clickable.active {
-  background: #dbeafe;
-  border-color: #93c5fd;
+  background: rgba(59, 130, 246, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.35);
 }
 
 .channel-item-label {
