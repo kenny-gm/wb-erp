@@ -162,8 +162,8 @@
               <span>{{ item.owner || item.assigned_owner || '未分配' }}</span>
 
             </div>
-            <div v-if="item.channel === 'return_claim'" class="countdown" :class="countdownClass(item)">
-              退货处理剩余 {{ formatHours(item.sla_hours_left) }}
+            <div v-if="item.channel === 'return_claim'" class="countdown" :class="getReturnSlaClass(item)">
+              {{ getReturnSlaText(item) }}
             </div>
           </button>
 
@@ -211,8 +211,8 @@
             </div>
 
             <!-- 退货倒计时 ────────────────────────── -->
-            <div v-if="activeItem.channel === 'return_claim'" class="detail-sla" :class="countdownClass(activeItem)">
-              退货处理剩余 {{ formatHours(activeItem.sla_hours_left) }}
+            <div v-if="activeItem.channel === 'return_claim'" class="detail-sla" :class="getReturnSlaClass(activeItem)">
+              {{ getReturnSlaText(activeItem) }}
             </div>
           </div>
 
@@ -843,18 +843,11 @@ function statusTag(status) {
   }[status] || ''
 }
 
-function countdownClass(item) {
-  if (item.sla_hours_left === null || item.sla_hours_left === undefined) return ''
-  if (item.sla_hours_left <= 6) return 'danger'
-  if (item.sla_hours_left <= 24) return 'warning'
-  return ''
-}
-
-function countdownTag(item) {
-  const cls = countdownClass(item)
-  return cls === 'danger' ? 'danger' : cls === 'warning' ? 'warning' : 'success'
-}
-
+/**
+ * 退货 SLA 显示：
+ * - 已处理（closed）：用时 = closed_at - external_created_at
+ * - 未处理（open）：剩余时间 = sla_hours_left
+ */
 function formatHours(hours) {
   if (hours === null || hours === undefined) return '-'
   if (hours <= 0) return '已超时'
@@ -862,6 +855,40 @@ function formatHours(hours) {
   const h = Math.round(hours * 10) / 10
   if (h === Math.round(h)) return `${h} 小时`
   return `${h.toFixed(1)} 小时`
+}
+
+function getReturnSlaText(item) {
+  if (!item) return '-'
+  if (item.status === 'closed') {
+    // 已处理：计算实际处理用时
+    const created = item.external_created_at ? new Date(item.external_created_at) : null
+    const closed = item.closed_at ? new Date(item.closed_at) : null
+    if (created && closed && !isNaN(created) && !isNaN(closed)) {
+      const diffMs = closed - created
+      const diffH = diffMs / (1000 * 60 * 60)
+      if (diffH < 1) return `退货已处理，用时 ${Math.round(diffMs / 1000 / 60)} 分钟`
+      const h = Math.round(diffH * 10) / 10
+      if (h === Math.round(h)) return `退货已处理，用时 ${h} 小时`
+      return `退货已处理，用时 ${h.toFixed(1)} 小时`
+    }
+    return '退货已处理'
+  }
+  // 未处理：显示剩余时间
+  return `退货处理剩余 ${formatHours(item.sla_hours_left)}`
+}
+
+function getReturnSlaClass(item) {
+  if (!item) return ''
+  if (item.status === 'closed') {
+    // 已处理：绿色
+    return 'success'
+  }
+  // 未处理：按剩余时间判断颜色
+  const h = item.sla_hours_left
+  if (h === null || h === undefined) return ''
+  if (h <= 6) return 'danger'
+  if (h <= 24) return 'warning'
+  return ''
 }
 </script>
 
@@ -1251,6 +1278,16 @@ function formatHours(hours) {
   animation: pulse-red 1.5s ease-in-out infinite;
 }
 
+.countdown.success {
+  color: #16a34a;
+  font-weight: 600;
+  font-size: 13px;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+
 @keyframes pulse-red {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
@@ -1341,6 +1378,13 @@ function formatHours(hours) {
 .detail-sla.warning {
   background: #fffbeb;
   color: #b45309;
+}
+
+.detail-sla.success {
+  background: #f0fdf4;
+  color: #16a34a;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .detail-sla.danger {
