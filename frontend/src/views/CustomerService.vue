@@ -139,16 +139,13 @@
           >
             <div class="queue-head">
               <el-tag size="small" :type="channelTag(item.channel)">{{ channelLabel(item.channel) }}</el-tag>
-              <el-tag
-                v-if="getDisplayStatus(item)"
-                size="small"
-                :type="getDisplayStatus(item).type"
-                effect="dark"
-                class="status-tag"
-              >{{ getDisplayStatus(item).label }}</el-tag>
               <el-tag v-if="item.risk_level === 'urgent'" size="small" type="danger">紧急</el-tag>
               <el-tag v-else-if="item.risk_level === 'high'" size="small" type="warning">高风险</el-tag>
               <span class="time">{{ item.external_created_at || '-' }}</span>
+            </div>
+            <div v-if="getDisplayStatus(item)" class="status-line" :class="'status-' + getDisplayStatus(item).key">
+              <span class="status-dot"></span>
+              <span class="status-label">{{ getDisplayStatus(item).label }}</span>
             </div>
             <div class="product-line">
               <span class="product-name" :class="{ 'product-name-empty': !item.product_name && !item.product_name_ru }">
@@ -1102,6 +1099,78 @@ function formatHours(hours) {
 .status-tag {
   font-weight: 600;
   font-size: 11px;
+}
+
+/* ── 状态独立行（卡片顶部） ───────────────────── */
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* danger：待卖家回复 / 退货待处理 / 待回复 */
+.status-line.status-waiting_seller,
+.status-line.status-return_pending,
+.status-line.status-unanswered,
+.status-line.status-return_open {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+.status-line.status-waiting_seller .status-dot,
+.status-line.status-return_pending .status-dot,
+.status-line.status-unanswered .status-dot {
+  background: #dc2626;
+}
+
+/* success：待买家回复 / 已回复 / 退货已处理 */
+.status-line.status-waiting_buyer,
+.status-line.status-answered,
+.status-line.status-return_closed,
+.status-line.status-closed {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #16a34a;
+}
+.status-line.status-waiting_buyer .status-dot,
+.status-line.status-answered .status-dot,
+.status-line.status-return_closed .status-dot {
+  background: #16a34a;
+}
+
+/* warning：内部处理中 / 聊天处理中 */
+.status-line.status-pending_internal,
+.status-line.status-chat_open {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  color: #b45309;
+}
+.status-line.status-pending_internal .status-dot,
+.status-line.status-chat_open .status-dot {
+  background: #b45309;
+}
+
+/* info：已归档 */
+.status-line.status-archived {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #64748b;
+}
+.status-line.status-archived .status-dot {
+  background: #64748b;
 }
 
 .product-line .product-name {
