@@ -269,24 +269,32 @@ def get_dashboard_stats(
         if has_shop_filter:
             ads_query = ads_query.filter(AdRecord.shop_id.in_(filter_data.shop_ids))
 
-        ads = ads_query.all()
+        # 非管理员用户即使没有传 owners 参数，也需要按 allowed_owners 限制
+        _user_owners_raw = getattr(current_user, 'allowed_owners', None)
+        _user_has_restriction = isinstance(_user_owners_raw, (list, tuple, set)) and _user_owners_raw
+        if _user_has_restriction and not has_owner_filter:
+            # 没有显式 owners 参数，但用户有负责人限制，转为按产品过滤
+            from app.models.models import Product
+            _restricted_product_ids = [p[0] for p in db.query(Product.id).filter(Product.owner.in_(_user_owners_raw)).all()]
+            if _restricted_product_ids:
+                ads_query = ads_query.filter(AdRecord.product_id.in_(_restricted_product_ids))
+                ads_cost_query = ads_cost_query.filter(AdRecord.product_id.in_(_restricted_product_ids))
+                orders_query = db.query(Order).filter(
+                    Order.order_date >= start_date,
+                    Order.order_date < end_date
+                ).join(OrderItem, Order.id == OrderItem.order_id).filter(OrderItem.product_id.in_(_restricted_product_ids))
+            else:
+                # 有限制但无产品，返回空
+                return stats
 
-        # 查询广告费用数据
-        ads_cost_query = db.query(AdRecord).filter(
-            AdRecord.record_date >= start_date,
-            AdRecord.record_date < end_date,
-            AdRecord.ad_type == "advertising",
-        )
         if has_shop_filter:
             ads_cost_query = ads_cost_query.filter(AdRecord.shop_id.in_(filter_data.shop_ids))
 
+        ads = ads_query.all()
         ads_costs = ads_cost_query.all()
+        orders = orders_query.all()
 
         # 从orders表获取销售额(只按店铺筛选)
-        orders_query = db.query(Order).filter(
-            Order.order_date >= start_date,
-            Order.order_date < end_date
-        )
         if has_shop_filter:
             orders_query = orders_query.filter(Order.shop_id.in_(filter_data.shop_ids))
         orders = orders_query.all()
