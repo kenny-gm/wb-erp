@@ -3,7 +3,8 @@
 """
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
+from typing import Optional
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, field_serializer
 
@@ -560,14 +561,17 @@ def internal_sync_shop_data(
     shop_id: int,
     sync_type: str = "all",
     history: bool = False,
-    api_key: str = None,
+    x_internal_api_key: Optional[str] = Header(None, alias="X-Internal-API-Key"),
     db: Session = Depends(get_db)
 ):
     """内部同步数据（服务器端定时任务使用）"""
     import logging
     logger = logging.getLogger(__name__)
 
-    if api_key != app.config.settings.INTERNAL_API_KEY:
+    configured_key = app.config.settings.INTERNAL_API_KEY
+    if not configured_key:
+        raise HTTPException(status_code=503, detail="内部同步密钥未配置")
+    if x_internal_api_key != configured_key:
         raise HTTPException(status_code=401, detail="无效的API密钥")
 
     return _sync_shop_data_internal(shop_id, sync_type, history, db)

@@ -10,7 +10,8 @@ services:
     working_dir: /app/backend
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     environment:
-      - INTERNAL_API_KEY=wb-erp-internal-sync-key-2026
+      - APP_ENV=production
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
     networks:
       - wb-erp_wb-erp-network
 

@@ -106,7 +106,8 @@ def sync_due_shops_task():
         for shop in due_shops:
             try:
                 resp = httpx.post(
-                    f"{base_url}/api/shops/internal-sync/{shop.id}/?api_key={api_key}&sync_type=all",
+                    f"{base_url}/api/shops/internal-sync/{shop.id}/?sync_type=all",
+                    headers={"X-Internal-API-Key": api_key},
                     timeout=600
                 )
                 result = resp.json()

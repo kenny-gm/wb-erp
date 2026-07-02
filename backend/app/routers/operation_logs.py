@@ -191,7 +191,8 @@ def delete_operation_log(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    if current_user.get("role") != "admin":
+    role = getattr(current_user.role, "value", current_user.role)
+    if role != "admin":
         raise HTTPException(status_code=403, detail="仅管理员可删除日志")
     log = db.query(OperationLog).filter(OperationLog.id == log_id).first()
     if not log:
@@ -254,9 +255,12 @@ def get_latest_logs_by_products(
         base_query = base_query.join(Product, OperationLog.product_id == Product.id).filter(Product.owner.in_(user_allowed_owners))
     
     # 子查询：获取每个产品最新日志的ID
-    from sqlalchemy import func
+    from sqlalchemy import func as sql_func
     
-    subquery = base_query.filter(
+    subquery = base_query.with_entities(
+        OperationLog.product_id.label("product_id"),
+        sql_func.max(OperationLog.id).label("max_id"),
+    ).filter(
         OperationLog.product_id.in_(id_list)
     ).group_by(OperationLog.product_id).subquery()
     
