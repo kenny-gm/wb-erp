@@ -952,7 +952,24 @@ def _service_display_status(item: CustomerServiceItem) -> Dict[str, str]:
         return {"key": "archived", "label": "已归档", "type": "info"}
     if item.status == "closed":
         if item.channel == "return_claim":
-            label = "退货已处理"
+            raw = item.raw_json
+            if isinstance(raw, str):
+                import json
+                raw = json.loads(raw) if raw else {}
+            elif not isinstance(raw, dict):
+                raw = {}
+            wb_status = raw.get("status")
+            wb_status_ex = raw.get("status_ex")
+            # WB status: 0=新申请, 1=拒绝, 2=批准
+            # WB status_ex: 1=拒绝理由, 5=批准不退货, 10=批准需退货
+            if wb_status == 1 or wb_status_ex == 1:
+                label = "退货已拒绝"
+            elif wb_status == 2 and wb_status_ex == 5:
+                label = "已批准（无需退货）"
+            elif wb_status == 2 and wb_status_ex == 10:
+                label = "已批准（待买家退货）"
+            else:
+                label = "退货已处理"
             if item.external_created_at and item.closed_at:
                 diff = item.closed_at - item.external_created_at
                 diff_h = diff.total_seconds() / 3600
