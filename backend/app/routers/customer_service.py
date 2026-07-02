@@ -190,6 +190,10 @@ def list_customer_service_items(
         ))
 
     # ── quick_key 精确过滤 ──────────────────────────────────
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning(f"[QUICK_KEY DEBUG] quick_key={quick_key!r}, channel={channel!r}, status={status!r}")
+
     if quick_key:
         if quick_key == "feedback_low_bad_unanswered":
             query = query.filter(
@@ -281,7 +285,8 @@ def list_customer_service_items(
             CustomerServiceItem.external_id.like(like),
         ))
 
-    total = query.count()
+    total_before_rating = total = query.count()
+    logger.warning(f"[QUICK_KEY DEBUG] total_after_filters={total}")
     risk_order = case(
         (CustomerServiceItem.risk_level == "urgent", 0),
         (CustomerServiceItem.risk_level == "high", 1),

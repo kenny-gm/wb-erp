@@ -511,6 +511,8 @@ class CustomerServiceSyncService:
             item.reply_status = "answered" if is_answered else "unanswered"
         if override_status is not None:
             item.status = override_status
+            if override_status == "closed" and item.closed_at is None:
+                item.closed_at = self._now()
         else:
             # 始终更新状态，不受旧状态限制
             item.status = "replied" if is_answered else "open"
