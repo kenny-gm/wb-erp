@@ -140,12 +140,12 @@
             <div class="queue-head">
               <el-tag size="small" :type="channelTag(item.channel)">{{ channelLabel(item.channel) }}</el-tag>
               <el-tag
-                v-if="item.display_status"
+                v-if="getDisplayStatus(item)"
                 size="small"
-                :type="item.display_status.type"
+                :type="getDisplayStatus(item).type"
                 effect="dark"
                 class="status-tag"
-              >{{ item.display_status.label }}</el-tag>
+              >{{ getDisplayStatus(item).label }}</el-tag>
               <el-tag v-if="item.risk_level === 'urgent'" size="small" type="danger">紧急</el-tag>
               <el-tag v-else-if="item.risk_level === 'high'" size="small" type="warning">高风险</el-tag>
               <span class="time">{{ item.external_created_at || '-' }}</span>
@@ -186,13 +186,12 @@
             <div class="detail-meta-row">
               <el-tag size="small" :type="channelTag(activeItem.channel)">{{ channelLabel(activeItem.channel) }}</el-tag>
               <el-tag
-                v-if="activeItem.display_status"
+                v-if="getDisplayStatus(activeItem)"
                 size="small"
-                :type="activeItem.display_status.type"
+                :type="getDisplayStatus(activeItem).type"
                 effect="dark"
                 class="status-tag"
-              >{{ activeItem.display_status.label }}</el-tag>
-              <el-tag v-else size="small" :type="statusTag(activeItem.status)">{{ statusLabel(activeItem.status) }}</el-tag>
+              >{{ getDisplayStatus(activeItem).label }}</el-tag>
               <el-tag v-if="activeItem.risk_level === 'urgent'" size="small" type="danger">紧急</el-tag>
               <el-tag v-else-if="activeItem.risk_level === 'high'" size="small" type="warning">高风险</el-tag>
               <span class="detail-id">WB #{{ activeItem.external_id?.slice(0, 8) || '-' }}</span>
@@ -437,6 +436,60 @@ const QUICK_FILTER_STATE = {
 }
 
 const quickKeyLabel = computed(() => QUICK_KEY_MAP[filters.quick_key] || null)
+
+/**
+ * 客服事项业务状态兜底计算。
+ * 优先用后端返回的 display_status；后端未返回时根据 channel/status/reply_status 推断。
+ */
+function getDisplayStatus(item) {
+  if (!item) return null
+  if (item.display_status && item.display_status.label) {
+    return item.display_status
+  }
+
+  if (item.status === 'archived') {
+    return { key: 'archived', label: '已归档', type: 'info' }
+  }
+  if (item.status === 'closed') {
+    if (item.channel === 'return_claim') {
+      return { key: 'return_closed', label: '退货已处理', type: 'info' }
+    }
+    return { key: 'closed', label: '已关闭', type: 'info' }
+  }
+  if (item.status === 'pending_internal') {
+    return { key: 'pending_internal', label: '内部处理中', type: 'warning' }
+  }
+
+  if (item.channel === 'chat') {
+    if (item.reply_status === 'unanswered') {
+      return { key: 'waiting_seller', label: '待卖家回复', type: 'danger' }
+    }
+    if (item.status === 'replied' || item.reply_status === 'answered') {
+      return { key: 'waiting_buyer', label: '待买家回复', type: 'success' }
+    }
+    return { key: 'chat_open', label: '聊天处理中', type: 'warning' }
+  }
+
+  if (item.channel === 'return_claim') {
+    if (item.status === 'open' && item.reply_status === 'unanswered') {
+      return { key: 'return_pending', label: '退货待处理', type: 'danger' }
+    }
+    return { key: 'return_open', label: '退货处理中', type: 'warning' }
+  }
+
+  if (item.reply_status === 'unanswered') {
+    return { key: 'unanswered', label: '待回复', type: 'danger' }
+  }
+  if (item.reply_status === 'answered') {
+    return { key: 'answered', label: '已回复', type: 'success' }
+  }
+
+  return {
+    key: item.status || 'open',
+    label: statusLabel(item.status || 'open'),
+    type: statusTag(item.status || 'open') || 'danger',
+  }
+}
 
 function setQuickKey(key) {
   if (filters.quick_key === key) {
