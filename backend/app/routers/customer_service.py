@@ -210,14 +210,14 @@ def list_customer_service_items(
                 rating_range == "low",
                 CustomerServiceItem.reply_status == "answered",
             )
-        elif quick_key == "feedback_high_good_unanswered":
+        elif quick_key == "feedback_high_bad_unanswered":
             query = query.filter(
                 CustomerServiceItem.channel == "feedback",
                 rating_range == "high",
                 CustomerServiceItem.reply_status == "unanswered",
                 CustomerServiceItem.status.notin_(["closed", "archived"]),
             )
-        elif quick_key == "feedback_high_good_replied":
+        elif quick_key == "feedback_high_bad_replied":
             query = query.filter(
                 CustomerServiceItem.channel == "feedback",
                 rating_range == "high",
@@ -237,8 +237,13 @@ def list_customer_service_items(
         elif quick_key == "return_pending":
             query = query.filter(
                 CustomerServiceItem.channel == "return_claim",
+                CustomerServiceItem.status == "open",
                 CustomerServiceItem.reply_status == "unanswered",
-                CustomerServiceItem.status.notin_(["closed", "archived"]),
+            )
+        elif quick_key == "return_closed":
+            query = query.filter(
+                CustomerServiceItem.channel == "return_claim",
+                CustomerServiceItem.status == "closed",
             )
         elif quick_key == "chat_unanswered":
             query = query.filter(
@@ -249,7 +254,7 @@ def list_customer_service_items(
         elif quick_key == "chat_answered":
             query = query.filter(
                 CustomerServiceItem.channel == "chat",
-                CustomerServiceItem.reply_status == "answered",
+                CustomerServiceItem.status == "replied",
             )
     else:
         # ── 普通 channel / status 过滤 ───────────────────

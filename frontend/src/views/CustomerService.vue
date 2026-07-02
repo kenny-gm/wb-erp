@@ -27,11 +27,11 @@
             <span class="channel-item-label">差评已回复</span>
             <span class="channel-item-num">{{ stats.feedback_low_bad_replied || 0 }}</span>
           </div>
-          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'feedback_high_good_unanswered' }" @click="setQuickKey('feedback_high_good_unanswered')">
+          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'feedback_high_bad_unanswered' }" @click="setQuickKey('feedback_high_bad_unanswered')">
             <span class="channel-item-label">好评待回复</span>
             <span class="channel-item-num">{{ stats.feedback_high_bad_unanswered || 0 }}</span>
           </div>
-          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'feedback_high_good_replied' }" @click="setQuickKey('feedback_high_good_replied')">
+          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'feedback_high_bad_replied' }" @click="setQuickKey('feedback_high_bad_replied')">
             <span class="channel-item-label">好评已回复</span>
             <span class="channel-item-num">{{ stats.feedback_high_bad_replied || 0 }}</span>
           </div>
@@ -66,13 +66,9 @@
             <span class="channel-item-label">待处理</span>
             <span class="channel-item-num danger">{{ stats.return_pending || 0 }}</span>
           </div>
-          <div class="channel-item">
-            <span class="channel-item-label">已拒绝</span>
-            <span class="channel-item-num">-</span>
-          </div>
-          <div class="channel-item">
-            <span class="channel-item-label">已同意</span>
-            <span class="channel-item-num">-</span>
+          <div class="channel-item clickable" :class="{ active: filters.quick_key === 'return_closed' }" @click="setQuickKey('return_closed')">
+            <span class="channel-item-label">已处理</span>
+            <span class="channel-item-num">{{ stats.return_closed || 0 }}</span>
           </div>
         </div>
       </div>
@@ -403,13 +399,27 @@ const canManage = computed(() => ['admin', 'manager'].includes(authStore.user?.r
 const QUICK_KEY_MAP = {
   feedback_low_bad_unanswered: '差评待回复',
   feedback_low_bad_replied: '差评已回复',
-  feedback_high_good_unanswered: '好评待回复',
-  feedback_high_good_replied: '好评已回复',
+  feedback_high_bad_unanswered: '好评待回复',
+  feedback_high_bad_replied: '好评已回复',
   question_unanswered: '问答待回复',
   question_answered: '问答已回复',
   return_pending: '退货待处理',
+  return_closed: '退货已处理',
   chat_unanswered: '聊天待回复',
   chat_answered: '聊天已回复',
+}
+
+const QUICK_FILTER_STATE = {
+  feedback_low_bad_unanswered: { channel: 'feedback', status: 'unanswered' },
+  feedback_low_bad_replied: { channel: 'feedback', status: 'all' },
+  feedback_high_bad_unanswered: { channel: 'feedback', status: 'unanswered' },
+  feedback_high_bad_replied: { channel: 'feedback', status: 'all' },
+  question_unanswered: { channel: 'question', status: 'unanswered' },
+  question_answered: { channel: 'question', status: 'all' },
+  return_pending: { channel: 'return_claim', status: 'unanswered' },
+  return_closed: { channel: 'return_claim', status: 'closed' },
+  chat_unanswered: { channel: 'chat', status: 'unanswered' },
+  chat_answered: { channel: 'chat', status: 'all' },
 }
 
 const quickKeyLabel = computed(() => QUICK_KEY_MAP[filters.quick_key] || null)
@@ -419,12 +429,21 @@ function setQuickKey(key) {
     clearQuickKey()
   } else {
     filters.quick_key = key
+    const next = QUICK_FILTER_STATE[key]
+    if (next) {
+      filters.channel = next.channel
+      filters.status = next.status
+    }
+    activeItem.value = null
     reload()
   }
 }
 
 function clearQuickKey() {
   filters.quick_key = null
+  filters.channel = 'all'
+  filters.status = 'open'
+  activeItem.value = null
   reload()
 }
 
