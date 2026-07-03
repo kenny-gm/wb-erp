@@ -141,6 +141,22 @@ class CustomerServiceSyncService:
             empty_pages = 0
             self._chat_items.clear()  # 清空上批次缓存，防止残留
 
+            # 第一步：用 get_chats 拿到所有聊天的 goodCard 信息（移动端发的消息不带 goodCard，需要从这里补充）
+            good_card_by_chat_id: Dict[str, Dict[str, Any]] = {}
+            try:
+                chats_result = self.client.get_chats(limit=1000)
+                chats_list = []
+                if isinstance(chats_result, dict):
+                    chats_list = chats_result.get("result") or []
+                for chat in chats_list:
+                    chat_id = str(chat.get("chatID") or "")
+                    good_card = chat.get("goodCard") or {}
+                    if chat_id:
+                        good_card_by_chat_id[chat_id] = good_card
+                logger.info(f"[WB Chat Sync][shop {self.shop.id}] get_chats 拿到 {len(good_card_by_chat_id)} 个聊天的 goodCard")
+            except Exception as e:
+                logger.warning(f"[WB Chat Sync][shop {self.shop.id}] get_chats 失败: {e}")
+
             while True:
                 page_count += 1
                 raw = self.client.get_chat_events(next_cursor=next_cursor)
@@ -159,7 +175,7 @@ class CustomerServiceSyncService:
                     ext_id = str(chat_id or rec.get("eventID") or rec.get("eventId") or rec.get("id") or f"{hash(str(rec))}")
                     if ext_id not in seen_ids:
                         seen_ids.add(ext_id)
-                    self._upsert_chat_event(rec)
+                    self._upsert_chat_event(rec, good_card_by_chat_id)
                     total_count += 1
 
                 # 有事件时，记录 last_valid_cursor（用 page_next_cursor，不是 next_cursor）
@@ -339,12 +355,19 @@ class CustomerServiceSyncService:
             )
         return item
 
-    def _upsert_chat_event(self, rec: Dict[str, Any]) -> CustomerServiceItem:
+    def _upsert_chat_event(
+        self,
+        rec: Dict[str, Any],
+        good_card_by_chat_id: Optional[Dict[str, Dict[str, Any]]] = None,
+    ) -> CustomerServiceItem:
         chat_id = rec.get("chatID") or rec.get("chatId") or rec.get("dialogId") or rec.get("rid")
         event_id = rec.get("eventID") or rec.get("eventId") or rec.get("messageId") or rec.get("id")
         message_obj = rec.get("message") or {}
         # WB 聊天接口 message 是 object：{"text": "...", "attachments": {"goodCard": {...}}}
-        good_card = message_obj.get("attachments", {}).get("goodCard") or rec.get("goodCard") or rec.get("product") or {}
+        # 优先用 event 自带的 goodCard（web端），没有则用 get_chats 补充（移动端）
+        event_good_card = message_obj.get("attachments", {}).get("goodCard") or rec.get("goodCard") or rec.get("product") or {}
+        lookup_good_card = (good_card_by_chat_id or {}).get(str(chat_id), {}) if chat_id else {}
+        good_card = event_good_card if event_good_card.get("nmID") or event_good_card.get("nmId") else lookup_good_card
         nm_id = rec.get("nmId") or rec.get("nmID") or good_card.get("nmId") or good_card.get("nmID")
         text = message_obj.get("text") or rec.get("text") or rec.get("body") or ""
         # WB 聊天接口用 addTimestamp（Unix ms），addTime 是 ISO 字符串
@@ -379,6 +402,11 @@ class CustomerServiceSyncService:
             existing.reply_sign = rec.get("replySign") or rec.get("reply_sign") or existing.reply_sign
             # 刷新 raw_json
             existing.raw_json = self._json(rec)
+            # 如果已有聊天但缺 nm_id，用 get_chats 的 goodCard 数据补充
+            lookup_nm = good_card.get("nmID") or good_card.get("nmId")
+            if not existing.nm_id and lookup_nm:
+                existing.nm_id = lookup_nm
+                existing.product_name = good_card.get("name") or existing.product_name
             # 刷新外部更新时间
             if created_at and created_at > (existing.external_updated_at or existing.external_created_at or self._now()):
                 existing.external_updated_at = created_at
@@ -404,7 +432,7 @@ class CustomerServiceSyncService:
             channel="chat",
             external_id=external_id_str,
             nm_id=nm_id,
-            title=good_card.get("title") or good_card.get("name") or "买家聊天",
+            title=good_card.get("name") or good_card.get("title") or "买家聊天",
             content=text,
             customer_name=rec.get("clientName") or rec.get("buyerName") or "",
             external_status=rec.get("status") or "",
