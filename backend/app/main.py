@@ -53,6 +53,10 @@ migrate_add_sync_locks()  # 幂等，重复执行无影响
 from migrations.fix_customer_service_message_unique import migrate_fix_customer_service_message_unique
 migrate_fix_customer_service_message_unique()  # 幂等，重复执行无影响
 
+# 迁移：message_dedup_key 去重键（修复跨-item消息重复）
+from migrations.msg_dedup_migration import upgrade as msg_dedup_upgrade
+msg_dedup_upgrade()  # 幂等，重复执行无影响
+
 # 导入路由
 from app.routers import auth, dashboard, products, shops, admin, users, inventory, orders, ads, customer_service
 from app.routers import metric_thresholds
