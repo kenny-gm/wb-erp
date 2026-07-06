@@ -567,6 +567,7 @@ class CustomerServiceSyncService:
                 external_id=external_id,
             )
             self.db.add(item)
+            self.db.flush()  # 确保 item.id 立即可用，避免后续 _add_message 的 item_id 为 None
 
         item.external_status = external_status or ""
         if nm_id is not None:
