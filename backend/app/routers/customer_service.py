@@ -520,7 +520,8 @@ def generate_ai_reply_draft(
             template.temperature,
             template.max_tokens,
         )
-        draft = (output.get("reply") or output.get("draft") or "").strip()
+        # MiniMax 等模型可能返回 reply_ru / draft_ru，兼容处理
+        draft = (output.get("reply") or output.get("reply_ru") or output.get("draft") or output.get("draft_ru") or "").strip()
         if not draft:
             raise AIClientError("AI 未返回回复内容")
         if _contains_cjk(draft):
