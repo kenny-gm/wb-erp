@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from app.database import get_db
 from app.models.models import User, Product, UserRole, Shop, SystemSetting, ProductPermission, UISetting, MenuItem
-from app.routers.auth import get_current_admin, get_password_hash
+from app.routers.auth import get_current_admin, get_current_user, get_password_hash
 
 router = APIRouter(prefix="/api/admin", tags=["后台管理"])
 
@@ -505,9 +505,9 @@ class MenuItemSchema(BaseModel):
 @router.get("/menus/", response_model=List[MenuItemSchema])
 def list_menus(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_admin)
+    current_user = Depends(get_current_user)
 ):
-    """获取菜单列表"""
+    """获取菜单列表（任何登录用户可访问，前端按 allowed_menus 过滤）"""
     menus = db.query(MenuItem).order_by(MenuItem.sort_order.asc()).all()
     return menus
 
