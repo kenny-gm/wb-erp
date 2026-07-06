@@ -487,9 +487,53 @@ const filters = reactive({
 const canManage = computed(() => ['admin', 'manager'].includes(authStore.user?.role))
 
 // 客服细粒度权限 helpers
+// 后端 get_user_permissions 规则：
+// - admin → *
+// - customer_service → 全部 customer_service:* + user.permissions
+// - product_owner（permissions 为空）→ 全部 customer_service:*
+// - viewer → customer_service:read
+// - staff（permissions 为空）→ customer_service:read
+// - manager/custom → user.permissions（可为空）
+const CS_ALL_PERMS = new Set([
+  'customer_service:read',
+  'customer_service:sync',
+  'customer_service:translate',
+  'customer_service:ai_draft',
+  'customer_service:note',
+  'customer_service:status',
+  'customer_service:reply_feedback',
+  'customer_service:answer_question',
+  'customer_service:reject_question',
+  'customer_service:send_chat',
+  'customer_service:handle_return',
+])
+
 const csPermissions = computed(() => {
-  const perms = authStore.user?.permissions || []
-  if (authStore.user?.role === 'admin') return new Set(['*'])
+  const user = authStore.user
+  const role = user?.role
+  const perms = user?.permissions || []
+
+  if (role === 'admin') return new Set(['*'])
+
+  if (role === 'customer_service') {
+    return new Set([...CS_ALL_PERMS, ...perms])
+  }
+
+  if (role === 'product_owner') {
+    // permissions 为空时默认全客服权限
+    return perms.length > 0 ? new Set(perms) : new Set([...CS_ALL_PERMS, ...perms])
+  }
+
+  if (role === 'viewer') {
+    return new Set(['customer_service:read'])
+  }
+
+  if (role === 'staff') {
+    // permissions 为空时默认只有 read
+    return perms.length > 0 ? new Set(perms) : new Set(['customer_service:read'])
+  }
+
+  // manager / custom：完全按 permissions
   return new Set(perms)
 })
 
@@ -662,6 +706,7 @@ const ownerOptions = computed(() => {
 })
 
 onMounted(async () => {
+  await authStore.fetchUser()
   await Promise.all([loadShops(), loadStats(), loadItems()])
 })
 

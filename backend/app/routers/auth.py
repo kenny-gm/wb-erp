@@ -12,6 +12,7 @@ from app.utils.security import (
     verify_password, get_password_hash, create_access_token,
     verify_token
 )
+from app.utils.permissions import get_user_permissions
 from app.config import settings
 from pydantic import BaseModel
 
@@ -35,6 +36,8 @@ class UserResponse(BaseModel):
     is_active: bool
     allowed_menus: Optional[List[str]] = []
     allowed_owners: Optional[List[str]] = []
+    allowed_shops: Optional[List[int]] = []
+    permissions: Optional[List[str]] = []
     
     class Config:
         from_attributes = True
@@ -148,10 +151,29 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     return user
 
 
+def _role_value(user):
+    return getattr(user.role, "value", user.role)
+
+
+def _serialize_current_user(user):
+    """序列化当前用户，返回有效权限（不返回数据库原始空 permissions）"""
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "role": _role_value(user),
+        "is_active": user.is_active,
+        "allowed_menus": user.allowed_menus or [],
+        "allowed_owners": user.allowed_owners or [],
+        "allowed_shops": user.allowed_shops or [],
+        "permissions": sorted(get_user_permissions(user)),
+    }
+
+
 @router.get("/me/", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
     """获取当前用户信息"""
-    return current_user
+    return _serialize_current_user(current_user)
 
 
 @router.post("/change-password/")
