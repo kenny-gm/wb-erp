@@ -18,8 +18,6 @@ def start_scheduler():
         scheduler.add_job(track_operation_effects, CronTrigger(hour=6, minute=10, timezone="Asia/Shanghai"))
         # Daily at 6:15 AM Beijing time - Yandex traffic sync (shows-sales)
         scheduler.add_job(sync_yandex_traffic_task, CronTrigger(hour=6, minute=15, timezone="Asia/Shanghai"))
-        # Every 2 hours - sync ERP data to DingTalk AI Table (暂时禁用，待配置 DINGTALK_MCP_URL)
-        # scheduler.add_job(sync_dingtalk_task, CronTrigger(hour="*/2", minute=0, timezone="Asia/Shanghai"))
         # Every 30 mins - sync shops that are due (based on each shop's sync_interval_hours)
         scheduler.add_job(sync_due_shops_task, IntervalTrigger(minutes=30, timezone="Asia/Shanghai"))
         
@@ -28,23 +26,6 @@ def start_scheduler():
     except Exception as e:
         print(f"启动定时任务失败: {e}")
 
-
-def sync_dingtalk_task():
-    """每2小时同步ERP数据到钉钉AI表格"""
-    import logging
-    logger = logging.getLogger("sync")
-    try:
-        import subprocess
-        result = subprocess.run(
-            ['python3', '/app/backend/sync_dingtalk.py'],
-            capture_output=True, text=True, timeout=300,
-            cwd='/app/backend'
-        )
-        logger.info(f"DingTalk sync: {result.stdout}")
-        if result.returncode != 0:
-            logger.error(f"DingTalk sync failed: {result.stderr}")
-    except Exception as e:
-        logger.error(f"DingTalk sync error: {e}")
 
 def sync_yandex_traffic_task():
     """每天 6:15 北京时间同步 Yandex 流量数据（shows-sales 报告）"""

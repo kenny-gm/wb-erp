@@ -588,7 +588,6 @@ def test_scheduler_imports_session_local():
     sys.path.insert(0, "/app/backend")
     from app.tasks import scheduler as sched_module
     assert hasattr(sched_module, "sync_yandex_traffic_task")
-    assert hasattr(sched_module, "sync_dingtalk_task")
 
 
 # ============================================================
