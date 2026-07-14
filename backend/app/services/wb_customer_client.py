@@ -144,7 +144,11 @@ class WBCustomerClient:
             "PATCH",
             self.FEEDBACKS_API,
             "/api/v1/questions",
-            json_data={"id": question_id, "answer": {"text": text, "visibilityType": visibility_type}},
+            json_data={
+                "id": question_id,
+                "state": "wbRu",
+                "answer": {"text": text, "visibilityType": visibility_type},
+            },
         )
 
     def reject_question(self, question_id: str) -> Dict[str, Any]:
@@ -153,7 +157,7 @@ class WBCustomerClient:
             "PATCH",
             self.FEEDBACKS_API,
             "/api/v1/questions",
-            json_data={"id": question_id, "status": "rejected"},
+            json_data={"id": question_id, "state": "none"},
         )
 
     def edit_question_answer(self, question_id: str, text: str, visibility_type: str = "all") -> Dict[str, Any]:
@@ -162,7 +166,11 @@ class WBCustomerClient:
             "PATCH",
             self.FEEDBACKS_API,
             "/api/v1/questions",
-            json_data={"id": question_id, "answer": {"text": text, "visibilityType": visibility_type}},
+            json_data={
+                "id": question_id,
+                "state": "wbRu",
+                "answer": {"text": text, "visibilityType": visibility_type},
+            },
         )
 
     # ========== Feedbacks ==========
