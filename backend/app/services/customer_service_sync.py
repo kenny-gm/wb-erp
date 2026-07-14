@@ -670,18 +670,25 @@ class CustomerServiceSyncService:
         item.external_updated_at = external_updated_at or item.external_updated_at
         item.sla_deadline_at = sla_deadline_at or item.sla_deadline_at
         item.is_overdue = bool(item.sla_deadline_at and item.sla_deadline_at < self._now())
+        has_existing_seller_reply = False
+        if channel in ("feedback", "question") and item.id and not is_answered:
+            has_existing_seller_reply = self.db.query(CustomerServiceMessage.id).filter(
+                CustomerServiceMessage.item_id == item.id,
+                CustomerServiceMessage.direction.in_(("seller", "operator")),
+            ).first() is not None
+        effective_answered = is_answered or has_existing_seller_reply
         # 支持调用方强制覆盖状态（用于退货等特殊映射）
         if override_reply_status is not None:
             item.reply_status = override_reply_status
         else:
-            item.reply_status = "answered" if is_answered else "unanswered"
+            item.reply_status = "answered" if effective_answered else "unanswered"
         if override_status is not None:
             item.status = override_status
             if override_status == "closed":
                 item.closed_at = override_closed_at or item.closed_at or self._now()
         else:
             # 始终更新状态，不受旧状态限制
-            item.status = "replied" if is_answered else "open"
+            item.status = "replied" if effective_answered else "open"
         item.issue_type = self._issue_type(channel, item.content, raw)
         item.risk_level = self._risk_level(channel, item.rating, item.sla_deadline_at)
         item.priority = item.risk_level
