@@ -23,6 +23,11 @@ class WBCustomerRateLimit(Exception):
 class WBCustomerAPIError(Exception):
     """WB 客服 API 错误"""
 
+    def __init__(self, message: str, status_code: Optional[int] = None, response_text: str = ""):
+        super().__init__(message)
+        self.status_code = status_code
+        self.response_text = response_text
+
 
 class WBCustomerClient:
     FEEDBACKS_API = "https://feedbacks-api.wildberries.ru"
@@ -70,12 +75,22 @@ class WBCustomerClient:
                 if response.status_code == 420 or response.status_code == 429:
                     raise WBCustomerRateLimit(response.text[:500])
                 if response.status_code == 401:
-                    raise WBCustomerAPIError("WB API token 无效或已过期")
+                    raise WBCustomerAPIError(
+                        "WB API token 无效或已过期",
+                        status_code=response.status_code,
+                        response_text=response.text[:500],
+                    )
                 if response.status_code == 403:
-                    raise WBCustomerAPIError(f"WB API 权限不足: {response.text[:500]}")
+                    raise WBCustomerAPIError(
+                        f"WB API 权限不足: {response.text[:500]}",
+                        status_code=response.status_code,
+                        response_text=response.text[:500],
+                    )
 
                 raise WBCustomerAPIError(
-                    f"WB API 请求失败 [{response.status_code}]: {response.text[:500]}"
+                    f"WB API 请求失败 [{response.status_code}]: {response.text[:500]}",
+                    status_code=response.status_code,
+                    response_text=response.text[:500],
                 )
             except WBCustomerRateLimit:
                 raise
@@ -120,12 +135,16 @@ class WBCustomerClient:
             params={"id": question_id},
         )
 
-    def answer_question(self, question_id: str, text: str) -> Dict[str, Any]:
+    def answer_question(self, question_id: str, text: str, visibility_type: str = "all") -> Dict[str, Any]:
+        """
+        回复买家问答
+        visibility_type: "all" - 所有人可见, "questioner" - 仅提问者可见
+        """
         return self._request(
             "PATCH",
             self.FEEDBACKS_API,
             "/api/v1/questions",
-            json_data={"id": question_id, "answer": {"text": text}},
+            json_data={"id": question_id, "answer": {"text": text, "visibilityType": visibility_type}},
         )
 
     def reject_question(self, question_id: str) -> Dict[str, Any]:
@@ -137,13 +156,13 @@ class WBCustomerClient:
             json_data={"id": question_id, "status": "rejected"},
         )
 
-    def edit_question_answer(self, question_id: str, text: str) -> Dict[str, Any]:
-        """修改已回答的问题答案"""
+    def edit_question_answer(self, question_id: str, text: str, visibility_type: str = "all") -> Dict[str, Any]:
+        """修改已回答的问题答案（同时可更新可见范围）"""
         return self._request(
             "PATCH",
             self.FEEDBACKS_API,
             "/api/v1/questions",
-            json_data={"id": question_id, "answer": {"text": text}},
+            json_data={"id": question_id, "answer": {"text": text, "visibilityType": visibility_type}},
         )
 
     # ========== Feedbacks ==========

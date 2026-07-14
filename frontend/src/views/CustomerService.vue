@@ -361,6 +361,10 @@
           >
             <div class="message-meta">
               <strong>{{ message.direction === 'seller' ? '客服' : '买家' }}</strong>
+              <span v-if="message.direction === 'seller' && activeItem.channel === 'question'">
+                <el-tag v-if="activeItem.answer_visibility === 'questioner'" type="warning" size="small">仅提问者可见</el-tag>
+                <el-tag v-else size="small" type="success">所有人可见</el-tag>
+              </span>
               <span>{{ message.created_at_external || message.created_at }}</span>
               <el-button
                 v-if="message.direction !== 'seller' && hasCSperm('customer_service:translate')"
@@ -458,6 +462,16 @@
             :placeholder="activeItem.reply_status === 'answered' ? '请输入俄语修改回复内容' : '请输入俄语回复内容'"
           />
           <div class="reply-actions">
+            <el-checkbox
+              v-if="activeItem.channel === 'question'"
+              v-model="replyVisibility"
+              true-value="questioner"
+              false-value="all"
+              size="small"
+              style="margin-right: 8px;"
+            >
+              仅提问者可见 (Только автору вопроса)
+            </el-checkbox>
             <el-button @click="replyText = ''">清空</el-button>
             <el-button
               v-if="(activeItem.channel === 'feedback' && hasCSperm('customer_service:reply_feedback')) || (activeItem.channel === 'question' && hasCSperm('customer_service:answer_question')) || (activeItem.channel === 'chat' && hasCSperm('customer_service:send_chat'))"
@@ -497,6 +511,7 @@ const items = ref([])
 const activeItem = ref(null)
 const stats = ref({})
 const replyText = ref('')
+const replyVisibility = ref('all')
 const returnActions = ref([])
 const noteText = ref('')
 const savingNote = ref(false)
@@ -929,11 +944,20 @@ async function sendReply() {
   }
   sending.value = true
   try {
-    await axios.post(`/api/customer-service/items/${activeItem.value.id}/reply`, {
-      message: replyText.value.trim()
-    })
+    const payload = { message: replyText.value.trim() }
+    if (activeItem.value.channel === 'question') {
+      payload.answer_visibility = replyVisibility.value
+    }
+    await axios.post(`/api/customer-service/items/${activeItem.value.id}/reply`, payload)
     ElMessage.success('回复已发送')
     await Promise.all([selectItem(activeItem.value), reload()])
+  } catch (err) {
+    const detail = err.response?.data?.detail
+    if (detail) {
+      ElMessage.error(detail)
+    } else {
+      ElMessage.error('回复发送失败')
+    }
   } finally {
     sending.value = false
   }

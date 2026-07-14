@@ -264,6 +264,11 @@ class CustomerServiceSyncService:
         nm_id = rec.get("nmId") or rec.get("nmID") or product.get("nmId")
         answer = rec.get("answer") or {}
         answer_text = answer.get("text") if isinstance(answer, dict) else answer
+        answer_visibility = "all"
+        if isinstance(answer, dict):
+            vt = answer.get("visibilityType") or answer.get("visibility_type") or ""
+            if vt in ("questioner", "all"):
+                answer_visibility = vt
         question_status = rec.get("status") or rec.get("state") or ""
         is_answered = bool(rec.get("isAnswered") or answer_text)
         # 状态映射：已拒绝/已关闭 -> closed；已回答 -> replied；未处理 -> open
@@ -292,6 +297,7 @@ class CustomerServiceSyncService:
             override_status=override_status,
             override_reply_status=override_reply_status,
             override_closed_at=external_updated if override_status == "closed" else None,
+            override_answer_visibility=answer_visibility,
         )
         self._add_message(
             item=item,
@@ -547,6 +553,7 @@ class CustomerServiceSyncService:
         override_status: Optional[str] = None,
         override_reply_status: Optional[str] = None,
         override_closed_at: Optional[datetime] = None,
+        override_answer_visibility: Optional[str] = None,
     ) -> CustomerServiceItem:
         if not external_id or external_id == "None":
             external_id = f"{channel}:{nm_id}:{external_created_at or self._now()}:{hash(content)}"
@@ -619,6 +626,8 @@ class CustomerServiceSyncService:
         # reply_sign：聊天回复凭证，支持后续刷新
         if channel == "chat":
             item.reply_sign = raw.get("replySign") or raw.get("reply_sign") or item.reply_sign
+        if override_answer_visibility is not None:
+            item.answer_visibility = override_answer_visibility
         item.updated_at = self._now()
         return item
 

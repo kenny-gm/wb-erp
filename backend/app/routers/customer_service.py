@@ -52,6 +52,7 @@ SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 
 class ReplyRequest(BaseModel):
     message: str
+    answer_visibility: Optional[str] = "all"  # 问答专属: "all" 所有人可见, "questioner" 仅提问者可见
 
 
 class AssignOwnerRequest(BaseModel):
@@ -649,11 +650,54 @@ def reply_customer_service_item(
 
     try:
         if item.channel == "question":
-            if is_edit:
-                response = client.edit_question_answer(item.external_id, message)
-                action_type = "edit_answer"
+            visibility = data.answer_visibility or "all"
+            # ---- 先查 WB 最新状态 ----
+            try:
+                remote_q = client.get_question(item.external_id)
+            except WBCustomerAPIError as exc:
+                _record_action(db, item, current_user, "check_question", request={}, success=False, error=str(exc))
+                db.commit()
+                if exc.status_code == 404:
+                    raise HTTPException(status_code=404, detail=f"WB 后台找不到该问答 (id={item.external_id})，请重新同步")
+                raise HTTPException(status_code=400, detail=f"查询 WB 问答状态失败: {exc}")
+
+            # 兼容 response 结构：可能有 data 包裹
+            remote_data = remote_q.get("data") if isinstance(remote_q, dict) else remote_q
+            if remote_data is None:
+                remote_data = remote_q
+
+            remote_answer = remote_data.get("answer") if isinstance(remote_data, dict) else None
+            remote_answer_text = remote_answer.get("text") if isinstance(remote_answer, dict) else None
+            remote_editable = remote_answer.get("editable") if isinstance(remote_answer, dict) else False
+
+            # 同步更新本地 raw_json
+            item.raw_json = _json(remote_data) if isinstance(remote_data, dict) else item.raw_json
+
+            if remote_answer_text:
+                # WB 已有回复
+                if not remote_editable:
+                    # 不可编辑：标记本地已回复，不调用 WB
+                    item.reply_status = "answered"
+                    item.status = "replied"
+                    item.answer_visibility = "all"
+                    _touch_handled(item, current_user, _now())
+                    _record_action(db, item, current_user, "reply",
+                                  request={"message": message},
+                                  success=False,
+                                  error="WB 后台已回复且当前不允许修改，请同步客服数据后查看")
+                    db.commit()
+                    raise HTTPException(
+                        status_code=409,
+                        detail="该问答在 WB 后台已回复且不可编辑，请同步客服数据后查看。不可在系统内重复回复。"
+                    )
+                else:
+                    # 可编辑：走编辑接口
+                    response = client.edit_question_answer(item.external_id, message, visibility)
+                    action_type = "edit_answer"
             else:
-                response = client.answer_question(item.external_id, message)
+                # 无回复：正常回答
+                response = client.answer_question(item.external_id, message, visibility)
+                action_type = "reply"
         elif item.channel == "feedback":
             if is_edit:
                 response = client.edit_feedback_answer(item.external_id, message)
@@ -674,13 +718,17 @@ def reply_customer_service_item(
     except WBCustomerAPIError as exc:
         _record_action(db, item, current_user, action_type, request={"message": message}, success=False, error=str(exc))
         db.commit()
-        err_str = str(exc)
-        if "token 无效" in err_str or "401" in err_str:
+        sc = exc.status_code
+        if sc == 401:
             raise HTTPException(status_code=401, detail=f"WB API 认证失败: {exc}")
-        elif "权限不足" in err_str or "403" in err_str:
+        elif sc == 403:
             raise HTTPException(status_code=403, detail=f"WB API 权限不足: {exc}")
+        elif sc in (400, 404, 422):
+            # WB 业务错误，透传原始错误文本
+            raise HTTPException(status_code=400, detail=f"WB API 拒绝请求: {exc.response_text or str(exc)}")
         else:
-            raise HTTPException(status_code=502, detail=f"WB API 请求失败: {exc}")
+            # 5xx、网络错误等才返回 502
+            raise HTTPException(status_code=502, detail=f"WB API 请求失败: {exc.response_text or str(exc)}")
 
     first_response = item.first_replied_at is None
     now = _now()
@@ -689,6 +737,8 @@ def reply_customer_service_item(
         item.first_replied_at = now
     item.reply_status = "answered"
     item.status = "replied"
+    if item.channel == "question":
+        item.answer_visibility = data.answer_visibility or "all"
     _touch_handled(item, current_user, now)
     db.add(CustomerServiceMessage(
         item_id=item.id,

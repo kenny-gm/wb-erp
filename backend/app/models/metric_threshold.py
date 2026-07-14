@@ -10,7 +10,7 @@ class MetricThreshold(Base):
     """指标阈值配置表"""
     __tablename__ = "metric_thresholds"
     __table_args__ = {'extend_existing': True}
-    
+
     id = Column(Integer, primary_key=True, index=True)
     metric_name = Column(String(50), unique=True, nullable=False)
     display_name = Column(String(50), nullable=False)

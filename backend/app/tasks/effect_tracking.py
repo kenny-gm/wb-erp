@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from app.database import SessionLocal
-from app.models.models import MetricHistory, OperationLog, Alert
+from app.models.models import MetricHistory, OperationLog
 from zoneinfo import ZoneInfo
 
 def track_operation_effects():
@@ -71,13 +71,6 @@ def track_operation_effects():
             log.metrics_after = after
             log.effect = effect
             log.effect_analysis = "；".join(analysis)
-            
-            if log.alert_id:
-                alert = db.query(Alert).filter(Alert.id == log.alert_id).first()
-                if alert and effect == "positive":
-                    alert.is_resolved = True
-                    alert.resolved_note = f"操作效果积极，问题已解决。{log.effect_analysis}"
-                    alert.resolved_at = datetime.now()
         
         db.commit()
         print(f"效果追踪完成，共处理 {len(logs)} 条运营记录")

@@ -41,7 +41,6 @@ class User(Base):
     # 关系
     product_permissions = relationship("ProductPermission", back_populates="user")
     operation_logs = relationship("OperationLog", back_populates="user")
-    alerts = relationship("Alert", back_populates="user")
 
 
 class Shop(Base):
@@ -107,7 +106,6 @@ class Product(Base):
     order_items = relationship("OrderItem", back_populates="product")
     permissions = relationship("ProductPermission", back_populates="product")
     operation_logs = relationship("OperationLog", back_populates="product")
-    alerts = relationship("Alert", back_populates="product")
 
 
 class ProductPermission(Base):
@@ -438,6 +436,7 @@ class CustomerServiceItem(Base):
     raw_json = Column(Text, default="{}")
     buyer_key = Column(String(200), nullable=True, index=True)  # deprecated: WB 无稳定跨渠道买家ID，不再用于聚合，保留字段仅避免破坏性DB迁移
     reply_sign = Column(String(200), nullable=True)  # 买家聊天回复凭证（WB API 发送用）
+    answer_visibility = Column(String(20), default="all")  # 问答回复可见范围: "all" 所有人可见, "questioner" 仅提问者可见
 
     # 翻译字段（手动触发，不自动翻译）
     content_zh = Column(Text, nullable=True)
@@ -597,48 +596,4 @@ class OperationLog(Base):
     effect = Column(String(50), default="pending")
     effect_analysis = Column(Text, default="")
     
-    alert_id = Column(Integer, ForeignKey("alerts.id"), nullable=True)
-    
     created_at = Column(DateTime, default=datetime.now)
-
-
-class Alert(Base):
-    """预警"""
-    __tablename__ = "alerts"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    user = relationship("User", back_populates="alerts")
-    product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
-    product = relationship("Product", back_populates="alerts")
-    
-    alert_type = Column(String(50), nullable=False)
-    title = Column(String(200), nullable=False)
-    content = Column(Text, default="")
-    severity = Column(String(20), default="medium")
-    
-    metric_snapshot = Column(Text, default={})
-    
-    is_read = Column(Boolean, default=False)
-    is_resolved = Column(Boolean, default=False)
-    resolved_note = Column(Text, default="")
-    resolved_at = Column(DateTime, nullable=True)
-    
-    operation_log_id = Column(Integer, ForeignKey("operation_logs.id"), nullable=True)
-    
-    created_at = Column(DateTime, default=datetime.now)
-
-
-class AlertRule(Base):
-    """预警规则"""
-    __tablename__ = "alert_rules"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False)
-    rule_type = Column(String(50), nullable=False)
-    condition = Column(Text, default={})
-    severity = Column(String(20), default="medium")
-    is_active = Column(Boolean, default=True)
-    
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
