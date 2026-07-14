@@ -224,7 +224,13 @@ class CustomerServiceSyncService:
     def sync_return_claims(self) -> Dict[str, Any]:
         sync_log = self._create_sync_log("customer_service_return_claims")
         try:
-            stats = {"active": {"new": 0, "updated": 0, "count": 0}, "archived": {"new": 0, "updated": 0, "count": 0, "closed_transitions": 0}}
+            stats = {
+                "active": {"new": 0, "updated": 0, "count": 0},
+                "archived": {"new": 0, "updated": 0, "count": 0, "closed_transitions": 0},
+                "reconciled": {"closed": 0},
+            }
+            active_ids: set[str] = set()
+            archived_ids: set[str] = set()
             for is_archive in (False, True):
                 offset = 0
                 while True:
@@ -233,6 +239,12 @@ class CustomerServiceSyncService:
                     if not records:
                         break
                     for rec in records:
+                        claim_id = rec.get("id") or rec.get("claimId")
+                        if claim_id:
+                            if is_archive:
+                                archived_ids.add(str(claim_id))
+                            else:
+                                active_ids.add(str(claim_id))
                         was_open = self._upsert_return_claim(rec, is_archive=is_archive)
                         key = "archived" if is_archive else "active"
                         stats[key]["count"] += 1
@@ -246,9 +258,16 @@ class CustomerServiceSyncService:
                         break
                     offset += 100
                     time.sleep(0.5)
+            stats["reconciled"]["closed"] = self._reconcile_missing_return_claims(active_ids, archived_ids)
             self.db.commit()
-            total = stats["active"]["count"] + stats["archived"]["count"]
-            self._finish_sync_log(sync_log, True, total, f"WB 退货申请同步完成：{stats['active']['count']} 活跃 + {stats['archived']['count']} 已归档")
+            total = stats["active"]["count"] + stats["archived"]["count"] + stats["reconciled"]["closed"]
+            message = (
+                f"WB 退货申请同步完成：{stats['active']['count']} 活跃 + "
+                f"{stats['archived']['count']} 已归档"
+            )
+            if stats["reconciled"]["closed"]:
+                message += f" + {stats['reconciled']['closed']} 本地超时对账关闭"
+            self._finish_sync_log(sync_log, True, total, message)
             return {"success": True, **stats}
         except WBCustomerRateLimit as exc:
             self.db.rollback()
@@ -534,6 +553,57 @@ class CustomerServiceSyncService:
             raw=rec,
         )
         return was_open
+
+    def _reconcile_missing_return_claims(self, active_ids: set[str], archived_ids: set[str]) -> int:
+        """Close stale local return claims no longer present in WB active claims."""
+        now = self._now()
+        open_items = self.db.query(CustomerServiceItem).filter(
+            CustomerServiceItem.shop_id == self.shop.id,
+            CustomerServiceItem.platform == "wildberries",
+            CustomerServiceItem.channel == "return_claim",
+            CustomerServiceItem.status == "open",
+            CustomerServiceItem.reply_status == "unanswered",
+            CustomerServiceItem.external_created_at.isnot(None),
+        ).all()
+
+        reconciled = 0
+        for item in open_items:
+            external_id = str(item.external_id)
+            if external_id in active_ids or external_id in archived_ids:
+                continue
+
+            deadline_hours = item.return_deadline_hours or 120
+            deadline = item.sla_deadline_at or (item.external_created_at + timedelta(hours=deadline_hours))
+            if deadline > now:
+                continue
+
+            try:
+                raw = json.loads(item.raw_json or "{}")
+                if not isinstance(raw, dict):
+                    raw = {"value": raw}
+            except (TypeError, ValueError):
+                raw = {"value": item.raw_json}
+
+            raw["reconciled_missing_from_wb_active"] = True
+            raw["reconciled_at"] = now.isoformat()
+            raw["previous_status"] = item.status
+            raw["previous_reply_status"] = item.reply_status
+            raw["reason"] = "not_returned_by_wb_active_after_successful_sync"
+            raw["last_active_ids_count"] = len(active_ids)
+            raw["last_archived_ids_count"] = len(archived_ids)
+
+            item.status = "closed"
+            item.reply_status = "answered"
+            item.closed_at = item.closed_at or item.external_updated_at or now
+            item.external_updated_at = item.external_updated_at or now
+            item.external_status = item.external_status or "missing_from_wb_active"
+            item.is_overdue = False
+            item.risk_level = "normal"
+            item.priority = "normal"
+            item.raw_json = self._json(raw)
+            reconciled += 1
+
+        return reconciled
 
     def _upsert_item(
         self,
