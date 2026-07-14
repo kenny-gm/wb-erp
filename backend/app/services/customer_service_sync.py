@@ -566,6 +566,7 @@ class CustomerServiceSyncService:
             CustomerServiceItem.external_id == external_id,
         ).first()
 
+        was_created = False
         if not item:
             item = CustomerServiceItem(
                 shop_id=self.shop.id,
@@ -575,6 +576,7 @@ class CustomerServiceSyncService:
             )
             self.db.add(item)
             self.db.flush()  # 确保 item.id 立即可用，避免后续 _add_message 的 item_id 为 None
+            was_created = True
 
         item.external_status = external_status or ""
         if nm_id is not None:
@@ -629,6 +631,9 @@ class CustomerServiceSyncService:
         if override_answer_visibility is not None:
             item.answer_visibility = override_answer_visibility
         item.updated_at = self._now()
+        # 新创建的 item 已在 session 中，跳过独立 UPDATE（同一事务内 INSERT 对后续 UPDATE 不可见）
+        if was_created:
+            return item
         return item
 
     def _add_message(
@@ -666,7 +671,7 @@ class CustomerServiceSyncService:
         )
         try:
             self.db.add(msg)
-            self.db.flush()
+            # 不单独 flush：item 已在 _upsert_item 中持久化，flush 会触发 item 的重复 UPDATE
         except IntegrityError:
             self.db.rollback()
             # 并发写入冲突，重新查询并更新
