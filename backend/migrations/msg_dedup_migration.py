@@ -17,6 +17,12 @@ def upgrade():
         # Step 0: 检查列是否存在
         cursor.execute("PRAGMA table_info(customer_service_messages)")
         cols = [r[1] for r in cursor.fetchall()]
+
+        cursor.execute("PRAGMA index_list(customer_service_messages)")
+        indexes = [r[1] for r in cursor.fetchall()]
+        if 'message_dedup_key' in cols and 'ix_msg_dedup_key' in indexes:
+            print("message_dedup_key 列和唯一索引已存在，跳过历史清理")
+            return
         
         if 'message_dedup_key' not in cols:
             cursor.execute("ALTER TABLE customer_service_messages ADD COLUMN message_dedup_key VARCHAR(200)")
