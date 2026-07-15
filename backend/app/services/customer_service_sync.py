@@ -15,10 +15,11 @@ logger = logging.getLogger(__name__)
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import or_, text
 from sqlalchemy.exc import IntegrityError
 
 from app.models.models import (
+    CustomerServiceAction,
     CustomerServiceItem,
     CustomerServiceMessage,
     Product,
@@ -734,12 +735,22 @@ class CustomerServiceSyncService:
         item.sla_deadline_at = sla_deadline_at or item.sla_deadline_at
         item.is_overdue = bool(item.sla_deadline_at and item.sla_deadline_at < self._now())
         has_existing_seller_reply = False
+        has_successful_reply_action = False
         if channel in ("feedback", "question") and item.id and not is_answered:
             has_existing_seller_reply = self.db.query(CustomerServiceMessage.id).filter(
                 CustomerServiceMessage.item_id == item.id,
                 CustomerServiceMessage.direction.in_(("seller", "operator")),
+                or_(
+                    CustomerServiceMessage.external_message_id == f"{external_id}:answer",
+                    CustomerServiceMessage.external_message_id.like(f"local:{item.id}:%"),
+                ),
             ).first() is not None
-        effective_answered = is_answered or has_existing_seller_reply
+            has_successful_reply_action = self.db.query(CustomerServiceAction.id).filter(
+                CustomerServiceAction.item_id == item.id,
+                CustomerServiceAction.action_type == "reply",
+                CustomerServiceAction.success == True,  # noqa: E712
+            ).first() is not None
+        effective_answered = is_answered or has_existing_seller_reply or has_successful_reply_action
         # 支持调用方强制覆盖状态（用于退货等特殊映射）
         if override_reply_status is not None:
             item.reply_status = override_reply_status

@@ -339,6 +339,141 @@ def test_reply_sign_null_continues_without_reply_sign_in_response(mock_db, mock_
         f"reply_sign 应保留旧值 'old_token_保留'，实际: {updated.reply_sign}"
 
 
+def test_question_keeps_answered_when_matching_answer_message_exists(mock_db, mock_shop_wb):
+    """已有同 external_id:answer 的卖家消息时，再同步不能把问答打回待回复。"""
+    from app.services.customer_service_sync import CustomerServiceSyncService
+    from app.models.models import CustomerServiceItem, CustomerServiceMessage
+
+    svc = CustomerServiceSyncService(mock_db, mock_shop_wb)
+
+    item = CustomerServiceItem(
+        shop_id=mock_shop_wb.id,
+        platform="wildberries",
+        channel="question",
+        external_id="question-with-answer",
+        status="open",
+        reply_status="unanswered",
+        raw_json="{}",
+    )
+    mock_db.add(item)
+    mock_db.flush()
+    mock_db.add(CustomerServiceMessage(
+        item_id=item.id,
+        external_message_id="question-with-answer:answer",
+        direction="seller",
+        message_text="answer text",
+        raw_json="{}",
+    ))
+    mock_db.commit()
+
+    updated = svc._upsert_item(
+        channel="question",
+        external_id="question-with-answer",
+        nm_id=None,
+        title="question",
+        content="question text",
+        customer_name="buyer",
+        external_status="suppliersPortalSynch",
+        is_answered=False,
+        external_created_at=None,
+        external_updated_at=None,
+        raw={"id": "question-with-answer", "answer": None},
+    )
+
+    assert updated.reply_status == "answered"
+    assert updated.status == "replied"
+
+
+def test_question_keeps_answered_when_successful_reply_action_exists(mock_db, mock_shop_wb):
+    """已有成功 reply action 时，再同步不能把本地已回复问答打回待回复。"""
+    from app.services.customer_service_sync import CustomerServiceSyncService
+    from app.models.models import CustomerServiceAction, CustomerServiceItem
+
+    svc = CustomerServiceSyncService(mock_db, mock_shop_wb)
+
+    item = CustomerServiceItem(
+        shop_id=mock_shop_wb.id,
+        platform="wildberries",
+        channel="question",
+        external_id="question-with-action",
+        status="open",
+        reply_status="unanswered",
+        raw_json="{}",
+    )
+    mock_db.add(item)
+    mock_db.flush()
+    mock_db.add(CustomerServiceAction(
+        item_id=item.id,
+        action_type="reply",
+        success=True,
+        request_json='{"message":"answer text"}',
+        response_json='{"error":false}',
+    ))
+    mock_db.commit()
+
+    updated = svc._upsert_item(
+        channel="question",
+        external_id="question-with-action",
+        nm_id=None,
+        title="question",
+        content="question text",
+        customer_name="buyer",
+        external_status="suppliersPortalSynch",
+        is_answered=False,
+        external_created_at=None,
+        external_updated_at=None,
+        raw={"id": "question-with-action", "answer": None},
+    )
+
+    assert updated.reply_status == "answered"
+    assert updated.status == "replied"
+
+
+def test_mismatched_answer_message_does_not_mark_item_answered(mock_db, mock_shop_wb):
+    """错挂的其他 external_id:answer 卖家消息不能把当前工单判定为已回复。"""
+    from app.services.customer_service_sync import CustomerServiceSyncService
+    from app.models.models import CustomerServiceItem, CustomerServiceMessage
+
+    svc = CustomerServiceSyncService(mock_db, mock_shop_wb)
+
+    item = CustomerServiceItem(
+        shop_id=mock_shop_wb.id,
+        platform="wildberries",
+        channel="question",
+        external_id="question-unanswered",
+        status="open",
+        reply_status="unanswered",
+        raw_json="{}",
+    )
+    mock_db.add(item)
+    mock_db.flush()
+    mock_db.add(CustomerServiceMessage(
+        item_id=item.id,
+        external_message_id="another-question:answer",
+        direction="seller",
+        message_text="wrong answer text",
+        raw_json="{}",
+    ))
+    mock_db.commit()
+
+    updated = svc._upsert_item(
+        channel="question",
+        external_id="question-unanswered",
+        nm_id=None,
+        title="question",
+        content="question text",
+        customer_name="buyer",
+        external_status="none",
+        is_answered=False,
+        external_created_at=None,
+        external_updated_at=None,
+        raw={"id": "question-unanswered", "answer": None},
+    )
+
+    assert updated.reply_status == "unanswered"
+    assert updated.status == "open"
+
+
 # ============================================================
 # Test 3: migration 幂等添加 buyer_key / reply_sign 列
 # ============================================================
