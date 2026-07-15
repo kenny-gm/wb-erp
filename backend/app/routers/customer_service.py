@@ -276,7 +276,7 @@ def list_customer_service_items(
             query = query.filter(
                 CustomerServiceItem.channel == "chat",
                 CustomerServiceItem.reply_status == "unanswered",
-                CustomerServiceItem.status.notin_(["closed", "archived"]),
+                CustomerServiceItem.status.notin_(["closed", "archived", "pending_internal"]),
             )
         elif quick_key == "chat_answered":
             query = query.filter(
@@ -287,7 +287,7 @@ def list_customer_service_items(
             query = query.filter(
                 CustomerServiceItem.channel == "chat",
                 CustomerServiceItem.reply_status == "unanswered",
-                CustomerServiceItem.status.notin_(["closed", "archived"]),
+                CustomerServiceItem.status.notin_(["closed", "archived", "pending_internal"]),
             )
         elif quick_key == "chat_waiting_buyer":
             query = query.filter(
@@ -312,10 +312,13 @@ def list_customer_service_items(
             if status == "unanswered":
                 query = query.filter(
                     CustomerServiceItem.reply_status == "unanswered",
-                    CustomerServiceItem.status.notin_(["closed", "archived"]),
+                    CustomerServiceItem.status.notin_(["closed", "archived", "pending_internal"]),
                 )
             elif status == "replied":
-                query = query.filter(CustomerServiceItem.status == "replied")
+                query = query.filter(or_(
+                    CustomerServiceItem.status == "replied",
+                    CustomerServiceItem.reply_status == "answered",
+                ))
             elif status == "pending_internal":
                 query = query.filter(CustomerServiceItem.status == "pending_internal")
             elif status == "closed":

@@ -60,6 +60,10 @@ msg_dedup_upgrade()  # 幂等，重复执行无影响
 from migrations.add_question_answer_visibility import migrate_add_question_answer_visibility
 migrate_add_question_answer_visibility()  # 幂等，重复执行无影响
 
+# 迁移：客服表删除保护（正常同步只 upsert，维护删除需显式开关）
+from migrations.add_customer_service_delete_guard import migrate_add_customer_service_delete_guard
+migrate_add_customer_service_delete_guard()  # 幂等，重复执行无影响
+
 # 导入路由
 from app.routers import auth, dashboard, products, shops, admin, users, inventory, orders, ads, customer_service
 from app.routers import metric_thresholds

@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from app.models.models import (
@@ -39,6 +40,59 @@ class CustomerServiceSyncService:
         self.shop = shop
         self.client = WBCustomerClient(shop.api_token)
         self._chat_items: Dict[str, CustomerServiceItem] = {}  # 本次同步批次内缓存: external_id -> item
+
+    def _integrity_snapshot(self) -> Dict[str, int]:
+        """Capture customer-service table health before/after sync."""
+        queries = {
+            "items": "SELECT COUNT(*) FROM customer_service_items",
+            "shop_items": "SELECT COUNT(*) FROM customer_service_items WHERE shop_id = :shop_id",
+            "orphan_messages": """
+                SELECT COUNT(*)
+                FROM customer_service_messages m
+                LEFT JOIN customer_service_items i ON i.id = m.item_id
+                WHERE i.id IS NULL
+            """,
+            "orphan_actions": """
+                SELECT COUNT(*)
+                FROM customer_service_actions a
+                LEFT JOIN customer_service_items i ON i.id = a.item_id
+                WHERE i.id IS NULL
+            """,
+            "item_dup_keys": """
+                SELECT COUNT(*) FROM (
+                    SELECT shop_id, platform, channel, external_id, COUNT(*) c
+                    FROM customer_service_items
+                    GROUP BY shop_id, platform, channel, external_id
+                    HAVING c > 1
+                )
+            """,
+            "msg_dup_dedup": """
+                SELECT COUNT(*) FROM (
+                    SELECT message_dedup_key, COUNT(*) c
+                    FROM customer_service_messages
+                    WHERE message_dedup_key IS NOT NULL AND message_dedup_key != ''
+                    GROUP BY message_dedup_key
+                    HAVING c > 1
+                )
+            """,
+        }
+        return {
+            key: int(self.db.execute(text(query), {"shop_id": self.shop.id}).scalar() or 0)
+            for key, query in queries.items()
+        }
+
+    def _validate_integrity_snapshot(self, before: Dict[str, int], context: str) -> None:
+        after = self._integrity_snapshot()
+        failures = []
+        if after["items"] < before["items"]:
+            failures.append(f"items {before['items']} -> {after['items']}")
+        if after["shop_items"] < before["shop_items"]:
+            failures.append(f"shop_items {before['shop_items']} -> {after['shop_items']}")
+        for key in ("orphan_messages", "orphan_actions", "item_dup_keys", "msg_dup_dedup"):
+            if after[key]:
+                failures.append(f"{key}={after[key]}")
+        if failures:
+            raise RuntimeError(f"{context} 后客服数据完整性异常: " + "; ".join(failures))
 
     def sync_all(self, days: int = 30) -> Dict[str, Any]:
         results = {
@@ -70,6 +124,7 @@ class CustomerServiceSyncService:
     def sync_questions(self, days: int = 30) -> Dict[str, Any]:
         sync_log = self._create_sync_log("customer_service_questions")
         try:
+            integrity_before = self._integrity_snapshot()
             since = int((self._now() - timedelta(days=days)).timestamp())
             seen_ids: set = set()
             total = 0
@@ -86,6 +141,7 @@ class CustomerServiceSyncService:
                     self._upsert_question(rec)
                     total += 1
             self.db.commit()
+            self._validate_integrity_snapshot(integrity_before, "WB 问答同步")
             self._finish_sync_log(sync_log, True, total, f"WB 问答同步完成：{total} 条")
             return {"success": True, "count": total}
         except WBCustomerRateLimit as exc:
@@ -100,6 +156,7 @@ class CustomerServiceSyncService:
     def sync_feedbacks(self, days: int = 30) -> Dict[str, Any]:
         sync_log = self._create_sync_log("customer_service_feedbacks")
         try:
+            integrity_before = self._integrity_snapshot()
             since = int((self._now() - timedelta(days=days)).timestamp())
             seen_ids: set = set()
             count = 0
@@ -116,6 +173,7 @@ class CustomerServiceSyncService:
                     self._upsert_feedback(rec)
                     count += 1
             self.db.commit()
+            self._validate_integrity_snapshot(integrity_before, "WB 评价同步")
             self._finish_sync_log(sync_log, True, count, "WB 评价同步完成")
             return {"success": True, "count": count}
         except WBCustomerRateLimit as exc:
@@ -130,6 +188,7 @@ class CustomerServiceSyncService:
     def sync_chats(self, force_full_sync: bool = False) -> Dict[str, Any]:
         sync_log = self._create_sync_log("customer_service_chats")
         try:
+            integrity_before = self._integrity_snapshot()
             cursor_key = f"customer_service_chat_cursor:{self.shop.id}"
             cursor = None if force_full_sync else self._get_setting(cursor_key)
 
@@ -196,6 +255,7 @@ class CustomerServiceSyncService:
                     if page_next_cursor:
                         self._set_setting(cursor_key, str(page_next_cursor), "WB 买家聊天同步游标")
                     self.db.commit()
+                    self._validate_integrity_snapshot(integrity_before, "WB 买家聊天同步")
                     self._finish_sync_log(sync_log, True, total_count, f"WB 买家聊天同步完成（空页中断）：{len(seen_ids)} 会话 {total_count} 事件，共 {page_count} 页")
                     return {"success": True, "count": total_count, "sessions": len(seen_ids), "pages": page_count, "next_cursor": page_next_cursor}
 
@@ -210,6 +270,7 @@ class CustomerServiceSyncService:
             if last_valid_cursor:
                 self._set_setting(cursor_key, str(last_valid_cursor), "WB 买家聊天同步游标")
             self.db.commit()
+            self._validate_integrity_snapshot(integrity_before, "WB 买家聊天同步")
             self._finish_sync_log(sync_log, True, total_count, f"WB 买家聊天同步完成：{len(seen_ids)} 会话 {total_count} 事件，共 {page_count} 页")
             return {"success": True, "count": total_count, "sessions": len(seen_ids), "pages": page_count, "next_cursor": last_valid_cursor or next_cursor}
         except WBCustomerRateLimit as exc:
@@ -224,6 +285,7 @@ class CustomerServiceSyncService:
     def sync_return_claims(self) -> Dict[str, Any]:
         sync_log = self._create_sync_log("customer_service_return_claims")
         try:
+            integrity_before = self._integrity_snapshot()
             stats = {
                 "active": {"new": 0, "updated": 0, "count": 0},
                 "archived": {"new": 0, "updated": 0, "count": 0, "closed_transitions": 0},
@@ -260,6 +322,7 @@ class CustomerServiceSyncService:
                     time.sleep(0.5)
             stats["reconciled"]["closed"] = self._reconcile_missing_return_claims(active_ids, archived_ids)
             self.db.commit()
+            self._validate_integrity_snapshot(integrity_before, "WB 退货申请同步")
             total = stats["active"]["count"] + stats["archived"]["count"] + stats["reconciled"]["closed"]
             message = (
                 f"WB 退货申请同步完成：{stats['active']['count']} 活跃 + "
