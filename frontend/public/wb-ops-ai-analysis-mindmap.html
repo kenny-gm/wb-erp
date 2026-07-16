@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WB 运营分析判断体系思维导图</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f8fb;
+      --paper: #ffffff;
+      --text: #172033;
+      --muted: #647083;
+      --line: #8a98ad;
+      --api: #dbeafe;
+      --db: #ccfbf1;
+      --ops: #fef3c7;
+      --ai: #ede9fe;
+      --front: #dcfce7;
+      --risk: #fee2e2;
+      --border: #cbd5e1;
+      --shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.48 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 22px 18px 40px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 18px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 24px;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 13px;
+      max-width: 880px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+      min-width: 360px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #334155;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+    }
+
+    .map-shell {
+      overflow-x: auto;
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    svg {
+      min-width: 1360px;
+      width: 100%;
+      display: block;
+      height: auto;
+    }
+
+    .node {
+      stroke: var(--line);
+      stroke-width: 1;
+      rx: 8;
+      ry: 8;
+    }
+
+    .api { fill: var(--api); }
+    .db { fill: var(--db); }
+    .ops { fill: var(--ops); }
+    .ai { fill: var(--ai); }
+    .front { fill: var(--front); }
+    .risk { fill: var(--risk); }
+    .paper { fill: #fff; }
+
+    .edge {
+      stroke: var(--line);
+      stroke-width: 1.35;
+      fill: none;
+      marker-end: url(#arrow);
+    }
+
+    .edge-soft {
+      stroke: #a6b2c2;
+      stroke-width: 1;
+      stroke-dasharray: 5 5;
+      fill: none;
+      marker-end: url(#arrow-soft);
+    }
+
+    .title {
+      font-size: 20px;
+      font-weight: 800;
+      fill: var(--text);
+    }
+
+    .label {
+      font-size: 13px;
+      font-weight: 800;
+      fill: var(--text);
+    }
+
+    .small {
+      font-size: 11px;
+      fill: var(--muted);
+    }
+
+    .tiny {
+      font-size: 10px;
+      fill: var(--muted);
+    }
+
+    .section-title {
+      margin: 22px 0 10px;
+      font-size: 18px;
+    }
+
+    .decision-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .decision-card,
+    .domain-card,
+    .rule-card {
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+    }
+
+    .decision-card {
+      padding: 14px;
+      min-height: 142px;
+    }
+
+    .decision-card h2,
+    .rule-card h2 {
+      margin: 0 0 8px;
+      font-size: 15px;
+    }
+
+    .decision-card ul,
+    .rule-card ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+
+    .decision-card li,
+    .rule-card li {
+      margin: 4px 0;
+    }
+
+    .domain-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .domain-card {
+      overflow: hidden;
+    }
+
+    .domain-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+    }
+
+    .domain-head h2 {
+      margin: 0 0 4px;
+      font-size: 15px;
+    }
+
+    .domain-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .domain-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+    }
+
+    .domain-body section {
+      padding: 11px 13px;
+      border-top: 1px solid #eef2f7;
+      min-height: 104px;
+    }
+
+    .domain-body section:nth-child(odd) {
+      border-right: 1px solid #eef2f7;
+    }
+
+    .domain-body h3 {
+      margin: 0 0 6px;
+      font-size: 12px;
+      color: #334155;
+    }
+
+    .domain-body p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .rule-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .rule-card {
+      padding: 14px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid #d8dee8;
+      color: #334155;
+      background: #fff;
+      font-size: 12px;
+      margin: 2px 4px 2px 0;
+    }
+
+    @media (max-width: 900px) {
+      header {
+        display: block;
+      }
+
+      .legend {
+        justify-content: flex-start;
+        min-width: 0;
+        margin-top: 12px;
+      }
+
+      .decision-grid,
+      .domain-grid,
+      .rule-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .domain-body {
+        grid-template-columns: 1fr;
+      }
+
+      .domain-body section:nth-child(odd) {
+        border-right: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>WB 运营分析判断体系思维导图</h1>
+        <div class="subtitle">目标：把 WB API、数据库、后端、前端、运营人员和 AI 大模型连成一套判断链路，让运营快速回答：哪里异常、为什么异常、谁处理、下一步做什么。</div>
+      </div>
+      <div class="legend" aria-label="图例">
+        <span><i class="dot" style="background: var(--api)"></i>WB 数据源</span>
+        <span><i class="dot" style="background: var(--db)"></i>数据库层</span>
+        <span><i class="dot" style="background: var(--ops)"></i>运营协作</span>
+        <span><i class="dot" style="background: var(--ai)"></i>AI 分析</span>
+        <span><i class="dot" style="background: var(--front)"></i>前端判断</span>
+        <span><i class="dot" style="background: var(--risk)"></i>风险边界</span>
+      </div>
+    </header>
+
+    <section class="map-shell" aria-label="运营分析判断总图">
+      <svg viewBox="0 0 1360 760" role="img" aria-labelledby="mapTitle mapDesc">
+        <title id="mapTitle">WB 运营分析判断总图</title>
+        <desc id="mapDesc">从 WB API 数据源流入数据库，再到后端聚合、前端页面、运营人员和 AI 分析的整体链路。</desc>
+        <defs>
+          <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,6 L8,3 z" fill="#8a98ad"></path>
+          </marker>
+          <marker id="arrow-soft" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,6 L8,3 z" fill="#a6b2c2"></path>
+          </marker>
+        </defs>
+
+        <text x="42" y="42" class="title">总链路：数据采集 -> 口径统一 -> 运营判断 -> AI 建议 -> 人工执行</text>
+
+        <rect x="40" y="82" width="230" height="560" class="node api"></rect>
+        <text x="62" y="112" class="label">WB API 12 类数据域</text>
+        <text x="62" y="142" class="small">1 店铺/账号：权限、评分、主体</text>
+        <text x="62" y="166" class="small">2 商品内容：nmId、SKU、图片、类目</text>
+        <text x="62" y="190" class="small">3 价格折扣：价格、促销、上传状态</text>
+        <text x="62" y="214" class="small">4 库存仓库：库存、仓库、缺货</text>
+        <text x="62" y="238" class="small">5 订单销售：订单、销售、退货</text>
+        <text x="62" y="262" class="small">6 Analytics：曝光、点击、加购、转化</text>
+        <text x="62" y="286" class="small">7 广告：活动、预算、花费、关键词</text>
+        <text x="62" y="310" class="small">8 FBS：发货单、贴纸、状态</text>
+        <text x="62" y="334" class="small">9 FBW：供货、包装、仓库流向</text>
+        <text x="62" y="358" class="small">10 问答评价：问题、差评、回复</text>
+        <text x="62" y="382" class="small">11 聊天退货：消息、退货原因、处理</text>
+        <text x="62" y="406" class="small">12 财务对账：报告、费用、结算</text>
+        <text x="62" y="456" class="tiny">原则：原始字段先完整保存 raw_json</text>
+        <text x="62" y="476" class="tiny">再进入业务事实层和展示层</text>
+
+        <rect x="330" y="92" width="210" height="116" class="node db"></rect>
+        <text x="352" y="122" class="label">Raw 原始层</text>
+        <text x="352" y="150" class="small">按 API 来源落库</text>
+        <text x="352" y="174" class="small">保留 source_endpoint / batch / raw_json</text>
+
+        <rect x="330" y="244" width="210" height="116" class="node db"></rect>
+        <text x="352" y="274" class="label">Dimensions 维表</text>
+        <text x="352" y="302" class="small">店铺、商品、产品组、仓库</text>
+        <text x="352" y="326" class="small">广告活动、币种、负责人</text>
+
+        <rect x="330" y="396" width="210" height="116" class="node db"></rect>
+        <text x="352" y="426" class="label">Facts 事实层</text>
+        <text x="352" y="454" class="small">销售、漏斗、广告、库存</text>
+        <text x="352" y="478" class="small">客服、退货、财务日事实</text>
+
+        <rect x="600" y="92" width="220" height="116" class="node front"></rect>
+        <text x="622" y="122" class="label">Views 统一展示口径</text>
+        <text x="622" y="150" class="small">统一卢布 / RUB / CNY</text>
+        <text x="622" y="174" class="small">产品组 -> 店铺 -> 日期 -> 指标</text>
+
+        <rect x="600" y="244" width="220" height="116" class="node front"></rect>
+        <text x="622" y="274" class="label">后端业务 API</text>
+        <text x="622" y="302" class="small">overview / product diagnosis</text>
+        <text x="622" y="326" class="small">ads / customer / finance / AI summary</text>
+
+        <rect x="600" y="396" width="220" height="116" class="node front"></rect>
+        <text x="622" y="426" class="label">前端运营页面</text>
+        <text x="622" y="454" class="small">Dashboard、产品明细、广告分析</text>
+        <text x="622" y="478" class="small">客服、财务、AI 运营助手</text>
+
+        <rect x="880" y="92" width="210" height="132" class="node ops"></rect>
+        <text x="902" y="122" class="label">运营人员</text>
+        <text x="902" y="150" class="small">看销售、转化、广告费、库存</text>
+        <text x="902" y="174" class="small">处理价格、促销、商品内容</text>
+        <text x="902" y="198" class="small">确认 AI 建议是否执行</text>
+
+        <rect x="880" y="264" width="210" height="132" class="node ops"></rect>
+        <text x="902" y="294" class="label">客服/售后</text>
+        <text x="902" y="322" class="small">处理问答、评价、聊天、退货</text>
+        <text x="902" y="346" class="small">标记商品问题和用户痛点</text>
+        <text x="902" y="370" class="small">回传给商品和运营</text>
+
+        <rect x="880" y="436" width="210" height="132" class="node ops"></rect>
+        <text x="902" y="466" class="label">财务/负责人</text>
+        <text x="902" y="494" class="small">看结算、扣费、利润、费用</text>
+        <text x="902" y="518" class="small">确认经营真实情况</text>
+        <text x="902" y="542" class="small">决定预算和资源分配</text>
+
+        <rect x="1140" y="122" width="178" height="356" class="node ai"></rect>
+        <text x="1162" y="152" class="label">AI 运营分析层</text>
+        <text x="1162" y="184" class="small">异常检测：指标突变</text>
+        <text x="1162" y="210" class="small">归因分析：广告/价格/库存/客服</text>
+        <text x="1162" y="236" class="small">行动建议：该查什么、先做什么</text>
+        <text x="1162" y="262" class="small">日报周报：经营情况摘要</text>
+        <text x="1162" y="288" class="small">商品建议：标题、图片、属性</text>
+        <text x="1162" y="314" class="small">广告建议：预算、关键词、投放</text>
+        <text x="1162" y="340" class="small">客服洞察：差评/退货原因</text>
+        <text x="1162" y="366" class="small">风险提示：缺货、亏损、扣费</text>
+        <text x="1162" y="408" class="tiny">输出：结论 + 证据 + 建议动作</text>
+        <text x="1162" y="430" class="tiny">不直接替人做高风险操作</text>
+
+        <rect x="600" y="558" width="718" height="94" class="node risk"></rect>
+        <text x="622" y="588" class="label">AI 边界与人工确认</text>
+        <text x="622" y="618" class="small">AI 只做只读分析、解释和建议；价格修改、广告预算、外部回复、数据库迁移、删除数据必须人工确认。</text>
+
+        <path d="M270 210 C300 210, 300 150, 330 150" class="edge"></path>
+        <path d="M270 270 C300 270, 300 302, 330 302" class="edge"></path>
+        <path d="M270 330 C300 330, 300 454, 330 454" class="edge"></path>
+        <path d="M540 150 C570 150, 570 150, 600 150" class="edge"></path>
+        <path d="M540 302 C570 302, 570 302, 600 302" class="edge"></path>
+        <path d="M540 454 C570 454, 570 454, 600 454" class="edge"></path>
+        <path d="M820 150 C850 150, 850 158, 880 158" class="edge"></path>
+        <path d="M820 302 C850 302, 850 330, 880 330" class="edge"></path>
+        <path d="M820 454 C850 454, 850 502, 880 502" class="edge"></path>
+        <path d="M1090 158 C1115 158, 1115 210, 1140 210" class="edge"></path>
+        <path d="M1090 330 C1115 330, 1115 288, 1140 288" class="edge"></path>
+        <path d="M1090 502 C1115 502, 1115 366, 1140 366" class="edge"></path>
+        <path d="M1228 478 C1228 530, 960 530, 960 558" class="edge-soft"></path>
+        <path d="M959 558 C959 530, 710 530, 710 512" class="edge-soft"></path>
+      </svg>
+    </section>
+
+    <section class="decision-grid" aria-label="运营判断入口">
+      <article class="decision-card">
+        <h2>运营每天先看什么</h2>
+        <ul>
+          <li>销售额、订单、转化率是否异常</li>
+          <li>广告费是否上升但订单没上升</li>
+          <li>库存是否影响销售</li>
+          <li>客服/差评/退货是否集中到某个产品</li>
+        </ul>
+      </article>
+      <article class="decision-card">
+        <h2>系统必须给什么证据</h2>
+        <ul>
+          <li>指标来自哪个 API 和哪张表</li>
+          <li>按店铺、商品、日期可追溯</li>
+          <li>统一卢布和原币种同时可看</li>
+          <li>异常原因可下钻到原始记录</li>
+        </ul>
+      </article>
+      <article class="decision-card">
+        <h2>AI 应该怎么帮忙</h2>
+        <ul>
+          <li>把异常排序成今日重点</li>
+          <li>说明最可能原因和证据</li>
+          <li>给下一步动作和负责人</li>
+          <li>生成日报、周报和复盘</li>
+        </ul>
+      </article>
+      <article class="decision-card">
+        <h2>人工必须决定什么</h2>
+        <ul>
+          <li>是否改价格、改预算、改商品卡</li>
+          <li>是否参加促销或补货</li>
+          <li>是否处理异常费用</li>
+          <li>是否回复敏感客服问题</li>
+        </ul>
+      </article>
+    </section>
+
+    <h2 class="section-title">12 类数据域：流程、人员、数据支持、AI 分析</h2>
+    <section class="domain-grid" aria-label="12 类数据域作战卡">
+      <article class="domain-card">
+        <div class="domain-head">
+          <h2>1. 店铺 / 账号域</h2>
+          <p>权限、主体、评分、token 状态</p>
+        </div>
+        <div class="domain-body">
+          <section><h3>流程</h3><p>检查 token 权限 -> 同步主体信息 -> 标记可用模块 -> 监控过期和权限缺口。</p></section>
+          <section><h3>参与人员</h3><p>系统管理员、店铺负责人、技术维护。</p></section>
+          <section><h3>数据支持</h3><p>seller_id、supplier_id、权限类目、只读状态、评分、评价数量。</p></section>
+          <section><h3>AI 分析</h3><p>解释某店铺为什么缺销售/广告/客服数据，输出权限补齐清单。</p></section>
+        </div>
+      </article>
+
+      <article class="domain-card">
+        <div class="domain-head">
+          <h2>2. 商品内容域</h2>
+          <p>商品卡、图片、标题、属性、类目</p>
+        </div>
+        <div class="domain-body">
+          <section><h3>流程</h3><p>同步商品卡 -> 建商品维表 -> 归入产品组 -> 和销售/广告/客服关联。</p></section>
+          <section><h3>参与人员</h3><p>商品运营、设计、翻译、负责人。</p></section>
+          <section><h3>数据支持</h3><p>nmId、imtID、barcode、vendorCode、brand、subject、title、description、media。</p></section>
+          <section><h3>AI 分析</h3><p>发现标题、主图、属性缺陷；结合转化率给商品卡优化建议。</p></section>
+        </div>
+      </article>
+
+      <article class="domain-card">
+        <div class="domain-head">
+          <h2>3. 价格 / 折扣域</h2>
+          <p>价格、折扣、促销、上传状态</p>
+        </div>
+        <div class="domain-body">
+          <section><h3>流程</h3><p>同步价格与促销 -> 记录价格历史 -> 结合销量和利润判断价格效果。</p></section>
+          <section><h3>参与人员</h3><p>运营、财务、负责人。</p></section>
+          <section><h3>数据支持</h3><p>price、discounted_price、discount、club_discount、promo_id、promo_period、upload_status。</p></section>
+          <section><h3>AI 分析</h3><p>判断降价后销量是否改善、促销是否亏损、价格上传是否失败。</p></section>
+        </div>
+      </article>
+
+      <article class="domain-card">
+        <div class="domain-head">
+          <h2>4. 库存 / 仓库域</h2>
+          <p>库存、仓库、缺货、在途</p>
+        </div>
+        <div class="domain-body">
+          <section><h3>流程</h3><p>同步库存 -> 按仓库和 SKU 聚合 -> 和销量速度计算可售天数。</p></section>
+          <section><h3>参与人员</h3><p>仓库、采购、运营、负责人。</p></section>
+          <section><h3>数据支持</h3><p>warehouse、barcode、quantity、in_way、reserved、stock_days、office。</p></section>
+          <section><h3>AI 分析</h3><p>预警缺货、滞销、断货导致销售下滑，给补货优先级。</p></section>
+        </div>
+      </article>
+
+      <article class="domain-card">
+        <div class="domain-head">
+          <h2>5. 订单 / 销售域</h2>
+          <p>运营订单、销售、退货、价格口径</p>
+        </div>
+        <div class="domain-body">
+          <section><h3>流程</h3><p>同步订单销售 -> 按 srid 去重 -> 区分订单、销售、取消、退货。</p></section>
+          <section><h3>参与人员</h3><p>运营、负责人、财务。</p></section>
+          <section><h3>数据支持</h3><p>srid、nmId、barcode、date、finishedPrice、forPay、isCancel、saleID。</p></section>
+          <section><h3>AI 分析</h3><p>解释销售变化，识别退货放大、取消异常、区域或仓库异常。</p></section>
+        </div>
+      </article>
+
+      <article class="domain-card">
+        <div class="domain-head">
+          <h2>6. Analytics 漏斗域</h2>
+          <p>曝光、点击、加购、订单、转化</p>
+        </div>
+        <div class="domain-body">
+          <section><h3>流程</h3><p>按商品和日期同步漏斗 -> 计算点击率、加购率、转化率 -> 进入销售看板。</p></section>
+          <section><h3>参与人员</h3><p>运营、商品负责人、广告投手。</p></section>
+          <section><h3>数据支持</h3><p>openCard、clicks、cartCount、ordersCount、buyouts、conversion、search_position。</p></section>
+          <section><h3>AI 分析</h3><p>定位曝光少、点击低、加购低、转化低分别是哪一层问题。</p></section>
+        </div>
+      </article>
+
+      <article class="domain-card">
+        <div class="domain-head">
+          <h2>7. 广告 Promotion 域</h2>
+          <p>活动、预算、关键词、搜索簇、广告效果</p>
+        </div>
+        <div class="domain-body">
+          <section><h3>流程</h3><p>同步活动和统计 -> 按 advert_id + nmId + date 归因 -> 对比销售漏斗。</p></section>
+          <section><h3>参与人员</h3><p>广告投手、运营、负责人。</p></section>
+          <section><h3>数据支持</h3><p>advertId、status、budget、cost、views、clicks、ctr、cpc、atbs、orders、keywords。</p></section>
+          <section><h3>AI 分析</h3><p>找出烧钱无订单、关键词浪费、预算错配、广告带动不足。</p></section>
+        </div>
+      </article>
+
+      <article class="domain-card">
+        <div class="domain-head">
+          <h2>8. FBS Marketplace 域</h2>
+          <p>组装订单、贴纸、发货单、状态</p>
+        </div>
+        <div class="domain-body">
+          <section><h3>流程</h3><p>同步待发订单 -> 生成/跟踪发货单 -> 监控超时和取消。</p></section>
+          <section><h3>参与人员</h3><p>仓库、客服、运营。</p></section>
+          <section><h3>数据支持</h3><p>order_id、status、sticker、delivery_note、warehouse、customer_info、metadata。</p></section>
+          <section><h3>AI 分析</h3><p>预警发货延迟、订单状态异常、可能影响差评和取消的节点。</p></section>
+        </div>
+      </article>
+
+      <article class="domain-card">
+        <div class="domain-head">
+          <h2>9. FBW Supplies 域</h2>
+          <p>供货、包装、仓库接收、流向</p>
+        </div>
+        <div class="domain-body">
+          <section><h3>流程</h3><p>同步供货单 -> 跟踪包装和仓库 -> 关联库存补充。</p></section>
+          <section><h3>参与人员</h3><p>采购、仓库、物流、负责人。</p></section>
+          <section><h3>数据支持</h3><p>supply_id、warehouse_id、box_type、items、quantity、transit_direction、status。</p></section>
+          <section><h3>AI 分析</h3><p>判断供货是否跟得上销售速度，提示补货优先级和仓库风险。</p></section>
+        </div>
+      </article>
+
+      <article class="domain-card">
+        <div class="domain-head">
+          <h2>10. 问答 / 评价域</h2>
+          <p>客户问题、评价、回复、置顶评价</p>
+        </div>
+        <div class="domain-body">
+          <section><h3>流程</h3><p>同步问答评价 -> 统一客服 item -> 标记处理状态 -> 回传产品问题标签。</p></section>
+          <section><h3>参与人员</h3><p>客服、商品运营、负责人。</p></section>
+          <section><h3>数据支持</h3><p>question_id、feedback_id、nmId、text、rating、answer、createdDate、state。</p></section>
+          <section><h3>AI 分析</h3><p>总结差评原因、FAQ 缺口、商品说明问题，生成回复草稿和产品改进建议。</p></section>
+        </div>
+      </article>
+
+      <article class="domain-card">
+        <div class="domain-head">
+          <h2>11. 聊天 / 退货域</h2>
+          <p>买家聊天、退货申请、处理时效</p>
+        </div>
+        <div class="domain-body">
+          <section><h3>流程</h3><p>同步聊天和退货 -> 聚合到客服工作台 -> 关联产品和订单。</p></section>
+          <section><h3>参与人员</h3><p>客服、售后、仓库、负责人。</p></section>
+          <section><h3>数据支持</h3><p>chat_id、message_id、claim_id、reason、photos、status、deadline、processed_at。</p></section>
+          <section><h3>AI 分析</h3><p>识别退货原因集中点、处理超时风险、质量问题和物流问题。</p></section>
+        </div>
+      </article>
+
+      <article class="domain-card">
+        <div class="domain-head">
+          <h2>12. 财务 / 对账域</h2>
+          <p>结算、费用、扣费、利润、单据</p>
+        </div>
+        <div class="domain-body">
+          <section><h3>流程</h3><p>同步 realization report -> 拆费用项 -> 对齐销售/广告/仓储 -> 计算利润。</p></section>
+          <section><h3>参与人员</h3><p>财务、负责人、运营。</p></section>
+          <section><h3>数据支持</h3><p>report_id、sale_dt、for_pay、commission、storage_fee、penalty、logistics、currency。</p></section>
+          <section><h3>AI 分析</h3><p>解释利润变化、异常扣费、广告费侵蚀利润，输出经营真实情况。</p></section>
+        </div>
+      </article>
+    </section>
+
+    <h2 class="section-title">AI 汇总后的运营分析输出</h2>
+    <section class="rule-grid" aria-label="AI 分析输出">
+      <article class="rule-card">
+        <h2>今日经营摘要</h2>
+        <ul>
+          <li>销售额、订单、广告费、利润变化</li>
+          <li>统一卢布 / RUB / CNY 分口径说明</li>
+          <li>最值得关注的 3 个产品和 3 个店铺</li>
+        </ul>
+      </article>
+      <article class="rule-card">
+        <h2>异常归因</h2>
+        <ul>
+          <li>销售下降：曝光、点击、加购、转化、库存、价格逐层定位</li>
+          <li>广告异常：花费、点击、加购、订单、关键词逐层定位</li>
+          <li>客服异常：差评、退货、聊天投诉反向影响商品判断</li>
+        </ul>
+      </article>
+      <article class="rule-card">
+        <h2>行动计划</h2>
+        <ul>
+          <li>运营：调价格、促销、商品卡、产品优先级</li>
+          <li>广告：降预算、加词、停无效活动、查搜索簇</li>
+          <li>客服/仓库/财务：处理差评、补货、核对异常扣费</li>
+        </ul>
+      </article>
+    </section>
+
+    <h2 class="section-title">落地顺序</h2>
+    <section class="rule-grid" aria-label="落地顺序">
+      <article class="rule-card">
+        <h2>第一阶段：统一底层口径</h2>
+        <p><span class="pill">raw_json</span><span class="pill">shop_id + nmId</span><span class="pill">product_group</span><span class="pill">币种口径</span></p>
+        <ul>
+          <li>不先切前端，先双写 raw/fact。</li>
+          <li>把商品漏斗从广告表里拆出来。</li>
+        </ul>
+      </article>
+      <article class="rule-card">
+        <h2>第二阶段：建立运营 View</h2>
+        <p><span class="pill">view_ops_product_daily</span><span class="pill">view_ops_ad_daily</span><span class="pill">view_ops_customer_signals</span></p>
+        <ul>
+          <li>Dashboard、产品明细、广告分析共用同一口径。</li>
+          <li>每个指标可追溯到来源 API 和原始记录。</li>
+        </ul>
+      </article>
+      <article class="rule-card">
+        <h2>第三阶段：上线 AI 运营助手</h2>
+        <p><span class="pill">只读分析</span><span class="pill">证据链</span><span class="pill">负责人</span><span class="pill">行动建议</span></p>
+        <ul>
+          <li>先做日报、异常归因、单品诊断。</li>
+          <li>高风险动作只给建议，不自动执行。</li>
+        </ul>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
