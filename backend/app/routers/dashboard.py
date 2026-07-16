@@ -536,7 +536,11 @@ def get_dashboard_products(
         if not cost:
             continue
         shop_cfg = shop_rates.get(row.shop_id, {"platform": "", "currency": "RUB", "rate": 12.5})
-        cost_rub = cost * shop_cfg["rate"] if shop_cfg.get("platform") == "yandex" else cost
+        cost_rub = (
+            cost * shop_cfg["rate"]
+            if shop_cfg.get("platform") == "yandex" or shop_cfg.get("currency") == "CNY"
+            else cost
+        )
         if row.shop_id not in ad_costs_by_shop:
             ad_costs_by_shop[row.shop_id] = {}
         ad_costs_by_shop[row.shop_id][row.product_id] = (
@@ -584,7 +588,11 @@ def get_dashboard_products(
         if not cost:
             continue
         shop_cfg = shop_rates.get(row.shop_id, {"platform": "", "currency": "RUB", "rate": 12.5})
-        cost_rub = cost * shop_cfg["rate"] if shop_cfg.get("platform") == "yandex" else cost
+        cost_rub = (
+            cost * shop_cfg["rate"]
+            if shop_cfg.get("platform") == "yandex" or shop_cfg.get("currency") == "CNY"
+            else cost
+        )
         if row.shop_id not in prev_ad_costs_by_shop:
             prev_ad_costs_by_shop[row.shop_id] = {}
         prev_ad_costs_by_shop[row.shop_id][row.product_id] = (
