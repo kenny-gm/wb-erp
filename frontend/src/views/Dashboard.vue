@@ -43,16 +43,32 @@
       <el-button type="primary" @click="fetchData">查询</el-button>
     </div>
 
-    <div class="metrics-grid">
-      <div class="metric-card"><div class="metric-header"><div class="metric-label"><el-icon><Money /></el-icon> 销售额</div><div class="metric-change" :class="summary.sales_change >= 0 ? 'positive' : 'negative'">{{ formatChange(summary.sales_change) }}</div></div><div class="metric-value">{{ formatNumber(summary.total_sales) }} ₽</div><div class="chart-area" v-if="hasDateRange && dailySales.length"><svg class="line-chart" viewBox="0 0 100 50" preserveAspectRatio="none"><path :d="getAreaPath(dailySales, maxSales)" fill="#10b981" fill-opacity="0.2" /><polyline :points="getLinePoints(dailySales, maxSales)" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
-      <div class="metric-card"><div class="metric-header"><div class="metric-label"><el-icon><User /></el-icon> 访客数</div><div class="metric-change" :class="summary.visitors_change >= 0 ? 'positive' : 'negative'">{{ formatChange(summary.visitors_change) }}</div></div><div class="metric-value">{{ formatNumber(summary.total_visitors) }}</div><div class="chart-area" v-if="hasDateRange && dailyVisitors.length"><svg class="line-chart" viewBox="0 0 100 50" preserveAspectRatio="none"><path :d="getAreaPath(dailyVisitors, maxVisitors)" fill="#3b82f6" fill-opacity="0.2" /><polyline :points="getLinePoints(dailyVisitors, maxVisitors)" fill="none" stroke="#3b82f6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
-      <div class="metric-card"><div class="metric-header"><div class="metric-label"><el-icon><ShoppingCart /></el-icon> 加购数</div><div class="metric-change" :class="summary.cart_change >= 0 ? 'positive' : 'negative'">{{ formatChange(summary.cart_change) }}</div></div><div class="metric-value">{{ formatNumber(summary.total_cart) }}</div><div class="chart-area" v-if="hasDateRange && dailyCart.length"><svg class="line-chart" viewBox="0 0 100 50" preserveAspectRatio="none"><path :d="getAreaPath(dailyCart, maxCart)" fill="#8b5cf6" fill-opacity="0.2" /><polyline :points="getLinePoints(dailyCart, maxCart)" fill="none" stroke="#8b5cf6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
-      <div class="metric-card"><div class="metric-header"><div class="metric-label"><el-icon><TrendCharts /></el-icon> 加购率</div><div class="metric-change" :class="summary.cart_rate_change >= 0 ? 'positive' : 'negative'">{{ formatChange(summary.cart_rate_change) }}</div></div><div class="metric-value">{{ summary.avg_cart_rate }}%</div><div class="chart-area" v-if="hasDateRange && dailyCartRate.length"><svg class="line-chart" viewBox="0 0 100 50" preserveAspectRatio="none"><path :d="getAreaPath(dailyCartRate, maxCartRate)" fill="#a855f7" fill-opacity="0.2" /><polyline :points="getLinePoints(dailyCartRate, maxCartRate)" fill="none" stroke="#a855f7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
-      <div class="metric-card"><div class="metric-header"><div class="metric-label"><el-icon><Document /></el-icon> 订单数</div><div class="metric-change" :class="summary.orders_change >= 0 ? 'positive' : 'negative'">{{ formatChange(summary.orders_change) }}</div></div><div class="metric-value">{{ formatNumber(summary.total_orders) }}</div><div class="chart-area" v-if="hasDateRange && dailyOrders.length"><svg class="line-chart" viewBox="0 0 100 50" preserveAspectRatio="none"><path :d="getAreaPath(dailyOrders, maxOrders)" fill="#f97316" fill-opacity="0.2" /><polyline :points="getLinePoints(dailyOrders, maxOrders)" fill="none" stroke="#f97316" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
-      <div class="metric-card"><div class="metric-header"><div class="metric-label"><el-icon><DataLine /></el-icon> 转化率</div><div class="metric-change" :class="summary.avg_conversion_rate_change >= 0 ? 'positive' : 'negative'">{{ formatChange(summary.avg_conversion_rate_change) }}</div></div><div class="metric-value">{{ summary.avg_conversion_rate }}%</div><div class="chart-area" v-if="hasDateRange && dailyConversionRate.length"><svg class="line-chart" viewBox="0 0 100 50" preserveAspectRatio="none"><path :d="getAreaPath(dailyConversionRate, maxConversionRate)" fill="#06b6d4" fill-opacity="0.2" /><polyline :points="getLinePoints(dailyConversionRate, maxConversionRate)" fill="none" stroke="#06b6d4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
-      <div class="metric-card"><div class="metric-header"><div class="metric-label"><el-icon><Notification /></el-icon> 广告费</div><div class="metric-change" :class="summary.ad_cost_change >= 0 ? 'negative' : 'positive'">{{ formatChange(summary.ad_cost_change) }}</div></div><div class="metric-value">{{ formatNumber(summary.total_ad_cost) }} ₽</div><div class="chart-area" v-if="hasDateRange && dailyAdCost.length"><svg class="line-chart" viewBox="0 0 100 50" preserveAspectRatio="none"><path :d="getAreaPath(dailyAdCost, maxAdCost)" fill="#ef4444" fill-opacity="0.2" /><polyline :points="getLinePoints(dailyAdCost, maxAdCost)" fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
-      <div class="metric-card"><div class="metric-header"><div class="metric-label"><el-icon><PieChart /></el-icon> 广告占比</div><div class="metric-change" :class="summary.ad_ratio_change >= 0 ? 'negative' : 'positive'">{{ formatChange(summary.ad_ratio_change) }}</div></div><div class="metric-value">{{ summary.avg_ad_ratio }}%</div><div class="chart-area" v-if="hasDateRange && dailyAdRatio.length"><svg class="line-chart" viewBox="0 0 100 50" preserveAspectRatio="none"><path :d="getAreaPath(dailyAdRatio, maxAdRatio)" fill="#ec489a" fill-opacity="0.2" /><polyline :points="getLinePoints(dailyAdRatio, maxAdRatio)" fill="none" stroke="#ec489a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
-    </div>
+    <section v-for="section in metricSections" :key="section.key" class="metric-section">
+      <div class="metric-section-header">
+        <h3>{{ section.title }}</h3>
+        <span>{{ section.subtitle }}</span>
+      </div>
+      <div class="metrics-grid">
+        <div v-for="card in metricCards" :key="section.key + '-' + card.key" class="metric-card">
+          <div class="metric-header">
+            <div class="metric-label">
+              <el-icon><component :is="card.icon" /></el-icon>
+              {{ card.label }}
+            </div>
+            <div class="metric-change" :class="getChangeClass(section.summary[card.changeKey], card.reverseChange)">
+              {{ formatChange(section.summary[card.changeKey]) }}
+            </div>
+          </div>
+          <div class="metric-value">{{ formatMetricValue(section.summary, card) }}</div>
+          <div class="chart-area" v-if="hasDateRange && section.trend[card.trendKey].length">
+            <svg class="line-chart" viewBox="0 0 100 50" preserveAspectRatio="none">
+              <path :d="getAreaPath(section.trend[card.trendKey], section.trend.max[card.trendKey])" :fill="card.color" fill-opacity="0.2" />
+              <polyline :points="getLinePoints(section.trend[card.trendKey], section.trend.max[card.trendKey])" fill="none" :stroke="card.color" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </section>
     <ProductSalesTable 
       :items="productList"
       :loading="loading"
@@ -94,7 +110,6 @@ const logDialogVisible = ref(false)
 const selectedProduct = ref(null)
 const logList = ref([])
 
-const summary = reactive({ total_sales: 0, total_visitors: 0, total_cart: 0, total_orders: 0, total_ad_cost: 0, avg_cart_rate: 0, avg_conversion_rate: 0, avg_ad_ratio: 0, sales_change: 0, visitors_change: 0, cart_change: 0, orders_change: 0, ad_cost_change: 0, cart_rate_change: 0, avg_conversion_rate_change: 0, ad_ratio_change: 0 })
 const dataInfo = reactive({ data_updated_at: '', data_staleness: '', exchange_rate: null })
 const thresholds = reactive({ cart_rate: null, conversion_rate: null, ad_ratio: null })
 
@@ -102,7 +117,30 @@ const hasDateRange = computed(() => { if (!filters.start_date || !filters.end_da
 const displayProducts = computed(() => { const start = (pagination.page - 1) * pagination.pageSize; return productList.value.slice(start, start + pagination.pageSize) })
 const uniqueProducts = computed(() => { const names = new Set(); products.value.forEach(p => { const name = p.custom_name || p.name; if (name) names.add(name); }); return Array.from(names).sort(); })
 
-const dailySales = ref([]), maxSales = ref(1), dailyVisitors = ref([]), maxVisitors = ref(1), dailyCart = ref([]), maxCart = ref(1), dailyOrders = ref([]), maxOrders = ref(1), dailyAdCost = ref([]), maxAdCost = ref(1), dailyCartRate = ref([]), maxCartRate = ref(1), dailyConversionRate = ref([]), maxConversionRate = ref(1), dailyAdRatio = ref([]), maxAdRatio = ref(1)
+function createSummary() {
+  return { total_sales: 0, total_visitors: 0, total_cart: 0, total_orders: 0, total_ad_cost: 0, avg_cart_rate: 0, avg_conversion_rate: 0, avg_ad_ratio: 0, sales_change: 0, visitors_change: 0, cart_change: 0, orders_change: 0, ad_cost_change: 0, cart_rate_change: 0, avg_conversion_rate_change: 0, ad_ratio_change: 0 }
+}
+
+function createTrend() {
+  return { sales: [], visitors: [], cart: [], cart_rate: [], orders: [], conversion_rate: [], ad_cost: [], ad_ratio: [], max: { sales: 1, visitors: 1, cart: 1, cart_rate: 1, orders: 1, conversion_rate: 1, ad_cost: 1, ad_ratio: 1 } }
+}
+
+const metricSections = reactive([
+  { key: 'unified', title: '统一口径核心卡片', subtitle: '全部选中店铺统一折算为 RUB', currency: null, summary: createSummary(), trend: createTrend() },
+  { key: 'rub', title: 'RUB 店铺核心卡片', subtitle: '仅统计 RUB 店铺', currency: 'RUB', summary: createSummary(), trend: createTrend() },
+  { key: 'cny', title: 'CNY 店铺核心卡片', subtitle: '仅统计 CNY 店铺，金额统一折算为 RUB', currency: 'CNY', summary: createSummary(), trend: createTrend() },
+])
+
+const metricCards = [
+  { key: 'sales', label: '销售额', icon: Money, valueKey: 'total_sales', changeKey: 'sales_change', trendKey: 'sales', unit: '₽', color: '#10b981' },
+  { key: 'visitors', label: '访客数', icon: User, valueKey: 'total_visitors', changeKey: 'visitors_change', trendKey: 'visitors', color: '#3b82f6' },
+  { key: 'cart', label: '加购数', icon: ShoppingCart, valueKey: 'total_cart', changeKey: 'cart_change', trendKey: 'cart', color: '#8b5cf6' },
+  { key: 'cart_rate', label: '加购率', icon: TrendCharts, valueKey: 'avg_cart_rate', changeKey: 'cart_rate_change', trendKey: 'cart_rate', unit: '%', color: '#a855f7', fixed: 2 },
+  { key: 'orders', label: '订单数', icon: Document, valueKey: 'total_orders', changeKey: 'orders_change', trendKey: 'orders', color: '#f97316' },
+  { key: 'conversion_rate', label: '转化率', icon: DataLine, valueKey: 'avg_conversion_rate', changeKey: 'avg_conversion_rate_change', trendKey: 'conversion_rate', unit: '%', color: '#06b6d4', fixed: 2 },
+  { key: 'ad_cost', label: '广告费', icon: Notification, valueKey: 'total_ad_cost', changeKey: 'ad_cost_change', trendKey: 'ad_cost', unit: '₽', color: '#ef4444', reverseChange: true },
+  { key: 'ad_ratio', label: '广告占比', icon: PieChart, valueKey: 'avg_ad_ratio', changeKey: 'ad_ratio_change', trendKey: 'ad_ratio', unit: '%', color: '#ec489a', fixed: 2, reverseChange: true },
+]
 
 function getX(index, total) { return total <= 1 ? 50 : (index / (total - 1)) * 100 }
 function getY(value, max) { return 50 - (value / max) * 45 }
@@ -147,92 +185,114 @@ function handleDateChange(val) { if (val && val.length === 2) { filters.start_da
 async function fetchData() {
   loading.value = true; expandedRows.value = []
   try {
-    const resp = await axios.post('/api/dashboard/products/', {
-          start_date: filters.start_date,
-          end_date: filters.end_date,
-          shop_ids: selectedShopIds(),
-          owners: filters.owner ? [filters.owner] : [],
-          product_name: filters.productId || undefined
-        })
-    const data = resp.data
-    productList.value = data.items || []
-    const s = data.summary || {}
-    Object.assign(summary, { 
-  total_sales: s.sales_amount || 0, 
-  total_visitors: s.visitors || 0, 
-  total_cart: s.add_to_cart || 0, 
-  total_orders: s.order_count || 0, 
-  total_ad_cost: s.ad_cost || 0, 
-  avg_cart_rate: s.add_to_cart_rate || 0, 
-  avg_conversion_rate: s.conversion_rate || 0, 
-  avg_ad_ratio: s.ad_ratio || 0, 
-  sales_change: (data.comparison?.sales_amount) || 0, 
-  visitors_change: (data.comparison?.visitors) || 0, 
-  cart_change: (data.comparison?.add_to_cart) || 0, 
-  orders_change: (data.comparison?.order_count) || 0, 
-  ad_cost_change: (data.comparison?.ad_cost) || 0,
-  cart_rate_change: (data.comparison?.add_to_cart_rate) || 0,
-  avg_conversion_rate_change: (data.comparison?.conversion_rate) || 0,
-  ad_ratio_change: (data.comparison?.ad_ratio) || 0
-})
+    const selected = selectedShopIds()
+    const sectionShopIds = getSectionShopIds(selected)
+    const productRequests = metricSections.map(section => fetchDashboardProducts(sectionShopIds[section.key]))
+    const trendRequests = metricSections.map(section => fetchDashboardTrend(sectionShopIds[section.key]))
+    const [productResponses, trendResponses] = await Promise.all([
+      Promise.all(productRequests),
+      Promise.all(trendRequests)
+    ])
+
+    productList.value = productResponses[0].items || []
+    metricSections.forEach((section, index) => {
+      assignSummary(section.summary, productResponses[index])
+      assignTrend(section.trend, trendResponses[index] || [])
+    })
+
+    const s = productResponses[0].summary || {}
     // 数据时间信息
     dataInfo.data_updated_at = s.data_updated_at || ''
     dataInfo.data_staleness = s.data_staleness || ''
     dataInfo.exchange_rate = s.exchange_rate || null
-    generateDailyData()
     fetchLogCounts()
   } catch (e) { ElMessage.error('获取数据失败') } finally { loading.value = false }
 }
 
-async function generateDailyData() {
-  try {
-    // Convert product name to IDs if product filter is applied
-    let productIdsForTrend = []
-    if (filters.productId) {
-      productIdsForTrend = products.value
-        .filter(p => (p.custom_name || p.name) === filters.productId)
-        .map(p => p.id)
-    }
-    const resp = await axios.post('/api/dashboard/trend/', {
-      start_date: filters.start_date,
-      end_date: filters.end_date,
-      shop_ids: selectedShopIds(),
-      product_ids: productIdsForTrend.length > 0 ? productIdsForTrend : []
-    })
-    const data = resp.data || []
-    
-    dailySales.value = data.map(d => ({ date: d.date, label: d.date.slice(5), value: d.sales || 0 }))
-    dailyVisitors.value = data.map(d => ({ date: d.date, label: d.date.slice(5), value: d.visitors || 0 }))
-    dailyCart.value = data.map(d => ({ date: d.date, label: d.date.slice(5), value: d.cart || 0 }))
-    dailyOrders.value = data.map(d => ({ date: d.date, label: d.date.slice(5), value: d.orders || 0 }))
-    dailyAdCost.value = data.map(d => ({ date: d.date, label: d.date.slice(5), value: d.ad_cost || 0 }))
-    
-    maxSales.value = Math.max(...dailySales.value.map(d => d.value), 1)
-    maxVisitors.value = Math.max(...dailyVisitors.value.map(d => d.value), 1)
-    maxCart.value = Math.max(...dailyCart.value.map(d => d.value), 1)
-    maxOrders.value = Math.max(...dailyOrders.value.map(d => d.value), 1)
-    maxAdCost.value = Math.max(...dailyAdCost.value.map(d => d.value), 1)
-    
-    // Calculate rate metrics from daily data
-    dailyCartRate.value = data.map(d => {
-      const rate = d.visitors ? (d.cart / d.visitors * 100) : 0
-      return { date: d.date, label: d.date.slice(5), value: parseFloat(rate.toFixed(2)) }
-    })
-    dailyConversionRate.value = data.map(d => {
-      const rate = d.visitors ? (d.orders / d.visitors * 100) : 0
-      return { date: d.date, label: d.date.slice(5), value: parseFloat(rate.toFixed(2)) }
-    })
-    dailyAdRatio.value = data.map(d => {
-      const ratio = d.sales ? (d.ad_cost / d.sales * 100) : 0
-      return { date: d.date, label: d.date.slice(5), value: parseFloat(ratio.toFixed(2)) }
-    })
-    
-    maxCartRate.value = Math.max(...dailyCartRate.value.map(d => d.value), 1)
-    maxConversionRate.value = Math.max(...dailyConversionRate.value.map(d => d.value), 1)
-    maxAdRatio.value = Math.max(...dailyAdRatio.value.map(d => d.value), 1)
-  } catch (e) {
-    console.error('Failed to fetch trend data:', e)
+function buildProductRequest(shopIds) {
+  return {
+    start_date: filters.start_date,
+    end_date: filters.end_date,
+    shop_ids: shopIds,
+    owners: filters.owner ? [filters.owner] : [],
+    product_name: filters.productId || undefined
   }
+}
+
+function getProductIdsForTrend() {
+  if (!filters.productId) return []
+  return products.value
+    .filter(p => (p.custom_name || p.name) === filters.productId)
+    .map(p => p.id)
+}
+
+async function fetchDashboardProducts(shopIds) {
+  if (shopIds === null) return { items: [], summary: {}, comparison: {} }
+  const resp = await axios.post('/api/dashboard/products/', buildProductRequest(shopIds))
+  return resp.data || { items: [], summary: {}, comparison: {} }
+}
+
+async function fetchDashboardTrend(shopIds) {
+  if (shopIds === null) return []
+  const resp = await axios.post('/api/dashboard/trend/', {
+    start_date: filters.start_date,
+    end_date: filters.end_date,
+    shop_ids: shopIds,
+    product_ids: getProductIdsForTrend()
+  })
+  return resp.data || []
+}
+
+function getSectionShopIds(selected) {
+  const selectedSet = selected.length ? new Set(selected) : null
+  const idsByCurrency = currency => {
+    const ids = shops.value
+      .filter(shop => (shop.currency || 'RUB') === currency)
+      .map(shop => shop.id)
+      .filter(id => !selectedSet || selectedSet.has(id))
+    return ids.length ? ids : null
+  }
+  return {
+    unified: selected,
+    rub: idsByCurrency('RUB'),
+    cny: idsByCurrency('CNY')
+  }
+}
+
+function assignSummary(target, data) {
+  const s = data.summary || {}
+  Object.assign(target, {
+    total_sales: s.sales_amount || 0,
+    total_visitors: s.visitors || 0,
+    total_cart: s.add_to_cart || 0,
+    total_orders: s.order_count || 0,
+    total_ad_cost: s.ad_cost || 0,
+    avg_cart_rate: s.add_to_cart_rate || 0,
+    avg_conversion_rate: s.conversion_rate || 0,
+    avg_ad_ratio: s.ad_ratio || 0,
+    sales_change: data.comparison?.sales_amount || 0,
+    visitors_change: data.comparison?.visitors || 0,
+    cart_change: data.comparison?.add_to_cart || 0,
+    orders_change: data.comparison?.order_count || 0,
+    ad_cost_change: data.comparison?.ad_cost || 0,
+    cart_rate_change: data.comparison?.add_to_cart_rate || 0,
+    avg_conversion_rate_change: data.comparison?.conversion_rate || 0,
+    ad_ratio_change: data.comparison?.ad_ratio || 0
+  })
+}
+
+function assignTrend(target, data) {
+  target.sales = data.map(d => ({ date: d.date, label: d.date.slice(5), value: d.sales || 0 }))
+  target.visitors = data.map(d => ({ date: d.date, label: d.date.slice(5), value: d.visitors || 0 }))
+  target.cart = data.map(d => ({ date: d.date, label: d.date.slice(5), value: d.cart || 0 }))
+  target.orders = data.map(d => ({ date: d.date, label: d.date.slice(5), value: d.orders || 0 }))
+  target.ad_cost = data.map(d => ({ date: d.date, label: d.date.slice(5), value: d.ad_cost || 0 }))
+  target.cart_rate = data.map(d => ({ date: d.date, label: d.date.slice(5), value: d.visitors ? parseFloat(((d.cart || 0) / d.visitors * 100).toFixed(2)) : 0 }))
+  target.conversion_rate = data.map(d => ({ date: d.date, label: d.date.slice(5), value: d.visitors ? parseFloat(((d.orders || 0) / d.visitors * 100).toFixed(2)) : 0 }))
+  target.ad_ratio = data.map(d => ({ date: d.date, label: d.date.slice(5), value: d.sales ? parseFloat(((d.ad_cost || 0) / d.sales * 100).toFixed(2)) : 0 }))
+  Object.keys(target.max).forEach(key => {
+    target.max[key] = Math.max(...target[key].map(d => d.value), 1)
+  })
 }
 
 async function fetchLogCounts() {
@@ -291,6 +351,15 @@ function handleSizeChange() { pagination.page = 1; fetchData() }
 function handlePageChange() { fetchData() }
 function formatNumber(n) { if(!n) return '0'; return parseFloat(n.toString().replace(/,/g, '')).toLocaleString('ru-RU'); }
 function formatChange(c) { return c || c === 0 ? (c >= 0 ? '+' : '') + c.toFixed(1) + '%' : '0%' }
+function formatMetricValue(summary, card) {
+  const value = summary[card.valueKey] || 0
+  if (card.unit === '%') return Number(value).toFixed(card.fixed ?? 2) + '%'
+  return formatNumber(value) + (card.unit ? ' ' + card.unit : '')
+}
+function getChangeClass(value, reverse = false) {
+  const positive = (value || 0) >= 0
+  return reverse ? (positive ? 'negative' : 'positive') : (positive ? 'positive' : 'negative')
+}
 function getRateClass(rate, metric) { const t = thresholds[metric]; if (!t || !rate) return ''; return rate <= t.danger_threshold ? 'rate-danger' : rate <= t.warning_threshold ? 'rate-warning' : 'rate-success' }
 
 // initialized 防止 setQuickDate 触发 watch 与 onMounted 手动调用重复请求
@@ -315,6 +384,10 @@ onMounted(async () => {
 .data-info-warning { color: #e6a23c; font-weight: 500; }
 .filter-item { display: flex; align-items: center; gap: 8px; }
 .filter-item.flex-1 { flex: 1; min-width: 150px; }
+.metric-section { margin-bottom: 18px; }
+.metric-section-header { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; }
+.metric-section-header h3 { margin: 0; font-size: 16px; font-weight: 700; color: #0f172a; }
+.metric-section-header span { font-size: 12px; color: #64748b; }
 .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; align-items: stretch; }
 @media (max-width: 1200px) { .metrics-grid { grid-template-columns: repeat(3, 1fr); gap: 12px; } }
 @media (max-width: 768px) { 
@@ -326,6 +399,7 @@ onMounted(async () => {
   .filter-bar .filter-item .el-select { width: 100% !important; }
   .filter-bar .flex-1 { width: 100%; }
   .filter-bar > .el-button { width: 100%; margin-top: 8px; }
+  .metric-section-header { flex-direction: column; align-items: flex-start; gap: 2px; }
   .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; align-items: stretch; }
   .metric-value { font-size: 16px; min-height: 20px; line-height: 1.2; }
   .metric-label { font-size: 11px; }
@@ -400,4 +474,3 @@ onMounted(async () => {
 .daily-metric { flex: 1; text-align: right; color: #606266; }
 .expand-hint { color: #c0c4cc; font-size: 12px; }
 </style>
-
