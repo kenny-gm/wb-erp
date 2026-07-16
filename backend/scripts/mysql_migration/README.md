@@ -18,6 +18,7 @@ python backend/scripts/mysql_migration/02_create_mysql_v2_schema.py --ddl docs/m
 python backend/scripts/mysql_migration/03_migrate_legacy_tables.py --dry-run
 python backend/scripts/mysql_migration/04_seed_v2_dimensions.py --dry-run
 python backend/scripts/mysql_migration/05_seed_v2_facts.py --dry-run
+python backend/scripts/mysql_migration/07_seed_v2_customer_sync_facts.py --dry-run
 python backend/scripts/mysql_migration/06_validate_migration.py --dry-run
 ```
 
