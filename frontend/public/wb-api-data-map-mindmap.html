@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WB API 数据链路思维导图</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f9fc;
+      --fg: #172033;
+      --muted: #647083;
+      --line: #708197;
+      --api: #dbeafe;
+      --sync: #e0e7ff;
+      --storage: #ccfbf1;
+      --view: #dcfce7;
+      --front: #fde68a;
+      --risk: #fee2e2;
+      --paper: #ffffff;
+      --border: #cbd5e1;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 22px 18px 34px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+      max-width: 560px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      color: #334155;
+      font-size: 12px;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+    }
+
+    .map-shell {
+      overflow-x: auto;
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 12px 34px rgba(15, 23, 42, 0.08);
+    }
+
+    svg {
+      min-width: 1320px;
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .title {
+      font-size: 20px;
+      font-weight: 700;
+      fill: var(--fg);
+    }
+
+    .section {
+      font-size: 14px;
+      font-weight: 700;
+      fill: #334155;
+    }
+
+    .label {
+      font-size: 13px;
+      font-weight: 700;
+      fill: var(--fg);
+    }
+
+    .small {
+      font-size: 11px;
+      fill: var(--muted);
+    }
+
+    .tiny {
+      font-size: 10px;
+      fill: var(--muted);
+    }
+
+    .node {
+      stroke: var(--line);
+      stroke-width: 1;
+      rx: 8;
+      ry: 8;
+    }
+
+    .api {
+      fill: var(--api);
+    }
+
+    .sync {
+      fill: var(--sync);
+    }
+
+    .storage {
+      fill: var(--storage);
+    }
+
+    .view {
+      fill: var(--view);
+    }
+
+    .front {
+      fill: var(--front);
+    }
+
+    .risk {
+      fill: var(--risk);
+    }
+
+    .paper {
+      fill: #fff;
+    }
+
+    .edge {
+      stroke: var(--line);
+      stroke-width: 1.4;
+      fill: none;
+      marker-end: url(#arrow);
+    }
+
+    .edge-soft {
+      stroke: #9aa8ba;
+      stroke-width: 1;
+      fill: none;
+      stroke-dasharray: 5 5;
+      marker-end: url(#arrow-soft);
+    }
+
+    .zone {
+      fill: none;
+      stroke: #94a3b8;
+      stroke-width: 1;
+      stroke-dasharray: 6 5;
+    }
+
+    .callout {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .callout article {
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+
+    .callout h2 {
+      font-size: 14px;
+      margin: 0 0 7px;
+    }
+
+    .callout p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 760px) {
+      header {
+        display: block;
+      }
+
+      .legend {
+        justify-content: flex-start;
+        margin-top: 12px;
+      }
+
+      .callout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>WB API 数据链路思维导图</h1>
+        <div class="subtitle">从官方 API 到同步服务、数据库分层、后端接口、前端页面的系统化重设计视图</div>
+      </div>
+      <div class="legend" aria-label="图例">
+        <span><i class="dot" style="background: var(--api)"></i>WB API 来源</span>
+        <span><i class="dot" style="background: var(--sync)"></i>同步/清洗</span>
+        <span><i class="dot" style="background: var(--storage)"></i>数据库层</span>
+        <span><i class="dot" style="background: var(--view)"></i>后端视图/API</span>
+        <span><i class="dot" style="background: var(--front)"></i>前端/业务页面</span>
+        <span><i class="dot" style="background: var(--risk)"></i>当前缺口</span>
+      </div>
+    </header>
+
+    <section class="map-shell">
+      <svg viewBox="0 0 1320 920" role="img" aria-label="WB API 数据链路思维导图">
+        <defs>
+          <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,6 L8,3 z" fill="#708197"></path>
+          </marker>
+          <marker id="arrow-soft" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,6 L8,3 z" fill="#9aa8ba"></path>
+          </marker>
+        </defs>
+
+        <rect x="0" y="0" width="1320" height="920" fill="#ffffff"></rect>
+        <text x="32" y="42" class="title">建议目标：ERP 做数据中转与统一口径，前端只消费稳定 view/API</text>
+
+        <rect x="28" y="72" width="246" height="694" class="zone"></rect>
+        <rect x="304" y="72" width="174" height="694" class="zone"></rect>
+        <rect x="508" y="72" width="288" height="694" class="zone"></rect>
+        <rect x="826" y="72" width="188" height="694" class="zone"></rect>
+        <rect x="1044" y="72" width="248" height="694" class="zone"></rect>
+
+        <text x="46" y="98" class="section">WB 官方 API</text>
+        <text x="322" y="98" class="section">同步服务</text>
+        <text x="526" y="98" class="section">数据库分层</text>
+        <text x="844" y="98" class="section">后端 API/View</text>
+        <text x="1062" y="98" class="section">前端/业务输出</text>
+
+        <!-- API source nodes -->
+        <rect x="52" y="122" width="196" height="62" class="node api"></rect>
+        <text x="70" y="148" class="label">Content 商品卡</text>
+        <text x="70" y="168" class="small">nmId / SKU / 类目 / 尺寸</text>
+
+        <rect x="52" y="202" width="196" height="62" class="node api"></rect>
+        <text x="70" y="228" class="label">Analytics 商品漏斗</text>
+        <text x="70" y="248" class="small">访客 / 加购 / 订单 / 销售</text>
+
+        <rect x="52" y="282" width="196" height="62" class="node api"></rect>
+        <text x="70" y="308" class="label">Promotion 广告</text>
+        <text x="70" y="328" class="small">活动 / 费用 / 点击 / 关键词</text>
+
+        <rect x="52" y="362" width="196" height="62" class="node api"></rect>
+        <text x="70" y="388" class="label">Statistics 订单销售</text>
+        <text x="70" y="408" class="small">orders / sales / returns</text>
+
+        <rect x="52" y="442" width="196" height="62" class="node api"></rect>
+        <text x="70" y="468" class="label">Prices / Inventory</text>
+        <text x="70" y="488" class="small">价格 / 折扣 / 库存 / 仓库</text>
+
+        <rect x="52" y="522" width="196" height="62" class="node api"></rect>
+        <text x="70" y="548" class="label">Finance 财务</text>
+        <text x="70" y="568" class="small">realization / acquiring / 单据</text>
+
+        <rect x="52" y="602" width="196" height="62" class="node api"></rect>
+        <text x="70" y="628" class="label">客服沟通</text>
+        <text x="70" y="648" class="small">问答 / 评价 / 聊天 / 退货</text>
+
+        <rect x="52" y="682" width="196" height="62" class="node api"></rect>
+        <text x="70" y="708" class="label">FBS / FBW 履约</text>
+        <text x="70" y="728" class="small">发货单 / 贴纸 / 供货单</text>
+
+        <!-- Sync nodes -->
+        <rect x="326" y="140" width="128" height="70" class="node sync"></rect>
+        <text x="348" y="166" class="label">API Client</text>
+        <text x="342" y="186" class="small">token / 限流 / 重试</text>
+
+        <rect x="326" y="255" width="128" height="70" class="node sync"></rect>
+        <text x="344" y="281" class="label">Sync Jobs</text>
+        <text x="342" y="301" class="small">分域任务 / 批次</text>
+
+        <rect x="326" y="370" width="128" height="70" class="node sync"></rect>
+        <text x="346" y="396" class="label">Normalize</text>
+        <text x="342" y="416" class="small">主键 / 币种 / 时间</text>
+
+        <rect x="326" y="485" width="128" height="70" class="node sync"></rect>
+        <text x="346" y="511" class="label">Upsert</text>
+        <text x="342" y="531" class="small">去重 / 增量 / 审计</text>
+
+        <!-- Storage stack -->
+        <rect x="538" y="122" width="228" height="78" class="node storage"></rect>
+        <text x="570" y="150" class="label">Raw 原始层</text>
+        <text x="558" y="170" class="small">按 API 来源落库，保留 raw_json</text>
+        <text x="558" y="188" class="tiny">content / analytics / promotion / finance / cs</text>
+
+        <rect x="538" y="235" width="228" height="78" class="node storage"></rect>
+        <text x="566" y="263" class="label">Dimensions 维表</text>
+        <text x="558" y="283" class="small">shop / product / product_group</text>
+        <text x="558" y="301" class="tiny">campaign / warehouse / currency / owner</text>
+
+        <rect x="538" y="348" width="228" height="78" class="node storage"></rect>
+        <text x="586" y="376" class="label">Facts 事实层</text>
+        <text x="558" y="396" class="small">product_daily / ad_daily</text>
+        <text x="558" y="414" class="tiny">sales / order / inventory / finance</text>
+
+        <rect x="538" y="461" width="228" height="78" class="node storage"></rect>
+        <text x="582" y="489" class="label">Views 展示层</text>
+        <text x="558" y="509" class="small">dashboard / product detail</text>
+        <text x="558" y="527" class="tiny">ad analysis / cs inbox / finance</text>
+
+        <rect x="538" y="600" width="228" height="100" class="node risk"></rect>
+        <text x="560" y="628" class="label">当前系统主要混点</text>
+        <text x="558" y="650" class="small">ad_records 同时存广告和商品漏斗</text>
+        <text x="558" y="670" class="small">orders 不是完整 WB 原始订单</text>
+        <text x="558" y="690" class="small">products.nm_id 是全局唯一</text>
+
+        <!-- API/View nodes -->
+        <rect x="850" y="126" width="140" height="66" class="node view"></rect>
+        <text x="872" y="152" class="label">Dashboard API</text>
+        <text x="870" y="172" class="small">核心指标 / 趋势</text>
+
+        <rect x="850" y="226" width="140" height="66" class="node view"></rect>
+        <text x="862" y="252" class="label">产品销售明细</text>
+        <text x="870" y="272" class="small">产品组 / 店铺 / 日期</text>
+
+        <rect x="850" y="326" width="140" height="66" class="node view"></rect>
+        <text x="872" y="352" class="label">广告分析 API</text>
+        <text x="870" y="372" class="small">活动 / 商品 / 关键词</text>
+
+        <rect x="850" y="426" width="140" height="66" class="node view"></rect>
+        <text x="872" y="452" class="label">客服工作台 API</text>
+        <text x="870" y="472" class="small">item / message / action</text>
+
+        <rect x="850" y="526" width="140" height="66" class="node view"></rect>
+        <text x="872" y="552" class="label">财务对账 API</text>
+        <text x="870" y="572" class="small">结算 / 利润 / 单据</text>
+
+        <!-- Frontend nodes -->
+        <rect x="1070" y="122" width="190" height="62" class="node front"></rect>
+        <text x="1090" y="148" class="label">销售看板</text>
+        <text x="1090" y="168" class="small">统一卢布 / RUB / CNY</text>
+
+        <rect x="1070" y="214" width="190" height="62" class="node front"></rect>
+        <text x="1090" y="240" class="label">产品销售明细</text>
+        <text x="1090" y="260" class="small">产品组 -> 店铺 -> 日期</text>
+
+        <rect x="1070" y="306" width="190" height="62" class="node front"></rect>
+        <text x="1090" y="332" class="label">广告分析</text>
+        <text x="1090" y="352" class="small">活动 / 关键词 / ROI</text>
+
+        <rect x="1070" y="398" width="190" height="62" class="node front"></rect>
+        <text x="1090" y="424" class="label">客服工作台</text>
+        <text x="1090" y="444" class="small">问答 / 评价 / 聊天 / 退货</text>
+
+        <rect x="1070" y="490" width="190" height="62" class="node front"></rect>
+        <text x="1090" y="516" class="label">财务/利润</text>
+        <text x="1090" y="536" class="small">realization 最终口径</text>
+
+        <rect x="1070" y="582" width="190" height="62" class="node front"></rect>
+        <text x="1090" y="608" class="label">钉钉/AI 表格</text>
+        <text x="1090" y="628" class="small">只消费 view，不写公式字段</text>
+
+        <!-- Connectors API to sync -->
+        <path class="edge" d="M248 153 C285 153 292 175 326 175"></path>
+        <path class="edge" d="M248 233 C290 233 298 290 326 290"></path>
+        <path class="edge" d="M248 313 C290 313 298 290 326 290"></path>
+        <path class="edge" d="M248 393 C296 393 302 405 326 405"></path>
+        <path class="edge" d="M248 473 C296 473 302 520 326 520"></path>
+        <path class="edge" d="M248 553 C300 553 304 520 326 520"></path>
+        <path class="edge" d="M248 633 C300 633 302 520 326 520"></path>
+        <path class="edge" d="M248 713 C302 713 302 520 326 520"></path>
+
+        <!-- Sync internal -->
+        <path class="edge" d="M390 210 L390 255"></path>
+        <path class="edge" d="M390 325 L390 370"></path>
+        <path class="edge" d="M390 440 L390 485"></path>
+
+        <!-- Sync to storage -->
+        <path class="edge" d="M454 175 C490 175 500 160 538 160"></path>
+        <path class="edge" d="M454 290 C492 290 502 274 538 274"></path>
+        <path class="edge" d="M454 405 C492 405 502 387 538 387"></path>
+        <path class="edge" d="M454 520 C492 520 502 500 538 500"></path>
+
+        <!-- Storage stack -->
+        <path class="edge" d="M652 200 L652 235"></path>
+        <path class="edge" d="M652 313 L652 348"></path>
+        <path class="edge" d="M652 426 L652 461"></path>
+
+        <!-- Storage to API views -->
+        <path class="edge" d="M766 500 C806 500 806 159 850 159"></path>
+        <path class="edge" d="M766 500 C806 500 806 259 850 259"></path>
+        <path class="edge" d="M766 500 C806 500 806 359 850 359"></path>
+        <path class="edge" d="M766 500 C806 500 806 459 850 459"></path>
+        <path class="edge" d="M766 500 C806 500 806 559 850 559"></path>
+
+        <!-- API views to frontend -->
+        <path class="edge" d="M990 159 L1070 153"></path>
+        <path class="edge" d="M990 259 L1070 245"></path>
+        <path class="edge" d="M990 359 L1070 337"></path>
+        <path class="edge" d="M990 459 L1070 429"></path>
+        <path class="edge" d="M990 559 L1070 521"></path>
+        <path class="edge-soft" d="M990 259 C1028 259 1028 613 1070 613"></path>
+        <path class="edge-soft" d="M990 159 C1028 159 1028 613 1070 613"></path>
+
+        <!-- Current system relation -->
+        <path class="edge-soft" d="M652 600 L652 539"></path>
+        <path class="edge-soft" d="M766 650 C810 650 810 359 850 359"></path>
+        <path class="edge-soft" d="M766 650 C810 650 810 259 850 259"></path>
+
+        <!-- Bottom recommendations -->
+        <rect x="32" y="800" width="392" height="78" class="node paper"></rect>
+        <text x="54" y="828" class="label">实施顺序 1：先双写，不切前端</text>
+        <text x="54" y="850" class="small">新增 raw/fact/view，旧表继续服务现有页面</text>
+        <text x="54" y="868" class="small">用同一天数据对比新旧口径，避免影响运营</text>
+
+        <rect x="464" y="800" width="392" height="78" class="node paper"></rect>
+        <text x="486" y="828" class="label">实施顺序 2：先商品与销售，再广告财务</text>
+        <text x="486" y="850" class="small">先解决 shop_id + nm_id、产品组、销售漏斗</text>
+        <text x="486" y="868" class="small">再拆广告活动、关键词、Finance report</text>
+
+        <rect x="896" y="800" width="392" height="78" class="node paper"></rect>
+        <text x="918" y="828" class="label">实施顺序 3：前端只读稳定 view</text>
+        <text x="918" y="850" class="small">Dashboard、产品明细、广告分析、客服、财务</text>
+        <text x="918" y="868" class="small">全部通过后端 view/API 获取统一口径</text>
+      </svg>
+    </section>
+
+    <section class="callout">
+      <article>
+        <h2>核心变化</h2>
+        <p>从“业务表直接混合存结果”改成“raw 原始层、facts 事实层、views 展示层”，每个指标都能追溯到 WB API 来源。</p>
+      </article>
+      <article>
+        <h2>当前最大风险</h2>
+        <p>`ad_records` 混合广告统计和商品漏斗，`orders` 不是完整 WB 原始订单，`products.nm_id` 全局唯一不适合多店铺。</p>
+      </article>
+      <article>
+        <h2>建议路线</h2>
+        <p>先新增数据层并双写，对比新旧口径稳定后，再逐步切换 Dashboard、产品销售明细和广告分析。</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
