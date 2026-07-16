@@ -38,48 +38,52 @@
       <el-button type="primary" @click="fetchData">查询</el-button>
     </div>
 
-    <section v-for="section in metricSections" :key="section.key" class="metric-section">
-      <div class="metric-section-header">
-        <div class="metric-section-title">
-          <h3>{{ section.title }}</h3>
-          <span>{{ section.subtitle }}</span>
-        </div>
-        <el-select
-          v-if="section.currency"
-          v-model="section.shopIds"
-          class="section-shop-filter"
-          :placeholder="section.currency + ' 全部店铺'"
-          clearable
-          multiple
-          collapse-tags
-          collapse-tags-tooltip
-          filterable
-        >
-          <el-option
-            v-for="shop in getSectionShopOptions(section.currency)"
-            :key="shop.id"
-            :label="shop.name"
-            :value="shop.id"
-          />
-        </el-select>
-      </div>
-      <div class="metrics-grid">
-        <div v-for="card in metricCards" :key="section.key + '-' + card.key" class="metric-card">
-          <div class="metric-header">
-            <div class="metric-label">
-              <el-icon><component :is="card.icon" /></el-icon>
-              {{ card.label }}
-            </div>
-            <div class="metric-change" :class="getChangeClass(section.summary[card.changeKey], card.reverseChange)">
-              {{ formatChange(section.summary[card.changeKey]) }}
-            </div>
+    <section class="metric-matrix-section">
+      <div class="metric-matrix">
+        <div class="matrix-row matrix-header-row">
+          <div class="matrix-metric-heading">指标</div>
+          <div v-for="section in metricSections" :key="section.key" class="matrix-section-heading">
+            <div class="matrix-section-title">{{ section.title }}</div>
+            <div class="matrix-section-subtitle">{{ section.subtitle }}</div>
+            <el-select
+              v-if="section.currency"
+              v-model="section.shopIds"
+              class="section-shop-filter"
+              :placeholder="section.currency + ' 全部店铺'"
+              clearable
+              multiple
+              collapse-tags
+              collapse-tags-tooltip
+              filterable
+            >
+              <el-option
+                v-for="shop in getSectionShopOptions(section.currency)"
+                :key="shop.id"
+                :label="shop.name"
+                :value="shop.id"
+              />
+            </el-select>
           </div>
-          <div class="metric-value">{{ formatMetricValue(section, card) }}</div>
-          <div class="chart-area" v-if="hasDateRange && section.trend[card.trendKey].length">
-            <svg class="line-chart" viewBox="0 0 100 50" preserveAspectRatio="none">
-              <path :d="getAreaPath(section.trend[card.trendKey], section.trend.max[card.trendKey])" :fill="card.color" fill-opacity="0.2" />
-              <polyline :points="getLinePoints(section.trend[card.trendKey], section.trend.max[card.trendKey])" fill="none" :stroke="card.color" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+        </div>
+
+        <div v-for="card in metricCards" :key="card.key" class="matrix-row">
+          <div class="matrix-metric-label">
+            <el-icon><component :is="card.icon" /></el-icon>
+            <span>{{ card.label }}</span>
+          </div>
+          <div v-for="section in metricSections" :key="section.key + '-' + card.key" class="matrix-value-cell">
+            <div class="matrix-value-line">
+              <span class="matrix-value">{{ formatMetricValue(section, card) }}</span>
+              <span class="matrix-change" :class="getChangeClass(section.summary[card.changeKey], card.reverseChange)">
+                {{ formatChange(section.summary[card.changeKey]) }}
+              </span>
+            </div>
+            <div class="matrix-chart" v-if="hasDateRange && section.trend[card.trendKey].length">
+              <svg class="matrix-line-chart" viewBox="0 0 100 50" preserveAspectRatio="none">
+                <path :d="getAreaPath(section.trend[card.trendKey], section.trend.max[card.trendKey])" :fill="card.color" fill-opacity="0.14" />
+                <polyline :points="getLinePoints(section.trend[card.trendKey], section.trend.max[card.trendKey])" fill="none" :stroke="card.color" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
           </div>
         </div>
       </div>
@@ -408,12 +412,28 @@ onMounted(async () => {
 .data-info-warning { color: #e6a23c; font-weight: 500; }
 .filter-item { display: flex; align-items: center; gap: 8px; }
 .filter-item.flex-1 { flex: 1; min-width: 150px; }
-.metric-section { margin-bottom: 18px; }
-.metric-section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 10px; }
-.metric-section-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
-.metric-section-header h3 { margin: 0; font-size: 16px; font-weight: 700; color: #0f172a; }
-.metric-section-header span { font-size: 12px; color: #64748b; }
+.metric-matrix-section { margin-bottom: 18px; }
+.metric-matrix { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; overflow-x: auto; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }
+.matrix-row { display: grid; grid-template-columns: 150px repeat(3, minmax(220px, 1fr)); min-width: 850px; border-top: 1px solid #eef2f7; }
+.matrix-row:first-child { border-top: none; }
+.matrix-header-row { background: #f8fafc; }
+.matrix-metric-heading { padding: 14px 16px; font-size: 13px; font-weight: 700; color: #475569; border-right: 1px solid #e5e7eb; }
+.matrix-section-heading { padding: 12px 14px; border-right: 1px solid #e5e7eb; min-width: 0; }
+.matrix-section-heading:last-child { border-right: none; }
+.matrix-section-title { font-size: 14px; font-weight: 700; color: #0f172a; line-height: 1.2; }
+.matrix-section-subtitle { margin-top: 3px; font-size: 12px; color: #64748b; line-height: 1.25; }
 .section-shop-filter { width: 260px; flex-shrink: 0; }
+.matrix-section-heading .section-shop-filter { width: 100%; margin-top: 10px; }
+.matrix-metric-label { display: flex; align-items: center; gap: 8px; padding: 14px 16px; min-height: 74px; border-right: 1px solid #e5e7eb; font-size: 13px; font-weight: 600; color: #334155; background: #fbfdff; }
+.matrix-value-cell { padding: 12px 14px; min-height: 74px; border-right: 1px solid #e5e7eb; }
+.matrix-value-cell:last-child { border-right: none; }
+.matrix-value-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 24px; }
+.matrix-value { min-width: 0; font-size: 16px; font-weight: 700; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.matrix-change { flex-shrink: 0; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background-color: #f8fafc; white-space: nowrap; }
+.matrix-change.positive { color: #10b981; background-color: rgba(16, 185, 129, 0.1); }
+.matrix-change.negative { color: #ef4444; background-color: rgba(239, 68, 68, 0.08); }
+.matrix-chart { margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9; }
+.matrix-line-chart { width: 100%; height: 32px; display: block; }
 .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; align-items: stretch; }
 @media (max-width: 1200px) { .metrics-grid { grid-template-columns: repeat(3, 1fr); gap: 12px; } }
 @media (max-width: 768px) { 
@@ -425,8 +445,14 @@ onMounted(async () => {
   .filter-bar .filter-item .el-select { width: 100% !important; }
   .filter-bar .flex-1 { width: 100%; }
   .filter-bar > .el-button { width: 100%; margin-top: 8px; }
-  .metric-section-header { flex-direction: column; align-items: stretch; gap: 6px; }
-  .metric-section-title { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .matrix-row { grid-template-columns: 112px repeat(3, minmax(170px, 1fr)); min-width: 640px; }
+  .matrix-metric-heading,
+  .matrix-metric-label { padding: 12px 10px; }
+  .matrix-section-heading,
+  .matrix-value-cell { padding: 10px; }
+  .matrix-value-line { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .matrix-value { font-size: 14px; }
+  .matrix-change { font-size: 10px; padding: 2px 6px; }
   .section-shop-filter { width: 100%; }
   .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; align-items: stretch; }
   .metric-value { font-size: 16px; min-height: 20px; line-height: 1.2; }
