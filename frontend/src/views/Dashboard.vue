@@ -26,11 +26,6 @@
         <el-date-picker v-model="filters.dateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" format="YYYY-MM-DD" value-format="YYYY-MM-DD" @change="handleDateChange" style="width: 240px" />
       </div>
       <div class="filter-item">
-        <el-select v-model="filters.shopIds" placeholder="全部店铺" clearable multiple collapse-tags collapse-tags-tooltip filterable style="width: 220px">
-          <el-option v-for="shop in shops" :key="shop.id" :label="shop.name" :value="shop.id" />
-        </el-select>
-      </div>
-      <div class="filter-item">
         <el-select v-model="filters.owner" placeholder="全部负责人" clearable style="width: 120px">
           <el-option v-for="o in owners" :key="o" :label="o" :value="o" />
         </el-select>
@@ -45,8 +40,28 @@
 
     <section v-for="section in metricSections" :key="section.key" class="metric-section">
       <div class="metric-section-header">
-        <h3>{{ section.title }}</h3>
-        <span>{{ section.subtitle }}</span>
+        <div class="metric-section-title">
+          <h3>{{ section.title }}</h3>
+          <span>{{ section.subtitle }}</span>
+        </div>
+        <el-select
+          v-if="section.currency"
+          v-model="section.shopIds"
+          class="section-shop-filter"
+          :placeholder="section.currency + ' 全部店铺'"
+          clearable
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          filterable
+        >
+          <el-option
+            v-for="shop in getSectionShopOptions(section.currency)"
+            :key="shop.id"
+            :label="shop.name"
+            :value="shop.id"
+          />
+        </el-select>
       </div>
       <div class="metrics-grid">
         <div v-for="card in metricCards" :key="section.key + '-' + card.key" class="metric-card">
@@ -74,7 +89,7 @@
       :loading="loading"
       :start-date="filters.start_date" 
       :end-date="filters.end_date" 
-      :selected-shops="selectedShopIds()" 
+      :selected-shops="[]"
       :selected-owner="filters.owner"
       :selected-product="filters.productId"
       :quick-type="quickType" 
@@ -99,11 +114,7 @@ const owners = ref([])
 const logCounts = ref({})
 const quickType = ref('yesterday')
 
-const filters = reactive({ dateRange: null, start_date: '', end_date: '', shopIds: [], productId: null, owner: null })
-
-function selectedShopIds() {
-  return Array.isArray(filters.shopIds) ? filters.shopIds.filter(Boolean) : []
-}
+const filters = reactive({ dateRange: null, start_date: '', end_date: '', productId: null, owner: null })
 const pagination = reactive({ page: 1, pageSize: 50 })
 const expandedRows = ref([])
 const logDialogVisible = ref(false)
@@ -126,9 +137,9 @@ function createTrend() {
 }
 
 const metricSections = reactive([
-  { key: 'unified', title: '统一口径核心卡片', subtitle: '全部选中店铺统一折算为 RUB', currency: null, displayCurrency: 'RUB', amountUnit: '₽', summary: createSummary(), trend: createTrend() },
-  { key: 'rub', title: 'RUB 店铺核心卡片', subtitle: '仅统计 RUB 店铺', currency: 'RUB', displayCurrency: 'RUB', amountUnit: '₽', summary: createSummary(), trend: createTrend() },
-  { key: 'cny', title: 'CNY 店铺核心卡片', subtitle: '仅统计 CNY 店铺，金额显示原始 CNY', currency: 'CNY', displayCurrency: 'NATIVE', amountUnit: '¥', summary: createSummary(), trend: createTrend() },
+  { key: 'unified', title: '统一口径核心卡片', subtitle: '全部店铺统一折算为 RUB', currency: null, displayCurrency: 'RUB', amountUnit: '₽', shopIds: [], summary: createSummary(), trend: createTrend() },
+  { key: 'rub', title: 'RUB 店铺核心卡片', subtitle: '可单独筛选 RUB 店铺', currency: 'RUB', displayCurrency: 'RUB', amountUnit: '₽', shopIds: [], summary: createSummary(), trend: createTrend() },
+  { key: 'cny', title: 'CNY 店铺核心卡片', subtitle: '可单独筛选 CNY 店铺，金额显示原始 CNY', currency: 'CNY', displayCurrency: 'NATIVE', amountUnit: '¥', shopIds: [], summary: createSummary(), trend: createTrend() },
 ])
 
 const metricCards = [
@@ -185,8 +196,7 @@ function handleDateChange(val) { if (val && val.length === 2) { filters.start_da
 async function fetchData() {
   loading.value = true; expandedRows.value = []
   try {
-    const selected = selectedShopIds()
-    const sectionShopIds = getSectionShopIds(selected)
+    const sectionShopIds = getSectionShopIds()
     const productRequests = metricSections.map(section => fetchDashboardProducts(sectionShopIds[section.key], section.displayCurrency))
     const trendRequests = metricSections.map(section => fetchDashboardTrend(sectionShopIds[section.key], section.displayCurrency))
     const [productResponses, trendResponses] = await Promise.all([
@@ -245,20 +255,24 @@ async function fetchDashboardTrend(shopIds, displayCurrency = 'RUB') {
   return resp.data || []
 }
 
-function getSectionShopIds(selected) {
-  const selectedSet = selected.length ? new Set(selected) : null
-  const idsByCurrency = currency => {
+function getSectionShopIds() {
+  const idsByCurrency = section => {
+    const selectedSet = section.shopIds.length ? new Set(section.shopIds) : null
     const ids = shops.value
-      .filter(shop => (shop.currency || 'RUB') === currency)
+      .filter(shop => (shop.currency || 'RUB') === section.currency)
       .map(shop => shop.id)
       .filter(id => !selectedSet || selectedSet.has(id))
     return ids.length ? ids : null
   }
   return {
-    unified: selected,
-    rub: idsByCurrency('RUB'),
-    cny: idsByCurrency('CNY')
+    unified: [],
+    rub: idsByCurrency(metricSections.find(section => section.key === 'rub')),
+    cny: idsByCurrency(metricSections.find(section => section.key === 'cny'))
   }
+}
+
+function getSectionShopOptions(currency) {
+  return shops.value.filter(shop => (shop.currency || 'RUB') === currency)
 }
 
 function assignSummary(target, data) {
@@ -314,7 +328,7 @@ async function handleExpandChange(row, expanded) {
         const resp = await axios.post('/api/dashboard/trend/', {
           start_date: filters.start_date,
           end_date: filters.end_date,
-          shop_ids: selectedShopIds(),
+          shop_ids: [],
           product_ids: [row.product_id]
         })
         const data = resp.data || []
@@ -368,7 +382,14 @@ function getRateClass(rate, metric) { const t = thresholds[metric]; if (!t || !r
 // initialized 防止 setQuickDate 触发 watch 与 onMounted 手动调用重复请求
 const initialized = ref(false)
 watch(
-  () => [filters.start_date, filters.end_date, selectedShopIds().join(','), filters.owner, filters.productId],
+  () => [
+    filters.start_date,
+    filters.end_date,
+    filters.owner,
+    filters.productId,
+    metricSections.find(section => section.key === 'rub').shopIds.join(','),
+    metricSections.find(section => section.key === 'cny').shopIds.join(',')
+  ],
   () => { if (initialized.value) fetchData() }
 )
 onMounted(async () => {
@@ -388,9 +409,11 @@ onMounted(async () => {
 .filter-item { display: flex; align-items: center; gap: 8px; }
 .filter-item.flex-1 { flex: 1; min-width: 150px; }
 .metric-section { margin-bottom: 18px; }
-.metric-section-header { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; }
+.metric-section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 10px; }
+.metric-section-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .metric-section-header h3 { margin: 0; font-size: 16px; font-weight: 700; color: #0f172a; }
 .metric-section-header span { font-size: 12px; color: #64748b; }
+.section-shop-filter { width: 260px; flex-shrink: 0; }
 .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; align-items: stretch; }
 @media (max-width: 1200px) { .metrics-grid { grid-template-columns: repeat(3, 1fr); gap: 12px; } }
 @media (max-width: 768px) { 
@@ -402,7 +425,9 @@ onMounted(async () => {
   .filter-bar .filter-item .el-select { width: 100% !important; }
   .filter-bar .flex-1 { width: 100%; }
   .filter-bar > .el-button { width: 100%; margin-top: 8px; }
-  .metric-section-header { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .metric-section-header { flex-direction: column; align-items: stretch; gap: 6px; }
+  .metric-section-title { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .section-shop-filter { width: 100%; }
   .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; align-items: stretch; }
   .metric-value { font-size: 16px; min-height: 20px; line-height: 1.2; }
   .metric-label { font-size: 11px; }
