@@ -52,10 +52,6 @@ def run_sqlite_legacy_migrations():
     from migrations.add_customer_service_internal_note import migrate_add_customer_service_internal_note
     migrate_add_customer_service_internal_note()  # 幂等，重复执行无影响
 
-    # 迁移：新增 sync_locks 表（客服同步分布式锁）
-    from migrations.add_sync_lock import migrate_add_sync_locks
-    migrate_add_sync_locks()  # 幂等，重复执行无影响
-
     # 迁移：customer_service_messages 唯一约束（item_id + external_message_id）
     from migrations.fix_customer_service_message_unique import migrate_fix_customer_service_message_unique
     migrate_fix_customer_service_message_unique()  # 幂等，重复执行无影响
@@ -73,6 +69,10 @@ def run_sqlite_legacy_migrations():
 
 
 run_sqlite_legacy_migrations()
+
+# 迁移：新增 sync_locks 表（客服同步分布式锁），支持 SQLite/MySQL。
+from migrations.add_sync_lock import migrate_add_sync_locks
+migrate_add_sync_locks()  # 幂等，重复执行无影响
 
 # 导入路由
 from app.routers import auth, dashboard, products, shops, admin, users, inventory, orders, ads, customer_service
