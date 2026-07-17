@@ -425,6 +425,195 @@ def run_content_cards(args: argparse.Namespace, shops: list[dict[str, Any]]) -> 
         mysql_conn.close()
 
 
+def fetch_inventory_endpoint(
+    shop: dict[str, Any],
+    source_api: str,
+    endpoint: str,
+    timeout: float,
+    params: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    url = f"{API_DOMAINS[source_api]}{endpoint}"
+    headers = {"Authorization": shop["api_token"], "Content-Type": "application/json"}
+    fetched_at = datetime.now(timezone.utc)
+
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            response = client.get(url, headers=headers, params=params)
+        body = response_body(response)
+        ok = 200 <= response.status_code < 300
+        return {
+            "ok": ok,
+            "method": "GET",
+            "url": url,
+            "status_code": response.status_code,
+            "request": {"params": params or {}, "json": {}},
+            "response": body,
+            "fetched_at": fetched_at.isoformat(),
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "method": "GET",
+            "url": url,
+            "status_code": None,
+            "request": {"params": params or {}, "json": {}},
+            "error": type(exc).__name__,
+            "message": str(exc)[:1000],
+            "fetched_at": fetched_at.isoformat(),
+        }
+
+
+def inventory_payload_items(raw: dict[str, Any], keys: tuple[str, ...]) -> list[Any]:
+    if not raw.get("ok"):
+        return []
+    response = raw.get("response")
+    if isinstance(response, list):
+        return response
+    if isinstance(response, dict):
+        for key in keys:
+            value = response.get(key)
+            if isinstance(value, list):
+                return value
+    return []
+
+
+def inventory_external_id(prefix: str, item: Any) -> str:
+    if not isinstance(item, dict):
+        return f"{prefix}:{hashlib.sha256(json_dump(item).encode('utf-8')).hexdigest()}"
+
+    parts = [
+        item.get("warehouseId") or item.get("warehouseID") or item.get("id"),
+        item.get("nmId") or item.get("nmID"),
+        item.get("barcode"),
+        item.get("supplierArticle"),
+        item.get("techSize"),
+    ]
+    key = ":".join(str(part) for part in parts if part not in (None, ""))
+    if key:
+        return f"{prefix}:{key}"
+    return f"{prefix}:{hashlib.sha256(json_dump(item).encode('utf-8')).hexdigest()}"
+
+
+def build_inventory_rows(
+    shop: dict[str, Any],
+    source_api: str,
+    endpoint: str,
+    raw: dict[str, Any],
+    item_keys: tuple[str, ...],
+    external_prefix: str,
+) -> list[dict[str, Any]]:
+    target_table = "wb_raw_inventory_stocks"
+    items = inventory_payload_items(raw, item_keys)
+
+    if not raw.get("ok") or not items:
+        return [
+            {
+                "shop_id": shop["id"],
+                "platform": "wildberries",
+                "source_api": source_api,
+                "source_endpoint": endpoint,
+                "external_id": f"{external_prefix}:response",
+                "request_params_json": raw["request"],
+                "raw_json": raw,
+                "target_table": target_table,
+            }
+        ]
+
+    rows: list[dict[str, Any]] = []
+    for item in items:
+        rows.append(
+            {
+                "shop_id": shop["id"],
+                "platform": "wildberries",
+                "source_api": source_api,
+                "source_endpoint": endpoint,
+                "external_id": inventory_external_id(external_prefix, item),
+                "request_params_json": raw["request"],
+                "raw_json": {
+                    "item": item,
+                    "response_meta": {
+                        "method": raw["method"],
+                        "url": raw["url"],
+                        "status_code": raw["status_code"],
+                        "fetched_at": raw["fetched_at"],
+                    },
+                },
+                "target_table": target_table,
+            }
+        )
+    return rows
+
+
+def run_inventory(args: argparse.Namespace, shops: list[dict[str, Any]]) -> None:
+    if not args.mysql_user or not args.mysql_password:
+        raise SystemExit("MYSQL_USER and MYSQL_PASSWORD are required with --apply")
+
+    sync_batch_id = args.sync_batch_id or f"inventory_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    target_table = "wb_raw_inventory_stocks"
+    rows: list[dict[str, Any]] = []
+    print(f"Running WB inventory raw sync: batch={sync_batch_id}")
+
+    for shop in shops:
+        if not shop.get("api_token"):
+            print(f"  shop {shop['id']} {shop['name']}: skipped, missing token")
+            continue
+
+        stocks_raw = fetch_inventory_endpoint(
+            shop=shop,
+            source_api="statistics",
+            endpoint="/api/v1/supplier/stocks",
+            timeout=args.timeout,
+            params={"dateFrom": "2020-01-01"},
+        )
+        stock_items = inventory_payload_items(stocks_raw, ("stocks", "data"))
+        rows.extend(
+            build_inventory_rows(
+                shop=shop,
+                source_api="statistics",
+                endpoint="/api/v1/supplier/stocks",
+                raw=stocks_raw,
+                item_keys=("stocks", "data"),
+                external_prefix="statistics_stocks",
+            )
+        )
+        stock_status = stocks_raw.get("status_code")
+        stock_ok = "OK" if stocks_raw.get("ok") else "FAIL"
+        print(f"  shop {shop['id']} statistics stocks: {stock_ok} status={stock_status} rows={len(stock_items)}")
+
+        warehouses_raw = fetch_inventory_endpoint(
+            shop=shop,
+            source_api="marketplace",
+            endpoint="/api/v3/warehouses",
+            timeout=args.timeout,
+        )
+        warehouse_items = inventory_payload_items(warehouses_raw, ("warehouses", "data"))
+        rows.extend(
+            build_inventory_rows(
+                shop=shop,
+                source_api="marketplace",
+                endpoint="/api/v3/warehouses",
+                raw=warehouses_raw,
+                item_keys=("warehouses", "data"),
+                external_prefix="marketplace_warehouses",
+            )
+        )
+        warehouse_status = warehouses_raw.get("status_code")
+        warehouse_ok = "OK" if warehouses_raw.get("ok") else "FAIL"
+        print(
+            f"  shop {shop['id']} marketplace warehouses: "
+            f"{warehouse_ok} status={warehouse_status} rows={len(warehouse_items)}"
+        )
+
+    mysql_conn = mysql_connect(args)
+    try:
+        insert_raw_rows_replace_batch(mysql_conn, rows, sync_batch_id, target_table)
+        count = count_table_for_batch(mysql_conn, target_table, sync_batch_id)
+        print("MySQL inventory raw rows written:")
+        print(f"  {target_table}: {count}")
+    finally:
+        mysql_conn.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Plan WB raw API sync batches")
     parser.add_argument("--sqlite-path", default="/app/db/wb_erp.db")
@@ -470,7 +659,10 @@ def main() -> None:
         if args.phase == "content":
             run_content_cards(args, shops)
             return
-        raise SystemExit("--apply is currently allowed only for --phase permission_probe or --phase content")
+        if args.phase == "inventory":
+            run_inventory(args, shops)
+            return
+        raise SystemExit("--apply is currently allowed only for --phase permission_probe, content, or inventory")
         return
     print("dry-run only: no WB API calls, no MySQL writes")
 

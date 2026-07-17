@@ -39,6 +39,13 @@ python backend/scripts/mysql_migration/08_sync_wb_raw_from_api.py \
   --max-pages 20 \
   --page-limit 100 \
   --apply
+
+# Batch 2 is limited to inventory/warehouse raw data. It reads Statistics
+# stocks and Marketplace warehouses, then writes one raw row per stock or
+# warehouse item into wb_raw_inventory_stocks.
+python backend/scripts/mysql_migration/08_sync_wb_raw_from_api.py \
+  --phase inventory \
+  --apply
 ```
 
 影子库容器准备：
