@@ -679,7 +679,7 @@ def raw_external_id(prefix: str, item: Any) -> str:
     if not isinstance(item, dict):
         return f"{prefix}:{hashlib.sha256(json_dump(item).encode('utf-8')).hexdigest()}"
 
-    for key in ("srid", "gNumber", "odid", "rid", "id", "nmID", "nmId"):
+    for key in ("srid", "gNumber", "odid", "rid", "advertId", "id", "nmID", "nmId", "nm_id"):
         value = item.get(key)
         if value not in (None, ""):
             return f"{prefix}:{value}"
@@ -885,6 +885,169 @@ def run_sales(args: argparse.Namespace, shops: list[dict[str, Any]]) -> None:
         mysql_conn.close()
 
 
+def advert_ids_from_items(items: list[Any]) -> list[int]:
+    ids: list[int] = []
+    for item in items:
+        if isinstance(item, dict) and item.get("id") is not None:
+            try:
+                ids.append(int(item["id"]))
+            except (TypeError, ValueError):
+                continue
+    return ids
+
+
+def keyword_items_from_adverts(items: list[Any]) -> list[dict[str, int]]:
+    keyword_items: list[dict[str, int]] = []
+    seen: set[tuple[int, int]] = set()
+    for advert in items:
+        if not isinstance(advert, dict) or advert.get("id") is None:
+            continue
+        try:
+            advert_id = int(advert["id"])
+        except (TypeError, ValueError):
+            continue
+        nm_settings = advert.get("nm_settings") or advert.get("nmSettings") or []
+        if not isinstance(nm_settings, list):
+            continue
+        for nm in nm_settings:
+            if not isinstance(nm, dict):
+                continue
+            nm_id = nm.get("nm_id") or nm.get("nmID") or nm.get("nmId")
+            if nm_id is None:
+                continue
+            try:
+                pair = (advert_id, int(nm_id))
+            except (TypeError, ValueError):
+                continue
+            if pair in seen:
+                continue
+            seen.add(pair)
+            keyword_items.append({"advertId": pair[0], "nmId": pair[1]})
+    return keyword_items
+
+
+def run_ads(args: argparse.Namespace, shops: list[dict[str, Any]]) -> None:
+    if not args.mysql_user or not args.mysql_password:
+        raise SystemExit("MYSQL_USER and MYSQL_PASSWORD are required with --apply")
+
+    sync_batch_id = args.sync_batch_id or f"ads_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    date_to = datetime.now(timezone.utc).date()
+    date_from = date_to - timedelta(days=max(1, args.days))
+    date_from_text = date_from.isoformat()
+    date_to_text = date_to.isoformat()
+    campaign_rows: list[dict[str, Any]] = []
+    stats_rows: list[dict[str, Any]] = []
+    keyword_rows: list[dict[str, Any]] = []
+    print(
+        f"Running WB ads raw sync: batch={sync_batch_id} "
+        f"date_from={date_from_text} date_to={date_to_text} chunks_per_shop={args.max_pages}"
+    )
+
+    for shop in shops:
+        if not shop.get("api_token"):
+            print(f"  shop {shop['id']} {shop['name']}: skipped, missing token")
+            continue
+
+        adverts_raw = fetch_raw_endpoint(
+            shop=shop,
+            method="GET",
+            source_api="promotion",
+            endpoint="/api/advert/v2/adverts",
+            timeout=args.timeout,
+        )
+        advert_items = raw_payload_items(adverts_raw, ("adverts", "data"))
+        campaign_rows.extend(
+            build_raw_item_rows(
+                shop=shop,
+                source_api="promotion",
+                endpoint="/api/advert/v2/adverts",
+                raw=adverts_raw,
+                item_keys=("adverts", "data"),
+                external_prefix="promotion_adverts",
+                target_table="wb_raw_promotion_campaigns",
+            )
+        )
+        print(
+            f"  shop {shop['id']} promotion adverts: "
+            f"{'OK' if adverts_raw.get('ok') else 'FAIL'} status={adverts_raw.get('status_code')} rows={len(advert_items)}"
+        )
+
+        advert_chunks = chunks(advert_ids_from_items(advert_items), 50)[: args.max_pages]
+        for chunk_index, advert_chunk in enumerate(advert_chunks, start=1):
+            fullstats_raw = fetch_raw_endpoint(
+                shop=shop,
+                method="GET",
+                source_api="promotion",
+                endpoint="/adv/v3/fullstats",
+                timeout=args.timeout,
+                params={
+                    "ids": ",".join(str(advert_id) for advert_id in advert_chunk),
+                    "beginDate": date_from_text,
+                    "endDate": date_to_text,
+                },
+            )
+            fullstats_items = raw_payload_items(fullstats_raw, ("data", "adverts"))
+            stats_rows.extend(
+                build_raw_item_rows(
+                    shop=shop,
+                    source_api="promotion",
+                    endpoint="/adv/v3/fullstats",
+                    raw=fullstats_raw,
+                    item_keys=("data", "adverts"),
+                    external_prefix=f"promotion_fullstats_chunk_{chunk_index}",
+                    target_table="wb_raw_promotion_stats",
+                )
+            )
+            print(
+                f"  shop {shop['id']} promotion fullstats chunk {chunk_index}: "
+                f"{'OK' if fullstats_raw.get('ok') else 'FAIL'} "
+                f"status={fullstats_raw.get('status_code')} advert_ids={len(advert_chunk)} rows={len(fullstats_items)}"
+            )
+            if args.rate_sleep and chunk_index < len(advert_chunks):
+                time.sleep(args.rate_sleep)
+
+        keyword_chunks = chunks(keyword_items_from_adverts(advert_items), 50)[: args.max_pages]
+        for chunk_index, keyword_chunk in enumerate(keyword_chunks, start=1):
+            keywords_raw = fetch_raw_endpoint(
+                shop=shop,
+                method="POST",
+                source_api="promotion",
+                endpoint="/adv/v1/normquery/stats",
+                timeout=args.timeout,
+                json_data={"from": date_from_text, "to": date_to_text, "items": keyword_chunk},
+            )
+            keywords_items = raw_payload_items(keywords_raw, ("data", "items"))
+            keyword_rows.extend(
+                build_raw_item_rows(
+                    shop=shop,
+                    source_api="promotion",
+                    endpoint="/adv/v1/normquery/stats",
+                    raw=keywords_raw,
+                    item_keys=("data", "items"),
+                    external_prefix=f"promotion_keywords_chunk_{chunk_index}",
+                    target_table="wb_raw_promotion_keywords",
+                )
+            )
+            print(
+                f"  shop {shop['id']} promotion keywords chunk {chunk_index}: "
+                f"{'OK' if keywords_raw.get('ok') else 'FAIL'} "
+                f"status={keywords_raw.get('status_code')} items={len(keyword_chunk)} rows={len(keywords_items)}"
+            )
+            if args.rate_sleep and chunk_index < len(keyword_chunks):
+                time.sleep(args.rate_sleep)
+
+    mysql_conn = mysql_connect(args)
+    try:
+        insert_raw_rows_replace_batch(mysql_conn, campaign_rows, sync_batch_id, "wb_raw_promotion_campaigns")
+        insert_raw_rows_replace_batch(mysql_conn, stats_rows, sync_batch_id, "wb_raw_promotion_stats")
+        insert_raw_rows_replace_batch(mysql_conn, keyword_rows, sync_batch_id, "wb_raw_promotion_keywords")
+        print("MySQL ads raw rows written:")
+        for table in ("wb_raw_promotion_campaigns", "wb_raw_promotion_stats", "wb_raw_promotion_keywords"):
+            print(f"  {table}: {count_table_for_batch(mysql_conn, table, sync_batch_id)}")
+    finally:
+        mysql_conn.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Plan WB raw API sync batches")
     parser.add_argument("--sqlite-path", default="/app/db/wb_erp.db")
@@ -898,6 +1061,7 @@ def main() -> None:
     parser.add_argument("--max-pages", type=int, default=1)
     parser.add_argument("--page-limit", type=int, default=100)
     parser.add_argument("--timeout", type=float, default=20.0)
+    parser.add_argument("--rate-sleep", type=float, default=0.0)
     parser.add_argument("--sync-batch-id", default="")
     parser.add_argument("--mysql-host", default=os.getenv("MYSQL_HOST", "wb-erp-mysql"))
     parser.add_argument("--mysql-port", default=int(os.getenv("MYSQL_PORT", "3306")), type=int)
@@ -936,7 +1100,10 @@ def main() -> None:
         if args.phase == "sales":
             run_sales(args, shops)
             return
-        raise SystemExit("--apply is currently allowed only for --phase permission_probe, content, inventory, or sales")
+        if args.phase == "ads":
+            run_ads(args, shops)
+            return
+        raise SystemExit("--apply is currently allowed only for --phase permission_probe, content, inventory, sales, or ads")
         return
     print("dry-run only: no WB API calls, no MySQL writes")
 

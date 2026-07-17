@@ -55,6 +55,16 @@ python backend/scripts/mysql_migration/08_sync_wb_raw_from_api.py \
   --days 7 \
   --max-pages 5 \
   --apply
+
+# Batch 4 is limited to ad raw data. It reads advert campaigns, then fetches
+# fullstats and keyword/search-cluster stats in chunks of up to 50 advert/nm
+# items. Keep --max-pages small for controlled rate-limit exposure.
+python backend/scripts/mysql_migration/08_sync_wb_raw_from_api.py \
+  --phase ads \
+  --days 7 \
+  --max-pages 1 \
+  --rate-sleep 21 \
+  --apply
 ```
 
 影子库容器准备：
