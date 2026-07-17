@@ -75,6 +75,27 @@ python backend/scripts/mysql_migration/08_sync_wb_raw_from_api.py \
   --max-pages 3 \
   --page-limit 100 \
   --apply
+
+# Batch 6 is limited to finance raw data. It reads sales report list,
+# sales report details, and document list into finance raw tables. Document
+# list requests are capped to 50 internally because WB rejects larger limits.
+# Keep a conservative sleep because WB finance endpoints have strict limits.
+python backend/scripts/mysql_migration/08_sync_wb_raw_from_api.py \
+  --phase finance \
+  --days 30 \
+  --max-pages 1 \
+  --page-limit 1000 \
+  --rate-sleep 65 \
+  --apply
+
+# Retry document list only after a documents-api limit error.
+python backend/scripts/mysql_migration/08_sync_wb_raw_from_api.py \
+  --phase finance \
+  --days 30 \
+  --page-limit 1000 \
+  --rate-sleep 65 \
+  --finance-documents-only \
+  --apply
 ```
 
 影子库容器准备：

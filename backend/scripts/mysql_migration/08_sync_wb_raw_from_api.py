@@ -42,6 +42,7 @@ API_DOMAINS = {
     "statistics": "https://statistics-api.wildberries.ru",
     "promotion": "https://advert-api.wildberries.ru",
     "finance": "https://finance-api.wildberries.ru",
+    "documents": "https://documents-api.wildberries.ru",
     "feedbacks": "https://feedbacks-api.wildberries.ru",
     "buyer_chat": "https://buyer-chat-api.wildberries.ru",
     "returns": "https://returns-api.wildberries.ru",
@@ -70,8 +71,9 @@ BATCHES: list[RawBatch] = [
     RawBatch("customer", "feedbacks", "/api/v1/feedbacks", "wb_raw_customer_feedbacks", "medium", "paged"),
     RawBatch("customer", "buyer_chat", "/api/v1/seller/events", "wb_raw_customer_chats", "high", "cursor based, never reuse old cursor blindly"),
     RawBatch("customer", "returns", "/api/v1/claims", "wb_raw_customer_returns", "medium", "active/archive pages"),
-    RawBatch("finance", "finance", "realization reports", "wb_raw_finance_realization_reports", "high", "financial source of truth"),
-    RawBatch("finance", "finance", "documents", "wb_raw_finance_documents", "high", "documents/accounting"),
+    RawBatch("finance", "finance", "/api/finance/v1/sales-reports/list", "wb_raw_finance_realization_reports", "high", "financial report list"),
+    RawBatch("finance", "finance", "/api/finance/v1/sales-reports/detailed", "wb_raw_finance_realization_reports", "high", "financial report details"),
+    RawBatch("finance", "documents", "/api/v1/documents/list", "wb_raw_finance_documents", "high", "documents/accounting"),
 ]
 
 
@@ -698,6 +700,13 @@ def raw_external_id(prefix: str, item: Any) -> str:
         "chatId",
         "eventId",
         "messageId",
+        "reportId",
+        "realizationreport_id",
+        "realizationReportId",
+        "rrd_id",
+        "rrdId",
+        "documentId",
+        "serviceId",
         "nmID",
         "nmId",
         "nm_id",
@@ -963,6 +972,155 @@ def _response_next_cursor(raw: dict[str, Any]) -> str | None:
             if value:
                 return str(value)
     return None
+
+
+def run_finance(args: argparse.Namespace, shops: list[dict[str, Any]]) -> None:
+    if not args.mysql_user or not args.mysql_password:
+        raise SystemExit("MYSQL_USER and MYSQL_PASSWORD are required with --apply")
+
+    sync_batch_id = args.sync_batch_id or f"finance_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    date_to = datetime.now(timezone.utc).date()
+    date_from = date_to - timedelta(days=max(1, args.days))
+    date_from_text = date_from.isoformat()
+    date_to_text = date_to.isoformat()
+    detail_limit = max(1, min(args.page_limit, 100000))
+    document_limit = max(1, min(args.page_limit, 50))
+    report_rows: list[dict[str, Any]] = []
+    document_rows: list[dict[str, Any]] = []
+    print(
+        f"Running WB finance raw sync: batch={sync_batch_id} "
+        f"date_from={date_from_text} date_to={date_to_text} max_pages={args.max_pages}"
+    )
+
+    for shop in shops:
+        if not shop.get("api_token"):
+            print(f"  shop {shop['id']} {shop['name']}: skipped, missing token")
+            continue
+
+        if not args.finance_documents_only:
+            list_raw = fetch_raw_endpoint(
+                shop=shop,
+                method="POST",
+                source_api="finance",
+                endpoint="/api/finance/v1/sales-reports/list",
+                timeout=args.timeout,
+                json_data={
+                    "dateFrom": date_from_text,
+                    "dateTo": date_to_text,
+                    "limit": args.page_limit,
+                    "offset": 0,
+                },
+            )
+            list_items = raw_payload_items(list_raw, ("reports", "data", "result"))
+            report_rows.extend(
+                build_raw_item_rows(
+                    shop=shop,
+                    source_api="finance",
+                    endpoint="/api/finance/v1/sales-reports/list",
+                    raw=list_raw,
+                    item_keys=("reports", "data", "result"),
+                    external_prefix="finance_sales_reports_list",
+                    target_table="wb_raw_finance_realization_reports",
+                )
+            )
+            print(
+                f"  shop {shop['id']} finance sales reports list: "
+                f"{'OK' if list_raw.get('ok') else 'FAIL'} status={list_raw.get('status_code')} rows={len(list_items)}"
+            )
+            if args.rate_sleep:
+                time.sleep(args.rate_sleep)
+
+            rrd_id = 0
+            for page_index in range(args.max_pages):
+                detail_raw = fetch_raw_endpoint(
+                    shop=shop,
+                    method="POST",
+                    source_api="finance",
+                    endpoint="/api/finance/v1/sales-reports/detailed",
+                    timeout=args.timeout,
+                    json_data={
+                        "dateFrom": date_from_text,
+                        "dateTo": date_to_text,
+                        "limit": detail_limit,
+                        "rrdId": rrd_id,
+                    },
+                )
+                detail_items = raw_payload_items(detail_raw, ("details", "rows", "data", "result"))
+                report_rows.extend(
+                    build_raw_item_rows(
+                        shop=shop,
+                        source_api="finance",
+                        endpoint="/api/finance/v1/sales-reports/detailed",
+                        raw=detail_raw,
+                        item_keys=("details", "rows", "data", "result"),
+                        external_prefix=f"finance_sales_reports_detailed_{page_index + 1}",
+                        target_table="wb_raw_finance_realization_reports",
+                    )
+                )
+                print(
+                    f"  shop {shop['id']} finance sales reports detailed page={page_index + 1}: "
+                    f"{'OK' if detail_raw.get('ok') else 'FAIL'} "
+                    f"status={detail_raw.get('status_code')} rows={len(detail_items)}"
+                )
+                next_rrd_id = None
+                for item in reversed(detail_items):
+                    if isinstance(item, dict):
+                        value = item.get("rrd_id") or item.get("rrdId")
+                        if value not in (None, ""):
+                            try:
+                                next_rrd_id = int(value)
+                            except (TypeError, ValueError):
+                                next_rrd_id = None
+                            break
+                if len(detail_items) < detail_limit or not next_rrd_id or next_rrd_id == rrd_id:
+                    break
+                rrd_id = next_rrd_id
+                if args.rate_sleep:
+                    time.sleep(args.rate_sleep)
+
+            if args.rate_sleep:
+                time.sleep(args.rate_sleep)
+        documents_raw = fetch_raw_endpoint(
+            shop=shop,
+            method="GET",
+            source_api="documents",
+            endpoint="/api/v1/documents/list",
+            timeout=args.timeout,
+            params={
+                "begin": date_from_text,
+                "end": date_to_text,
+                "limit": document_limit,
+                "offset": 0,
+            },
+        )
+        document_items = raw_payload_items(documents_raw, ("documents", "data", "result"))
+        document_rows.extend(
+            build_raw_item_rows(
+                shop=shop,
+                source_api="documents",
+                endpoint="/api/v1/documents/list",
+                raw=documents_raw,
+                item_keys=("documents", "data", "result"),
+                external_prefix="finance_documents_list",
+                target_table="wb_raw_finance_documents",
+            )
+        )
+        print(
+            f"  shop {shop['id']} finance documents list: "
+            f"{'OK' if documents_raw.get('ok') else 'FAIL'} status={documents_raw.get('status_code')} rows={len(document_items)}"
+        )
+        if args.rate_sleep:
+            time.sleep(args.rate_sleep)
+
+    mysql_conn = mysql_connect(args)
+    try:
+        insert_raw_rows_replace_batch(mysql_conn, report_rows, sync_batch_id, "wb_raw_finance_realization_reports")
+        insert_raw_rows_replace_batch(mysql_conn, document_rows, sync_batch_id, "wb_raw_finance_documents")
+        print("MySQL finance raw rows written:")
+        for table in ("wb_raw_finance_realization_reports", "wb_raw_finance_documents"):
+            print(f"  {table}: {count_table_for_batch(mysql_conn, table, sync_batch_id)}")
+    finally:
+        mysql_conn.close()
 
 
 def run_customer(args: argparse.Namespace, shops: list[dict[str, Any]]) -> None:
@@ -1285,6 +1443,7 @@ def main() -> None:
     parser.add_argument("--timeout", type=float, default=20.0)
     parser.add_argument("--rate-sleep", type=float, default=0.0)
     parser.add_argument("--sync-batch-id", default="")
+    parser.add_argument("--finance-documents-only", action="store_true")
     parser.add_argument("--mysql-host", default=os.getenv("MYSQL_HOST", "wb-erp-mysql"))
     parser.add_argument("--mysql-port", default=int(os.getenv("MYSQL_PORT", "3306")), type=int)
     parser.add_argument("--mysql-db", default=os.getenv("MYSQL_DATABASE", "wb_erp_shadow"))
@@ -1328,7 +1487,10 @@ def main() -> None:
         if args.phase == "customer":
             run_customer(args, shops)
             return
-        raise SystemExit("--apply is currently allowed only for --phase permission_probe, content, inventory, sales, ads, or customer")
+        if args.phase == "finance":
+            run_finance(args, shops)
+            return
+        raise SystemExit("--apply is currently allowed only for --phase permission_probe, content, inventory, sales, ads, customer, or finance")
         return
     print("dry-run only: no WB API calls, no MySQL writes")
 
