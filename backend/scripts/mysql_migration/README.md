@@ -96,6 +96,16 @@ python backend/scripts/mysql_migration/08_sync_wb_raw_from_api.py \
   --rate-sleep 65 \
   --finance-documents-only \
   --apply
+
+# Batch 7 is limited to prices/discounts raw data. It reads
+# discounts-prices-api /api/v2/list/goods/filter and writes the same raw item
+# stream into price and discount raw tables for downstream pricing facts.
+python backend/scripts/mysql_migration/08_sync_wb_raw_from_api.py \
+  --phase prices \
+  --max-pages 5 \
+  --page-limit 1000 \
+  --rate-sleep 1 \
+  --apply
 ```
 
 影子库容器准备：

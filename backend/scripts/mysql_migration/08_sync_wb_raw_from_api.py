@@ -43,6 +43,7 @@ API_DOMAINS = {
     "promotion": "https://advert-api.wildberries.ru",
     "finance": "https://finance-api.wildberries.ru",
     "documents": "https://documents-api.wildberries.ru",
+    "prices": "https://discounts-prices-api.wildberries.ru",
     "feedbacks": "https://feedbacks-api.wildberries.ru",
     "buyer_chat": "https://buyer-chat-api.wildberries.ru",
     "returns": "https://returns-api.wildberries.ru",
@@ -74,6 +75,8 @@ BATCHES: list[RawBatch] = [
     RawBatch("finance", "finance", "/api/finance/v1/sales-reports/list", "wb_raw_finance_realization_reports", "high", "financial report list"),
     RawBatch("finance", "finance", "/api/finance/v1/sales-reports/detailed", "wb_raw_finance_realization_reports", "high", "financial report details"),
     RawBatch("finance", "documents", "/api/v1/documents/list", "wb_raw_finance_documents", "high", "documents/accounting"),
+    RawBatch("prices", "prices", "/api/v2/list/goods/filter", "wb_raw_prices", "medium", "price list"),
+    RawBatch("prices", "prices", "/api/v2/list/goods/filter", "wb_raw_discounts", "medium", "discount list"),
 ]
 
 
@@ -1123,6 +1126,74 @@ def run_finance(args: argparse.Namespace, shops: list[dict[str, Any]]) -> None:
         mysql_conn.close()
 
 
+def run_prices(args: argparse.Namespace, shops: list[dict[str, Any]]) -> None:
+    if not args.mysql_user or not args.mysql_password:
+        raise SystemExit("MYSQL_USER and MYSQL_PASSWORD are required with --apply")
+
+    sync_batch_id = args.sync_batch_id or f"prices_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    limit = max(1, min(args.page_limit, 1000))
+    price_rows: list[dict[str, Any]] = []
+    discount_rows: list[dict[str, Any]] = []
+    print(f"Running WB prices/discounts raw sync: batch={sync_batch_id} limit={limit} max_pages={args.max_pages}")
+
+    for shop in shops:
+        if not shop.get("api_token"):
+            print(f"  shop {shop['id']} {shop['name']}: skipped, missing token")
+            continue
+
+        for page_index in range(args.max_pages):
+            offset = page_index * limit
+            raw = fetch_raw_endpoint(
+                shop=shop,
+                method="GET",
+                source_api="prices",
+                endpoint="/api/v2/list/goods/filter",
+                timeout=args.timeout,
+                params={"limit": limit, "offset": offset},
+            )
+            items = raw_payload_items(raw, ("listGoods", "goods", "data", "result"))
+            price_rows.extend(
+                build_raw_item_rows(
+                    shop=shop,
+                    source_api="prices",
+                    endpoint="/api/v2/list/goods/filter",
+                    raw=raw,
+                    item_keys=("listGoods", "goods", "data", "result"),
+                    external_prefix=f"prices_page_{page_index + 1}",
+                    target_table="wb_raw_prices",
+                )
+            )
+            discount_rows.extend(
+                build_raw_item_rows(
+                    shop=shop,
+                    source_api="prices",
+                    endpoint="/api/v2/list/goods/filter",
+                    raw=raw,
+                    item_keys=("listGoods", "goods", "data", "result"),
+                    external_prefix=f"discounts_page_{page_index + 1}",
+                    target_table="wb_raw_discounts",
+                )
+            )
+            print(
+                f"  shop {shop['id']} prices/discounts page={page_index + 1}: "
+                f"{'OK' if raw.get('ok') else 'FAIL'} status={raw.get('status_code')} rows={len(items)}"
+            )
+            if len(items) < limit:
+                break
+            if args.rate_sleep:
+                time.sleep(args.rate_sleep)
+
+    mysql_conn = mysql_connect(args)
+    try:
+        insert_raw_rows_replace_batch(mysql_conn, price_rows, sync_batch_id, "wb_raw_prices")
+        insert_raw_rows_replace_batch(mysql_conn, discount_rows, sync_batch_id, "wb_raw_discounts")
+        print("MySQL prices/discounts raw rows written:")
+        for table in ("wb_raw_prices", "wb_raw_discounts"):
+            print(f"  {table}: {count_table_for_batch(mysql_conn, table, sync_batch_id)}")
+    finally:
+        mysql_conn.close()
+
+
 def run_customer(args: argparse.Namespace, shops: list[dict[str, Any]]) -> None:
     if not args.mysql_user or not args.mysql_password:
         raise SystemExit("MYSQL_USER and MYSQL_PASSWORD are required with --apply")
@@ -1433,7 +1504,7 @@ def main() -> None:
     parser.add_argument("--sqlite-path", default="/app/db/wb_erp.db")
     parser.add_argument(
         "--phase",
-        choices=["permission_probe", "content", "inventory", "sales", "ads", "customer", "finance", "all"],
+        choices=["permission_probe", "content", "inventory", "sales", "ads", "customer", "finance", "prices", "all"],
         default="permission_probe",
     )
     parser.add_argument("--shop-id", type=int)
@@ -1490,7 +1561,10 @@ def main() -> None:
         if args.phase == "finance":
             run_finance(args, shops)
             return
-        raise SystemExit("--apply is currently allowed only for --phase permission_probe, content, inventory, sales, ads, customer, or finance")
+        if args.phase == "prices":
+            run_prices(args, shops)
+            return
+        raise SystemExit("--apply is currently allowed only for --phase permission_probe, content, inventory, sales, ads, customer, finance, or prices")
         return
     print("dry-run only: no WB API calls, no MySQL writes")
 
