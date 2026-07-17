@@ -65,6 +65,16 @@ python backend/scripts/mysql_migration/08_sync_wb_raw_from_api.py \
   --max-pages 1 \
   --rate-sleep 21 \
   --apply
+
+# Batch 5 is limited to customer-service raw data. It reads questions,
+# feedbacks, buyer-chat events, and return claims into separate raw tables.
+# Chat events start from the current API cursor only; no legacy cursor is reused.
+python backend/scripts/mysql_migration/08_sync_wb_raw_from_api.py \
+  --phase customer \
+  --days 30 \
+  --max-pages 3 \
+  --page-limit 100 \
+  --apply
 ```
 
 影子库容器准备：

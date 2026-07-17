@@ -672,6 +672,12 @@ def raw_payload_items(raw: dict[str, Any], keys: tuple[str, ...]) -> list[Any]:
                 value = data.get(key)
                 if isinstance(value, list):
                     return value
+        result = response.get("result")
+        if isinstance(result, dict):
+            for key in keys:
+                value = result.get(key)
+                if isinstance(value, list):
+                    return value
     return []
 
 
@@ -679,7 +685,23 @@ def raw_external_id(prefix: str, item: Any) -> str:
     if not isinstance(item, dict):
         return f"{prefix}:{hashlib.sha256(json_dump(item).encode('utf-8')).hexdigest()}"
 
-    for key in ("srid", "gNumber", "odid", "rid", "advertId", "id", "nmID", "nmId", "nm_id"):
+    for key in (
+        "srid",
+        "gNumber",
+        "odid",
+        "rid",
+        "advertId",
+        "id",
+        "questionId",
+        "feedbackId",
+        "claimId",
+        "chatId",
+        "eventId",
+        "messageId",
+        "nmID",
+        "nmId",
+        "nm_id",
+    ):
         value = item.get(key)
         if value not in (None, ""):
             return f"{prefix}:{value}"
@@ -926,6 +948,206 @@ def keyword_items_from_adverts(items: list[Any]) -> list[dict[str, int]]:
     return keyword_items
 
 
+def _response_next_cursor(raw: dict[str, Any]) -> str | None:
+    response = raw.get("response")
+    if not isinstance(response, dict):
+        return None
+    for key in ("next", "nextCursor", "next_cursor"):
+        value = response.get(key)
+        if value:
+            return str(value)
+    result = response.get("result")
+    if isinstance(result, dict):
+        for key in ("next", "nextCursor", "next_cursor"):
+            value = result.get(key)
+            if value:
+                return str(value)
+    return None
+
+
+def run_customer(args: argparse.Namespace, shops: list[dict[str, Any]]) -> None:
+    if not args.mysql_user or not args.mysql_password:
+        raise SystemExit("MYSQL_USER and MYSQL_PASSWORD are required with --apply")
+
+    sync_batch_id = args.sync_batch_id or f"customer_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    since = int((datetime.now(timezone.utc) - timedelta(days=max(1, args.days))).timestamp())
+    questions_rows: list[dict[str, Any]] = []
+    feedback_rows: list[dict[str, Any]] = []
+    chat_rows: list[dict[str, Any]] = []
+    return_rows: list[dict[str, Any]] = []
+    print(
+        f"Running WB customer raw sync: batch={sync_batch_id} "
+        f"date_from_unix={since} max_pages={args.max_pages} page_limit={args.page_limit}"
+    )
+
+    for shop in shops:
+        if not shop.get("api_token"):
+            print(f"  shop {shop['id']} {shop['name']}: skipped, missing token")
+            continue
+
+        for answered in (False, True):
+            for page_index in range(args.max_pages):
+                params = {
+                    "take": args.page_limit,
+                    "skip": page_index * args.page_limit,
+                    "order": "dateDesc",
+                    "isAnswered": str(answered).lower(),
+                    "dateFrom": since,
+                }
+                questions_raw = fetch_raw_endpoint(
+                    shop=shop,
+                    method="GET",
+                    source_api="feedbacks",
+                    endpoint="/api/v1/questions",
+                    timeout=args.timeout,
+                    params=params,
+                )
+                question_items = raw_payload_items(questions_raw, ("questions", "data", "result"))
+                questions_rows.extend(
+                    build_raw_item_rows(
+                        shop=shop,
+                        source_api="feedbacks",
+                        endpoint="/api/v1/questions",
+                        raw=questions_raw,
+                        item_keys=("questions", "data", "result"),
+                        external_prefix=f"customer_questions_{answered}_{page_index + 1}",
+                        target_table="wb_raw_customer_questions",
+                    )
+                )
+                print(
+                    f"  shop {shop['id']} customer questions answered={answered} page={page_index + 1}: "
+                    f"{'OK' if questions_raw.get('ok') else 'FAIL'} "
+                    f"status={questions_raw.get('status_code')} rows={len(question_items)}"
+                )
+                if len(question_items) < args.page_limit:
+                    break
+                time.sleep(args.rate_sleep or 0.5)
+
+        for answered in (False, True):
+            for page_index in range(args.max_pages):
+                params = {
+                    "take": args.page_limit,
+                    "skip": page_index * args.page_limit,
+                    "order": "dateDesc",
+                    "isAnswered": str(answered).lower(),
+                    "dateFrom": since,
+                }
+                feedbacks_raw = fetch_raw_endpoint(
+                    shop=shop,
+                    method="GET",
+                    source_api="feedbacks",
+                    endpoint="/api/v1/feedbacks",
+                    timeout=args.timeout,
+                    params=params,
+                )
+                feedback_items = raw_payload_items(feedbacks_raw, ("feedbacks", "data", "result"))
+                feedback_rows.extend(
+                    build_raw_item_rows(
+                        shop=shop,
+                        source_api="feedbacks",
+                        endpoint="/api/v1/feedbacks",
+                        raw=feedbacks_raw,
+                        item_keys=("feedbacks", "data", "result"),
+                        external_prefix=f"customer_feedbacks_{answered}_{page_index + 1}",
+                        target_table="wb_raw_customer_feedbacks",
+                    )
+                )
+                print(
+                    f"  shop {shop['id']} customer feedbacks answered={answered} page={page_index + 1}: "
+                    f"{'OK' if feedbacks_raw.get('ok') else 'FAIL'} "
+                    f"status={feedbacks_raw.get('status_code')} rows={len(feedback_items)}"
+                )
+                if len(feedback_items) < args.page_limit:
+                    break
+                time.sleep(args.rate_sleep or 0.5)
+
+        next_cursor: str | None = None
+        for page_index in range(args.max_pages):
+            params = {"next": next_cursor} if next_cursor else None
+            chat_raw = fetch_raw_endpoint(
+                shop=shop,
+                method="GET",
+                source_api="buyer_chat",
+                endpoint="/api/v1/seller/events",
+                timeout=args.timeout,
+                params=params,
+            )
+            chat_items = raw_payload_items(chat_raw, ("events", "data", "result"))
+            chat_rows.extend(
+                build_raw_item_rows(
+                    shop=shop,
+                    source_api="buyer_chat",
+                    endpoint="/api/v1/seller/events",
+                    raw=chat_raw,
+                    item_keys=("events", "data", "result"),
+                    external_prefix=f"customer_chat_events_{page_index + 1}",
+                    target_table="wb_raw_customer_chats",
+                )
+            )
+            print(
+                f"  shop {shop['id']} customer chat events page={page_index + 1}: "
+                f"{'OK' if chat_raw.get('ok') else 'FAIL'} "
+                f"status={chat_raw.get('status_code')} rows={len(chat_items)}"
+            )
+            next_cursor = _response_next_cursor(chat_raw)
+            if not next_cursor or not chat_items:
+                break
+            time.sleep(args.rate_sleep or 1.1)
+
+        for is_archive in (False, True):
+            for page_index in range(args.max_pages):
+                params = {
+                    "limit": args.page_limit,
+                    "offset": page_index * args.page_limit,
+                    "is_archive": str(is_archive).lower(),
+                }
+                returns_raw = fetch_raw_endpoint(
+                    shop=shop,
+                    method="GET",
+                    source_api="returns",
+                    endpoint="/api/v1/claims",
+                    timeout=args.timeout,
+                    params=params,
+                )
+                return_items = raw_payload_items(returns_raw, ("claims", "data", "result"))
+                return_rows.extend(
+                    build_raw_item_rows(
+                        shop=shop,
+                        source_api="returns",
+                        endpoint="/api/v1/claims",
+                        raw=returns_raw,
+                        item_keys=("claims", "data", "result"),
+                        external_prefix=f"customer_returns_{is_archive}_{page_index + 1}",
+                        target_table="wb_raw_customer_returns",
+                    )
+                )
+                print(
+                    f"  shop {shop['id']} customer returns archive={is_archive} page={page_index + 1}: "
+                    f"{'OK' if returns_raw.get('ok') else 'FAIL'} "
+                    f"status={returns_raw.get('status_code')} rows={len(return_items)}"
+                )
+                if len(return_items) < args.page_limit:
+                    break
+                time.sleep(args.rate_sleep or 0.5)
+
+    mysql_conn = mysql_connect(args)
+    try:
+        insert_raw_rows_replace_batch(mysql_conn, questions_rows, sync_batch_id, "wb_raw_customer_questions")
+        insert_raw_rows_replace_batch(mysql_conn, feedback_rows, sync_batch_id, "wb_raw_customer_feedbacks")
+        insert_raw_rows_replace_batch(mysql_conn, chat_rows, sync_batch_id, "wb_raw_customer_chats")
+        insert_raw_rows_replace_batch(mysql_conn, return_rows, sync_batch_id, "wb_raw_customer_returns")
+        print("MySQL customer raw rows written:")
+        for table in (
+            "wb_raw_customer_questions",
+            "wb_raw_customer_feedbacks",
+            "wb_raw_customer_chats",
+            "wb_raw_customer_returns",
+        ):
+            print(f"  {table}: {count_table_for_batch(mysql_conn, table, sync_batch_id)}")
+    finally:
+        mysql_conn.close()
+
+
 def run_ads(args: argparse.Namespace, shops: list[dict[str, Any]]) -> None:
     if not args.mysql_user or not args.mysql_password:
         raise SystemExit("MYSQL_USER and MYSQL_PASSWORD are required with --apply")
@@ -1103,7 +1325,10 @@ def main() -> None:
         if args.phase == "ads":
             run_ads(args, shops)
             return
-        raise SystemExit("--apply is currently allowed only for --phase permission_probe, content, inventory, sales, or ads")
+        if args.phase == "customer":
+            run_customer(args, shops)
+            return
+        raise SystemExit("--apply is currently allowed only for --phase permission_probe, content, inventory, sales, ads, or customer")
         return
     print("dry-run only: no WB API calls, no MySQL writes")
 
