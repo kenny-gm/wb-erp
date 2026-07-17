@@ -46,6 +46,15 @@ python backend/scripts/mysql_migration/08_sync_wb_raw_from_api.py \
 python backend/scripts/mysql_migration/08_sync_wb_raw_from_api.py \
   --phase inventory \
   --apply
+
+# Batch 3 is limited to sales and product funnel raw data. It reads Statistics
+# orders/sales from the requested history window and Analytics product funnel
+# in nmID chunks loaded from the latest content card raw batch.
+python backend/scripts/mysql_migration/08_sync_wb_raw_from_api.py \
+  --phase sales \
+  --days 7 \
+  --max-pages 5 \
+  --apply
 ```
 
 影子库容器准备：

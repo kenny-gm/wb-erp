@@ -14,7 +14,8 @@ import hashlib
 import json
 import os
 import sqlite3
-from datetime import datetime, timezone
+import time
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from typing import Any
 
@@ -463,6 +464,46 @@ def fetch_inventory_endpoint(
         }
 
 
+def fetch_raw_endpoint(
+    shop: dict[str, Any],
+    method: str,
+    source_api: str,
+    endpoint: str,
+    timeout: float,
+    params: dict[str, Any] | None = None,
+    json_data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    url = f"{API_DOMAINS[source_api]}{endpoint}"
+    headers = {"Authorization": shop["api_token"], "Content-Type": "application/json"}
+    fetched_at = datetime.now(timezone.utc)
+
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            response = client.request(method, url, headers=headers, params=params, json=json_data)
+        body = response_body(response)
+        ok = 200 <= response.status_code < 300
+        return {
+            "ok": ok,
+            "method": method,
+            "url": url,
+            "status_code": response.status_code,
+            "request": {"params": params or {}, "json": json_data or {}},
+            "response": body,
+            "fetched_at": fetched_at.isoformat(),
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "method": method,
+            "url": url,
+            "status_code": None,
+            "request": {"params": params or {}, "json": json_data or {}},
+            "error": type(exc).__name__,
+            "message": str(exc)[:1000],
+            "fetched_at": fetched_at.isoformat(),
+        }
+
+
 def inventory_payload_items(raw: dict[str, Any], keys: tuple[str, ...]) -> list[Any]:
     if not raw.get("ok"):
         return []
@@ -614,6 +655,236 @@ def run_inventory(args: argparse.Namespace, shops: list[dict[str, Any]]) -> None
         mysql_conn.close()
 
 
+def raw_payload_items(raw: dict[str, Any], keys: tuple[str, ...]) -> list[Any]:
+    if not raw.get("ok"):
+        return []
+    response = raw.get("response")
+    if isinstance(response, list):
+        return response
+    if isinstance(response, dict):
+        for key in keys:
+            value = response.get(key)
+            if isinstance(value, list):
+                return value
+        data = response.get("data")
+        if isinstance(data, dict):
+            for key in keys:
+                value = data.get(key)
+                if isinstance(value, list):
+                    return value
+    return []
+
+
+def raw_external_id(prefix: str, item: Any) -> str:
+    if not isinstance(item, dict):
+        return f"{prefix}:{hashlib.sha256(json_dump(item).encode('utf-8')).hexdigest()}"
+
+    for key in ("srid", "gNumber", "odid", "rid", "id", "nmID", "nmId"):
+        value = item.get(key)
+        if value not in (None, ""):
+            return f"{prefix}:{value}"
+    return f"{prefix}:{hashlib.sha256(json_dump(item).encode('utf-8')).hexdigest()}"
+
+
+def build_raw_item_rows(
+    shop: dict[str, Any],
+    source_api: str,
+    endpoint: str,
+    raw: dict[str, Any],
+    item_keys: tuple[str, ...],
+    external_prefix: str,
+    target_table: str,
+) -> list[dict[str, Any]]:
+    items = raw_payload_items(raw, item_keys)
+
+    if not raw.get("ok") or not items:
+        return [
+            {
+                "shop_id": shop["id"],
+                "platform": "wildberries",
+                "source_api": source_api,
+                "source_endpoint": endpoint,
+                "external_id": f"{external_prefix}:response",
+                "request_params_json": raw["request"],
+                "raw_json": raw,
+                "target_table": target_table,
+            }
+        ]
+
+    rows: list[dict[str, Any]] = []
+    for item in items:
+        rows.append(
+            {
+                "shop_id": shop["id"],
+                "platform": "wildberries",
+                "source_api": source_api,
+                "source_endpoint": endpoint,
+                "external_id": raw_external_id(external_prefix, item),
+                "request_params_json": raw["request"],
+                "raw_json": {
+                    "item": item,
+                    "response_meta": {
+                        "method": raw["method"],
+                        "url": raw["url"],
+                        "status_code": raw["status_code"],
+                        "fetched_at": raw["fetched_at"],
+                    },
+                },
+                "target_table": target_table,
+            }
+        )
+    return rows
+
+
+def load_content_nm_ids(mysql_conn, shop_id: int) -> list[int]:
+    with mysql_conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT external_id
+            FROM wb_raw_content_cards
+            WHERE shop_id = %s
+              AND sync_batch_id = (
+                SELECT sync_batch_id
+                FROM wb_raw_content_cards
+                WHERE shop_id = %s AND sync_batch_id LIKE 'content_cards_%%'
+                ORDER BY created_at DESC
+                LIMIT 1
+              )
+            ORDER BY external_id
+            """,
+            (shop_id, shop_id),
+        )
+        nm_ids: list[int] = []
+        for row in cur.fetchall():
+            external_id = str(row["external_id"])
+            if external_id.isdigit():
+                nm_ids.append(int(external_id))
+        return nm_ids
+
+
+def chunks(values: list[int], size: int) -> list[list[int]]:
+    return [values[index : index + size] for index in range(0, len(values), size)]
+
+
+def run_sales(args: argparse.Namespace, shops: list[dict[str, Any]]) -> None:
+    if not args.mysql_user or not args.mysql_password:
+        raise SystemExit("MYSQL_USER and MYSQL_PASSWORD are required with --apply")
+
+    sync_batch_id = args.sync_batch_id or f"sales_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    date_to = datetime.now(timezone.utc).date()
+    date_from = date_to - timedelta(days=max(1, args.days))
+    stats_params = {"dateFrom": date_from.isoformat()}
+    analytics_from = date_from.isoformat()
+    analytics_to = date_to.isoformat()
+    orders_rows: list[dict[str, Any]] = []
+    sales_rows: list[dict[str, Any]] = []
+    funnel_rows: list[dict[str, Any]] = []
+    print(
+        f"Running WB sales raw sync: batch={sync_batch_id} "
+        f"date_from={analytics_from} date_to={analytics_to} analytics_chunks_per_shop={args.max_pages}"
+    )
+
+    mysql_conn = mysql_connect(args)
+    try:
+        for shop in shops:
+            if not shop.get("api_token"):
+                print(f"  shop {shop['id']} {shop['name']}: skipped, missing token")
+                continue
+
+            orders_raw = fetch_raw_endpoint(
+                shop=shop,
+                method="GET",
+                source_api="statistics",
+                endpoint="/api/v1/supplier/orders",
+                timeout=args.timeout,
+                params=stats_params,
+            )
+            order_items = raw_payload_items(orders_raw, ("orders", "data"))
+            orders_rows.extend(
+                build_raw_item_rows(
+                    shop=shop,
+                    source_api="statistics",
+                    endpoint="/api/v1/supplier/orders",
+                    raw=orders_raw,
+                    item_keys=("orders", "data"),
+                    external_prefix="statistics_orders",
+                    target_table="wb_raw_statistics_orders",
+                )
+            )
+            print(
+                f"  shop {shop['id']} statistics orders: "
+                f"{'OK' if orders_raw.get('ok') else 'FAIL'} status={orders_raw.get('status_code')} rows={len(order_items)}"
+            )
+
+            sales_raw = fetch_raw_endpoint(
+                shop=shop,
+                method="GET",
+                source_api="statistics",
+                endpoint="/api/v1/supplier/sales",
+                timeout=args.timeout,
+                params=stats_params,
+            )
+            sale_items = raw_payload_items(sales_raw, ("sales", "data"))
+            sales_rows.extend(
+                build_raw_item_rows(
+                    shop=shop,
+                    source_api="statistics",
+                    endpoint="/api/v1/supplier/sales",
+                    raw=sales_raw,
+                    item_keys=("sales", "data"),
+                    external_prefix="statistics_sales",
+                    target_table="wb_raw_statistics_sales",
+                )
+            )
+            print(
+                f"  shop {shop['id']} statistics sales: "
+                f"{'OK' if sales_raw.get('ok') else 'FAIL'} status={sales_raw.get('status_code')} rows={len(sale_items)}"
+            )
+
+            nm_ids = load_content_nm_ids(mysql_conn, int(shop["id"]))
+            for chunk_index, nm_chunk in enumerate(chunks(nm_ids, 20)[: args.max_pages], start=1):
+                request_json = {
+                    "nmIds": nm_chunk,
+                    "selectedPeriod": {"start": analytics_from, "end": analytics_to},
+                }
+                funnel_raw = fetch_raw_endpoint(
+                    shop=shop,
+                    method="POST",
+                    source_api="analytics",
+                    endpoint="/api/analytics/v3/sales-funnel/products/history",
+                    timeout=args.timeout,
+                    json_data=request_json,
+                )
+                funnel_items = raw_payload_items(funnel_raw, ("products", "data"))
+                funnel_rows.extend(
+                    build_raw_item_rows(
+                        shop=shop,
+                        source_api="analytics",
+                        endpoint="/api/analytics/v3/sales-funnel/products/history",
+                        raw=funnel_raw,
+                        item_keys=("products", "data"),
+                        external_prefix=f"analytics_funnel_chunk_{chunk_index}",
+                        target_table="wb_raw_analytics_product_funnel",
+                    )
+                )
+                print(
+                    f"  shop {shop['id']} analytics funnel chunk {chunk_index}: "
+                    f"{'OK' if funnel_raw.get('ok') else 'FAIL'} "
+                    f"status={funnel_raw.get('status_code')} nm_ids={len(nm_chunk)} rows={len(funnel_items)}"
+                )
+                if chunk_index < min(len(chunks(nm_ids, 20)), args.max_pages):
+                    time.sleep(1)
+
+        insert_raw_rows_replace_batch(mysql_conn, orders_rows, sync_batch_id, "wb_raw_statistics_orders")
+        insert_raw_rows_replace_batch(mysql_conn, sales_rows, sync_batch_id, "wb_raw_statistics_sales")
+        insert_raw_rows_replace_batch(mysql_conn, funnel_rows, sync_batch_id, "wb_raw_analytics_product_funnel")
+        print("MySQL sales raw rows written:")
+        for table in ("wb_raw_statistics_orders", "wb_raw_statistics_sales", "wb_raw_analytics_product_funnel"):
+            print(f"  {table}: {count_table_for_batch(mysql_conn, table, sync_batch_id)}")
+    finally:
+        mysql_conn.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Plan WB raw API sync batches")
     parser.add_argument("--sqlite-path", default="/app/db/wb_erp.db")
@@ -662,7 +933,10 @@ def main() -> None:
         if args.phase == "inventory":
             run_inventory(args, shops)
             return
-        raise SystemExit("--apply is currently allowed only for --phase permission_probe, content, or inventory")
+        if args.phase == "sales":
+            run_sales(args, shops)
+            return
+        raise SystemExit("--apply is currently allowed only for --phase permission_probe, content, inventory, or sales")
         return
     print("dry-run only: no WB API calls, no MySQL writes")
 
