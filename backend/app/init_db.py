@@ -82,7 +82,7 @@ migrate_add_platform_config()
 # ============================================================
 def migrate_add_sync_jobs(db_url: str = None):
     """检测并创建 sync_jobs 表（如果不存在）
-    支持 SQLite 和 PostgreSQL 双引擎"""
+    支持 SQLite、PostgreSQL 和 MySQL"""
     if db_url is None:
         db_url = str(engine.url)
 
@@ -101,7 +101,8 @@ def migrate_add_sync_jobs(db_url: str = None):
 
     print("sync_jobs 表不存在，开始创建...")
     try:
-        if "postgres" in db_url.lower():
+        url_lower = db_url.lower()
+        if "postgres" in url_lower:
             # PostgreSQL
             with engine.begin() as conn:
                 conn.execute(text("""
@@ -120,6 +121,30 @@ def migrate_add_sync_jobs(db_url: str = None):
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
+                """))
+        elif "mysql" in url_lower:
+            # MySQL
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    CREATE TABLE sync_jobs (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        shop_id INT NOT NULL,
+                        sync_type VARCHAR(50) NOT NULL,
+                        status VARCHAR(20) DEFAULT 'pending',
+                        progress INT DEFAULT 0,
+                        message TEXT,
+                        result_json TEXT,
+                        error TEXT,
+                        created_by INT,
+                        started_at DATETIME,
+                        finished_at DATETIME,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                            ON UPDATE CURRENT_TIMESTAMP,
+                        INDEX ix_sync_jobs_shop_id (shop_id),
+                        CONSTRAINT fk_sync_jobs_shop_id
+                            FOREIGN KEY (shop_id) REFERENCES shops(id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 """))
         else:
             # SQLite
