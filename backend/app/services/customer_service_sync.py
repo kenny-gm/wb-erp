@@ -65,7 +65,7 @@ class CustomerServiceSyncService:
                     FROM customer_service_items
                     GROUP BY shop_id, platform, channel, external_id
                     HAVING c > 1
-                )
+                ) AS duplicate_items
             """,
             "msg_dup_dedup": """
                 SELECT COUNT(*) FROM (
@@ -74,7 +74,7 @@ class CustomerServiceSyncService:
                     WHERE message_dedup_key IS NOT NULL AND message_dedup_key != ''
                     GROUP BY message_dedup_key
                     HAVING c > 1
-                )
+                ) AS duplicate_messages
             """,
         }
         return {
