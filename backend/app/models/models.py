@@ -366,6 +366,30 @@ class SyncJob(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")))
     updated_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")), onupdate=datetime.now)
 
+
+class SyncSchedule(Base):
+    """按店铺和数据类型拆分的自动同步计划"""
+    __tablename__ = "sync_schedules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shops.id"), nullable=False)
+    sync_type = Column(String(50), nullable=False)
+    enabled = Column(Boolean, default=True)
+    interval_minutes = Column(Integer, default=120)
+    last_run_at = Column(DateTime, nullable=True)
+    next_run_at = Column(DateTime, nullable=True)
+    last_status = Column(String(20), nullable=True)
+    last_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")))
+    updated_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")), onupdate=lambda ctx: datetime.now(ZoneInfo("Asia/Shanghai")))
+
+    shop = relationship("Shop")
+
+    __table_args__ = (
+        Index("ix_sync_schedules_shop_type", "shop_id", "sync_type", unique=True),
+        Index("ix_sync_schedules_due", "enabled", "next_run_at"),
+    )
+
 class SyncLog(Base):
     """同步日志"""
     __tablename__ = "sync_logs"

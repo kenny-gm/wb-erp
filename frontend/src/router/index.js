@@ -77,6 +77,12 @@ const routes = [
             meta: { title: '店铺管理' }
           },
           {
+            path: 'sync-schedules',
+            name: 'AdminSyncSchedules',
+            component: () => import('../views/admin/SyncSchedules.vue'),
+            meta: { title: '同步设置' }
+          },
+          {
             path: 'ui',
             name: 'AdminUI',
             component: () => import('../views/admin/UISettings.vue'),

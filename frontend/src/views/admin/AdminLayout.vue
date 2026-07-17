@@ -10,6 +10,9 @@
       <el-tab-pane label="🏪 店铺管理" name="shops">
         <router-view v-if="activeTab === 'shops'" />
       </el-tab-pane>
+      <el-tab-pane label="⏱ 同步设置" name="sync-schedules">
+        <router-view v-if="activeTab === 'sync-schedules'" />
+      </el-tab-pane>
       <el-tab-pane label="🔔 预警阈值" name="thresholds">
         <router-view v-if="activeTab === 'thresholds'" />
       </el-tab-pane>
@@ -46,6 +49,7 @@ watch(() => route.path, (path) => {
   if (path.includes('/admin/users')) activeTab.value = 'users'
   else if (path.includes('/admin/products')) activeTab.value = 'products'
   else if (path.includes('/admin/shops')) activeTab.value = 'shops'
+  else if (path.includes('/admin/sync-schedules')) activeTab.value = 'sync-schedules'
   else if (path.includes('/admin/thresholds')) activeTab.value = 'thresholds'
   else if (path.includes('/admin/ui')) activeTab.value = 'ui'
   else if (path.includes('/admin/settings')) activeTab.value = 'settings'
