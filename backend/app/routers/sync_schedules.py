@@ -51,6 +51,7 @@ def format_dt(value: Optional[datetime]) -> Optional[str]:
 
 def schedule_to_dict(schedule: SyncSchedule) -> dict:
     shop = schedule.shop
+    enabled = bool(schedule.enabled)
     return {
         "id": schedule.id,
         "shop_id": schedule.shop_id,
@@ -58,12 +59,12 @@ def schedule_to_dict(schedule: SyncSchedule) -> dict:
         "platform": shop.platform if shop else "",
         "sync_type": schedule.sync_type,
         "sync_type_label": SYNC_TYPE_LABELS.get(schedule.sync_type, schedule.sync_type),
-        "enabled": bool(schedule.enabled),
+        "enabled": enabled,
         "interval_minutes": schedule.interval_minutes,
         "last_run_at": format_dt(schedule.last_run_at),
-        "next_run_at": format_dt(schedule.next_run_at),
-        "last_status": schedule.last_status,
-        "last_message": schedule.last_message,
+        "next_run_at": format_dt(schedule.next_run_at) if enabled else None,
+        "last_status": schedule.last_status if enabled else "disabled",
+        "last_message": schedule.last_message if enabled else "已关闭",
         "updated_at": format_dt(schedule.updated_at),
     }
 

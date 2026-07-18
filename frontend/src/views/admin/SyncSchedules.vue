@@ -64,8 +64,8 @@
       </el-table-column>
       <el-table-column prop="last_status" label="上次状态" width="110">
         <template #default="{ row }">
-          <el-tag v-if="row.last_status" :type="row.last_status === 'success' ? 'success' : 'danger'">
-            {{ row.last_status === 'success' ? '成功' : '失败' }}
+          <el-tag v-if="row.last_status" :type="statusTagType(row.last_status)">
+            {{ statusLabel(row.last_status) }}
           </el-tag>
           <span v-else>-</span>
         </template>
@@ -73,7 +73,7 @@
       <el-table-column prop="last_message" label="信息" min-width="180" show-overflow-tooltip />
       <el-table-column label="操作" width="130" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" type="primary" :loading="runningId === row.id" @click="runNow(row)">
+          <el-button size="small" type="primary" :disabled="!row.enabled" :loading="runningId === row.id" @click="runNow(row)">
             立即同步
           </el-button>
         </template>
@@ -134,6 +134,18 @@ function formatInterval(minutes) {
   if (minutes % 1440 === 0) return `${minutes / 1440}天`
   if (minutes % 60 === 0) return `${minutes / 60}小时`
   return '分钟'
+}
+
+function statusTagType(status) {
+  if (status === 'success') return 'success'
+  if (status === 'disabled') return 'info'
+  return 'danger'
+}
+
+function statusLabel(status) {
+  if (status === 'success') return '成功'
+  if (status === 'disabled') return '已关闭'
+  return '失败'
 }
 
 async function fetchSchedules() {
