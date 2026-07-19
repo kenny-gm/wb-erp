@@ -161,8 +161,7 @@ def create_operation_log(
         action_detail=json.dumps(data.action_detail) if data.action_detail else '{}',
         effect_tracking_days=data.tracking_days,
         title=data.title,
-        content=data.content if data.content else '',
-        alert_id=data.alert_id
+        content=data.content if data.content else ''
     )
     db.add(log)
     db.commit()
