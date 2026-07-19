@@ -549,4 +549,62 @@ onMounted(async () => {
 .daily-shop { width: 100px; font-weight: 600; color: #303133; }
 .daily-metric { flex: 1; text-align: right; color: #606266; }
 .expand-hint { color: #c0c4cc; font-size: 12px; }
+
+/* Demo-aligned operations density overrides */
+.dashboard { padding: 16px; background: var(--surface-page); }
+.filter-bar,
+.data-info-bar {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-sm);
+}
+.filter-bar { gap: 8px 10px; margin-bottom: 12px; padding: 10px; }
+.data-info-bar {
+  background: var(--surface-panel);
+  color: var(--text-main);
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+}
+.data-info-warning { color: var(--color-warning); }
+.metric-matrix-section { margin-bottom: 12px; }
+.metric-matrix {
+  border-color: var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.matrix-row { border-top-color: var(--border-subtle); }
+.matrix-header-row,
+.matrix-metric-label { background: var(--surface-muted); }
+.matrix-metric-heading,
+.matrix-section-heading,
+.matrix-metric-label,
+.matrix-value-cell { border-right-color: var(--border-subtle); }
+.matrix-section-title,
+.matrix-value { color: var(--text-strong); }
+.matrix-section-subtitle,
+.matrix-metric-label { color: var(--text-subtle); }
+.matrix-change.positive,
+.metric-change.positive { color: var(--color-success); background-color: var(--color-success-soft); }
+.matrix-change.negative,
+.metric-change.negative { color: var(--color-danger); background-color: var(--color-danger-soft); }
+.metric-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 12px;
+}
+.metric-card:hover { transform: none; box-shadow: var(--shadow-md); }
+.metric-label { color: var(--text-subtle); font-weight: 650; letter-spacing: 0; }
+.metric-value { color: var(--text-strong); letter-spacing: 0; }
+.chart-area,
+.matrix-chart { border-top-color: var(--border-subtle); }
+.product-detail,
+.detail-data-table th,
+.daily-item { background: var(--surface-muted); }
+.detail-data-table th,
+.detail-data-table td { border-bottom-color: var(--border-subtle); }
+.log-icon { color: var(--color-brand); }
+.log-badge-small { background: var(--color-brand); color: #fff; }
 </style>

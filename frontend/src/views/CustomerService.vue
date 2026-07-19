@@ -2261,4 +2261,123 @@ function getReturnSlaClass(item) {
   justify-content: flex-end;
   margin-top: 8px;
 }
+
+/* Demo-aligned operations density overrides */
+.customer-service-page { gap: 12px; background: var(--surface-page); }
+.toolbar,
+.filters,
+.quick-filter-tag,
+.queue,
+.detail,
+.channel-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-sm);
+}
+.toolbar { padding: 10px 12px; }
+.toolbar-title h2 { font-size: 18px; font-weight: 800; color: var(--text-strong); }
+.toolbar-title span,
+.reply-toolbar span { color: var(--text-subtle); }
+.channel-cards { gap: 10px; }
+.channel-card { padding: 12px; border-radius: var(--radius-lg); }
+.channel-card-title {
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom-color: var(--border-subtle);
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 750;
+}
+.channel-card-feedback {
+  background: linear-gradient(90deg, var(--channel-feedback-bg), var(--surface-panel) 34%);
+  border-color: #ccefd8;
+}
+.channel-card-question {
+  background: linear-gradient(90deg, var(--channel-question-bg), var(--surface-panel) 34%);
+  border-color: var(--color-brand-border);
+}
+.channel-card-return_claim {
+  background: linear-gradient(90deg, var(--channel-return-bg), var(--surface-panel) 34%);
+  border-color: #fecaca;
+}
+.channel-card-chat {
+  background: linear-gradient(90deg, var(--channel-chat-bg), var(--surface-panel) 34%);
+  border-color: #fed7aa;
+}
+.channel-item { background: var(--surface-muted); border: 1px solid transparent; }
+.channel-item.has-count { background: var(--color-danger-soft); }
+.channel-item.clickable.active {
+  background: var(--color-info-soft);
+  box-shadow: inset 0 0 0 1px #bfdbfe;
+}
+.channel-item-label { color: var(--text-subtle); }
+.channel-item-num { color: var(--text-strong); }
+.channel-item-num.danger { color: var(--color-danger); }
+.filters { gap: 8px; padding: 10px; }
+.quick-filter-tag { background: var(--color-info-soft); color: var(--color-info); }
+.workspace { grid-template-columns: minmax(340px, 430px) minmax(0, 1fr); gap: 12px; }
+.queue,
+.detail { border-color: var(--border-subtle); }
+.queue { padding: 8px; }
+.queue-item {
+  min-height: 0;
+  padding: 10px;
+  border-color: var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+}
+.queue-item + .queue-item { margin-top: 8px; }
+.queue-item:hover,
+.queue-item.active {
+  border-color: var(--color-brand-border);
+  box-shadow: 0 0 0 2px var(--color-brand-soft);
+}
+.queue-item-feedback {
+  border-left-color: var(--channel-feedback-border);
+  background: linear-gradient(90deg, var(--channel-feedback-bg), var(--surface-panel) 30%);
+}
+.queue-item-question {
+  border-left-color: var(--channel-question-border);
+  background: linear-gradient(90deg, var(--channel-question-bg), var(--surface-panel) 30%);
+}
+.queue-item-return_claim {
+  border-left-color: var(--channel-return-border);
+  background: linear-gradient(90deg, var(--channel-return-bg), var(--surface-panel) 30%);
+}
+.queue-item-chat {
+  border-left-color: var(--channel-chat-border);
+  background: linear-gradient(90deg, var(--channel-chat-bg), var(--surface-panel) 30%);
+}
+.queue-card-channel,
+.queue-card-status,
+.queue-card-risk,
+.queue-card-wait-time {
+  min-height: 22px;
+  font-size: 12px;
+  font-weight: 750;
+}
+.queue-card-product-name { color: var(--text-strong); font-weight: 800; }
+.queue-card-product-meta,
+.queue-card-content,
+.queue-card-footer,
+.detail-sub-row,
+.detail-id,
+.detail-time { color: var(--text-subtle); }
+.detail { padding: 14px; }
+.detail-header { border-bottom-color: var(--border-subtle); }
+.detail-title-row h3 { color: var(--text-strong); font-size: 17px; }
+.translation-box,
+.handler-box,
+.message,
+.reply-box,
+.return-actions,
+.internal-note-box {
+  border-color: var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+.message.seller {
+  background: var(--color-brand-soft);
+  border-color: var(--color-brand-border);
+}
 </style>

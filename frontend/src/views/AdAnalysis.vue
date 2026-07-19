@@ -1410,4 +1410,60 @@ watch(selectedShop, (newShopId) => {
 .cpc-combined-card :deep(.el-card__header) { background: rgba(16, 185, 129, 0.05); border-bottom: 1px solid rgba(16, 185, 129, 0.2); }
 .cpm-recommend-card { background: rgba(139, 92, 246, 0.08) !important; border-color: rgba(139, 92, 246, 0.3) !important; }
 .cpm-recommend-card :deep(.el-card__header) { background: rgba(139, 92, 246, 0.05); border-bottom: 1px solid rgba(139, 92, 246, 0.2); }
+
+/* Demo-aligned operations density overrides */
+.ad-analysis { padding: 16px; background: var(--surface-page); }
+.filter-bar,
+.data-info-bar,
+.product-info-bar {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-sm);
+}
+.filter-bar { gap: 8px 10px; margin-bottom: 12px; padding: 10px; }
+.data-info-bar { gap: 10px; margin-bottom: 12px; padding: 8px 10px; }
+.data-info-warning { color: var(--color-warning); }
+.product-info-bar {
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: linear-gradient(90deg, var(--color-brand-soft), var(--surface-panel) 36%);
+}
+.product-icon-wrap {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-lg);
+  display: grid;
+  place-items: center;
+  background: var(--color-brand);
+  color: #fff;
+  font-size: 18px;
+}
+.product-name { color: var(--text-strong); font-size: 15px; font-weight: 750; }
+.product-meta-item,
+.pie-label,
+.metric-label { color: var(--text-subtle); }
+.metrics-grid { gap: 12px; margin-bottom: 12px; }
+.metric-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 12px;
+}
+.metric-card:hover { box-shadow: var(--shadow-md); }
+.metric-value,
+.pie-total-pct,
+.dl-val { color: var(--text-strong); }
+.donut-text-main { fill: var(--text-strong); }
+.metric-value { letter-spacing: 0; }
+.metric-change.positive { color: var(--color-success); background-color: var(--color-success-soft); }
+.metric-change.negative { color: var(--color-danger); background-color: var(--color-danger-soft); }
+.chart-area { border-top-color: var(--border-subtle); }
+.cpm-combined-card,
+.cpc-combined-card,
+.cpm-recommend-card {
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
 </style>
