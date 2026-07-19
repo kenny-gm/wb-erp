@@ -99,7 +99,7 @@
       </div>
     </div>
 
-    <div class="filters">
+    <div class="filters" :class="{ 'has-quick-filter': filters.quick_key }">
       <el-input
         class="filter-search"
         v-model="filters.search"
@@ -1371,7 +1371,6 @@ function getReturnSlaClass(item) {
   display: grid;
   grid-template-columns:
     minmax(240px, 1fr)
-    minmax(0, auto)
     190px
     116px
     112px
@@ -1384,6 +1383,17 @@ function getReturnSlaClass(item) {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   padding: 8px;
+}
+
+.filters.has-quick-filter {
+  grid-template-columns:
+    minmax(220px, 1fr)
+    minmax(120px, 180px)
+    190px
+    116px
+    112px
+    132px
+    72px;
 }
 
 .filters :deep(.el-select),
