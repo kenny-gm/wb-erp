@@ -591,9 +591,10 @@ async function prefetchLogsForDateRange() {
 }
 
 .table-container {
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 
@@ -603,37 +604,25 @@ async function prefetchLogsForDateRange() {
   -webkit-overflow-scrolling: touch;
 }
 
-@media (max-width: 768px) {
-  .table-scroll {
-    max-height: 60vh;
-    overflow: auto;
-  }
-  .tree-table th, .tree-table td {
-    padding: 6px 8px;
-    font-size: 12px;
-  }
-  .tree-table th {
-    font-size: 11px;
-  }
-}
-
 .tree-table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
+  font-size: 13px;
 }
 
 .tree-table th,
 .tree-table td {
   padding: 8px 10px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--border-subtle);
   white-space: nowrap;
+  color: var(--text-main);
 }
 
 .tree-table th {
-  background: #fafafa;
-  color: #909399;
-  font-weight: 600;
+  background: var(--surface-muted);
+  color: var(--text-subtle);
+  font-weight: 800;
   font-size: 12px;
   position: sticky;
   top: 0;
@@ -646,97 +635,139 @@ async function prefetchLogsForDateRange() {
 }
 
 .tree-table th.sortable:hover {
-  color: #409eff;
+  color: var(--color-brand);
 }
 
 .sort-icon {
   margin-left: 4px;
-  color: #409eff;
+  color: var(--color-brand);
 }
 
-.tree-table td {
-  font-size: 13px;
-}
+.col-toggle { width: 30px; text-align: center; }
+.col-manager { width: 60px; }
+.col-product { width: 140px; }
+.col-shop { width: 140px; }
+.col-num { width: 70px; text-align: right; }
+.col-money { width: 90px; text-align: right; }
+.col-rate { width: 60px; text-align: right; }
+.col-id { width: 90px; }
+.col-sku { width: 100px; }
+.col-log { width: 50px; text-align: center; }
 
-.col-toggle {
-  width: 30px;
-  text-align: center;
-}
-
-.col-manager {
-  width: 60px;
-}
-
-.col-product {
-  width: 140px;
-}
-
-.col-shop {
-  width: 140px;
-}
-
-.col-num {
-  width: 70px;
-  text-align: right;
-}
-
-.col-money {
-  width: 90px;
-  text-align: right;
-}
-
-.col-rate {
-  width: 60px;
-  text-align: right;
-}
-
-.col-id {
-  width: 90px;
-}
-
-.col-sku {
-  width: 100px;
-}
-
-.col-log {
-  width: 50px;
-  text-align: center;
-}
+.tree-table td.num { text-align: right; }
 
 .log-icon {
   cursor: pointer;
   font-size: 16px;
 }
-.log-icon.has-log {
-  color: #f56c6c;  /* 红色 - 有日志 */
+.log-icon.has-log { color: var(--color-danger); }
+.log-icon.no-log { color: var(--text-muted); }
+.log-icon:hover { opacity: 0.7; }
+
+.toggle-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  color: var(--color-brand);
+  font-size: 12px;
+  line-height: 16px;
+  text-align: center;
 }
-.log-icon.no-log {
-  color: #c0c4cc;  /* 灰色 - 无日志 */
+.toggle-icon.expanded { color: var(--color-success); }
+
+.parent-row {
+  background: var(--surface-panel);
+  cursor: pointer;
 }
-.log-icon:hover {
-  opacity: 0.7;
+.parent-row:hover {
+  background: var(--surface-hover);
 }
 
-/* 日志弹窗效果分析单元格 */
-.effect-analysis-cell {
-  background-color: #f0f9ff;
-  padding: 6px 8px;
-  border-radius: 4px;
-  color: #606266;
-  line-height: 1.5;
+.level-top { background: var(--surface-panel); font-weight: 700; }
+.level-shop { background: var(--color-brand-soft); }
+.level-date { background: var(--surface-panel); }
+
+.empty-cell { color: var(--text-muted); }
+
+.product-link {
+  color: var(--color-info);
+  text-decoration: none;
 }
-.content-cell {
-  background-color: #f3e8ff;
-  padding: 6px 8px;
-  border-radius: 4px;
-  color: #606266;
-  line-height: 1.5;
+.product-link:hover { text-decoration: underline; }
+.product-text { color: var(--text-main); font-size: 12px; }
+
+.loading-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255,255,255,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--text-main);
+  border-radius: var(--radius-lg);
 }
 
-/* 日志竖向表格 */
-.log-vertical-table {
-  overflow-x: auto;
+.rate-danger {
+  color: var(--color-danger) !important;
+  font-weight: 700;
+  background: var(--color-danger-soft);
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
 }
+
+.rate-warning {
+  color: var(--color-warning) !important;
+  font-weight: 700;
+  background: var(--color-warning-soft);
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+}
+
+.rate-success {
+  color: var(--color-success) !important;
+}
+
+.log-header { margin-bottom: 12px; }
+.log-header p {
+  margin: 4px 0;
+  font-size: 13px;
+  color: var(--text-main);
+}
+
+.log-input-area { margin-bottom: 12px; }
+.log-list { max-height: 300px; overflow-y: auto; }
+.log-item {
+  padding: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 13px;
+}
+.log-item:last-child { border-bottom: none; }
+.log-time {
+  color: var(--text-subtle);
+  margin-right: 8px;
+  font-size: 12px;
+}
+.log-content { color: var(--text-strong); }
+
+.log-danger { background: var(--color-danger-soft); }
+.log-danger .log-content { color: var(--color-danger); }
+.log-success { background: var(--color-success-soft); }
+.log-success .log-content { color: var(--color-success); }
+.log-warning { background: var(--color-warning-soft); }
+.log-warning .log-content { color: var(--color-warning); }
+
+.log-empty {
+  text-align: center;
+  color: var(--text-subtle);
+  padding: 20px;
+}
+
+.log-vertical-table { overflow-x: auto; }
 .log-vertical-table table {
   width: 100%;
   border-collapse: collapse;
@@ -745,257 +776,48 @@ async function prefetchLogsForDateRange() {
 .log-vertical-table th,
 .log-vertical-table td {
   padding: 8px 12px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--border-subtle);
   text-align: left;
   vertical-align: top;
 }
 .log-vertical-table th {
-  background-color: #f5f7fa;
-  color: #909399;
-  font-weight: normal;
+  background: var(--surface-muted);
+  color: var(--text-subtle);
+  font-weight: 700;
   width: 90px;
   white-space: nowrap;
 }
 .log-vertical-table td {
-  background-color: #fff;
-  color: #606266;
+  background: var(--surface-panel);
+  color: var(--text-main);
   word-break: break-word;
 }
-.log-vertical-table td .effect-analysis-cell {
-  display: block;
-}
+.log-vertical-table td .effect-analysis-cell { display: block; }
 
-.tree-table td.num {
-  text-align: right;
-}
-
-.toggle-icon {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  color: #409eff;
-  font-size: 12px;
-  line-height: 16px;
-  text-align: center;
-}
-
-.toggle-icon.expanded {
-  color: #67c23a;
-}
-
-.parent-row {
-  background: #f5f7fa;
-  cursor: pointer;
-}
-
-.parent-row:hover {
-  background: #ebeef5;
-}
-
-.level-top {
-  background: #fff;
-  font-weight: 600;
-}
-
-.level-shop {
-  background: #f5f0ff;
-}
-
-.level-date {
-  background: #fff;
-}
-
-.empty-cell {
-  color: #c0c4cc;
-}
-
-.product-link {
-  color: #409eff;
-  text-decoration: none;
-}
-
-.product-link:hover {
-  text-decoration: underline;
-}
-
-.product-text {
-  color: #606266;
-  font-size: 12px;
-}
-
-.loading-mask {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255,255,255,0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  color: #606266;
-}
-
-/* 预警阈值颜色 */
-.rate-danger {
-  color: #ef4444 !important;
-  font-weight: 600;
-}
-
-.rate-warning {
-  color: #f59e0b !important;
-  font-weight: 600;
-}
-
-.rate-success {
-  color: #10b981 !important;
-}
-
-/* 日志弹窗样式 */
-.log-header {
-  margin-bottom: 12px;
-}
-
-.log-header p {
-  margin: 4px 0;
-  font-size: 13px;
-  color: #606266;
-}
-
-.log-input-area {
-  margin-bottom: 12px;
-}
-
-.log-list {
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.log-item {
-  padding: 8px;
-  border-bottom: 1px solid #ebeef5;
-  font-size: 13px;
-}
-
-.log-item:last-child {
-  border-bottom: none;
-}
-
-.log-time {
-  color: #909399;
-  margin-right: 8px;
-  font-size: 12px;
-}
-
-.log-content {
-  color: #303133;
-}
-
-.log-danger {
-  background: #fef0f0;
-}
-
-.log-danger .log-content {
-  color: #f56c6c;
-}
-
-.log-success {
-  background: #f0f9ff;
-}
-
-.log-success .log-content {
-  color: #10b981;
-}
-
-.log-warning {
-  background: #fdf6ec;
-}
-
-.log-warning .log-content {
-  color: #e6a23c;
-}
-
-.log-empty {
-  text-align: center;
-  color: #909399;
-  padding: 20px;
-}
-
-/* Demo-aligned table density overrides */
-.table-container {
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--surface-panel);
-  box-shadow: var(--shadow-sm);
-}
-
-.tree-table th,
-.tree-table td {
-  padding: 8px 10px;
-  border-bottom-color: var(--border-subtle);
-}
-
-.tree-table th {
-  background: var(--surface-muted);
-  color: var(--text-subtle);
-  font-weight: 750;
-  letter-spacing: 0;
-}
-
-.tree-table td {
-  color: var(--text-main);
-}
-
-.tree-table th.sortable:hover,
-.product-link,
-.toggle-icon {
-  color: var(--color-brand);
-}
-
-.toggle-icon.expanded,
-.rate-success {
-  color: var(--color-success) !important;
-}
-
-.rate-danger,
-.log-icon.has-log {
-  color: var(--color-danger) !important;
-}
-
-.rate-warning {
-  color: var(--color-warning) !important;
-}
-
-.parent-row,
-.level-top,
-.level-date {
-  background: var(--surface-panel);
-}
-
-.level-shop {
-  background: var(--color-brand-soft);
-}
-
-.parent-row:hover {
-  background: var(--surface-hover);
-}
-
-.content-cell,
 .effect-analysis-cell {
-  border: 1px solid var(--border-subtle);
+  background: var(--color-info-soft);
+  padding: 6px 8px;
   border-radius: var(--radius-md);
-  background: var(--surface-muted);
   color: var(--text-main);
+  line-height: 1.5;
+}
+.content-cell {
+  background: var(--color-brand-soft);
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  color: var(--text-main);
+  line-height: 1.5;
 }
 
-.log-vertical-table th {
-  background: var(--surface-muted);
-  color: var(--text-subtle);
-}
-
-.log-vertical-table td {
-  color: var(--text-main);
+@media (max-width: 768px) {
+  .table-scroll {
+    max-height: 60vh;
+    overflow: auto;
+  }
+  .tree-table th, .tree-table td {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+  .tree-table th { font-size: 11px; }
 }
 </style>
