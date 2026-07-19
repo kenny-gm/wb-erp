@@ -275,12 +275,62 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.logs-container { padding: 20px; }
-.card-header { display: flex; justify-content: space-between; align-items: center; }
-.filter-form { margin-bottom: 16px; }
+.logs-container {
+  padding: 16px;
+  background: var(--surface-page);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text-strong);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-muted);
+}
 
 .filter-form :deep(.el-select) {
   width: 220px;
+}
+
+.filter-form :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+.logs-container :deep(.el-card) {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.logs-container :deep(.el-card__header) {
+  padding: 12px 14px;
+  background: var(--surface-panel);
+  border-bottom-color: var(--border-subtle);
+}
+
+.logs-container :deep(.el-card__body) {
+  padding: 12px;
+}
+
+.logs-container :deep(.el-table th.el-table__cell) {
+  background: var(--surface-muted);
+  color: var(--text-subtle);
+}
+
+.logs-container :deep(.el-table .el-table__cell) {
+  padding: 8px 0;
 }
 
 @media (max-width: 768px) {

@@ -922,4 +922,80 @@ async function prefetchLogsForDateRange() {
   color: #909399;
   padding: 20px;
 }
+
+/* Demo-aligned table density overrides */
+.table-container {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-sm);
+}
+
+.tree-table th,
+.tree-table td {
+  padding: 8px 10px;
+  border-bottom-color: var(--border-subtle);
+}
+
+.tree-table th {
+  background: var(--surface-muted);
+  color: var(--text-subtle);
+  font-weight: 750;
+  letter-spacing: 0;
+}
+
+.tree-table td {
+  color: var(--text-main);
+}
+
+.tree-table th.sortable:hover,
+.product-link,
+.toggle-icon {
+  color: var(--color-brand);
+}
+
+.toggle-icon.expanded,
+.rate-success {
+  color: var(--color-success) !important;
+}
+
+.rate-danger,
+.log-icon.has-log {
+  color: var(--color-danger) !important;
+}
+
+.rate-warning {
+  color: var(--color-warning) !important;
+}
+
+.parent-row,
+.level-top,
+.level-date {
+  background: var(--surface-panel);
+}
+
+.level-shop {
+  background: var(--color-brand-soft);
+}
+
+.parent-row:hover {
+  background: var(--surface-hover);
+}
+
+.content-cell,
+.effect-analysis-cell {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  color: var(--text-main);
+}
+
+.log-vertical-table th {
+  background: var(--surface-muted);
+  color: var(--text-subtle);
+}
+
+.log-vertical-table td {
+  color: var(--text-main);
+}
 </style>
