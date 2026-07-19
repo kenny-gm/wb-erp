@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WB ERP 数据变化优先 Demo</title>
+  <style>
+    :root {
+      --page: #f5f6fa;
+      --panel: #fff;
+      --muted: #f8fafc;
+      --line: #e5e7eb;
+      --line-strong: #cbd5e1;
+      --text: #111827;
+      --sub: #4b5563;
+      --soft: #7b8496;
+      --brand: #4f46e5;
+      --good: #059669;
+      --good-bg: #ecfdf5;
+      --bad: #dc2626;
+      --bad-bg: #fef2f2;
+      --warn: #d97706;
+      --warn-bg: #fff7ed;
+      --info: #2563eb;
+      --info-bg: #eff6ff;
+      --radius: 8px;
+      --shadow: 0 1px 2px rgba(15, 23, 42, .06);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      --number: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background: var(--page);
+      font-family: var(--font);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .num, .delta, .score {
+      font-family: var(--number);
+      font-variant-numeric: tabular-nums;
+    }
+    .app {
+      display: grid;
+      grid-template-columns: 188px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+    .sidebar {
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      padding: 12px 10px;
+    }
+    .brand {
+      height: 40px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      color: var(--brand);
+      font-weight: 800;
+    }
+    .mark {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      background: var(--brand);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+    }
+    .nav { display: grid; gap: 3px; margin-top: 10px; }
+    .nav div {
+      height: 34px;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      color: var(--sub);
+      font-weight: 650;
+    }
+    .nav .active { color: var(--brand); background: #eef2ff; }
+    .main { min-width: 0; }
+    .topbar {
+      height: 54px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      position: sticky;
+      top: 0;
+      z-index: 3;
+    }
+    .title h1 {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1;
+    }
+    .title span { color: var(--soft); }
+    .content {
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+    .toolbar, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .toolbar {
+      padding: 10px;
+      display: grid;
+      grid-template-columns: auto auto minmax(260px, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .seg, .field, .btn {
+      height: 32px;
+      border: 1px solid var(--line-strong);
+      border-radius: 7px;
+      background: #fff;
+      display: inline-flex;
+      align-items: center;
+    }
+    .seg { padding: 2px; gap: 2px; }
+    .seg span {
+      height: 26px;
+      padding: 0 10px;
+      border-radius: 5px;
+      display: grid;
+      place-items: center;
+      color: var(--sub);
+      font-weight: 700;
+    }
+    .seg .on { color: #fff; background: var(--brand); }
+    .field { padding: 0 10px; justify-content: space-between; color: var(--sub); }
+    .btn {
+      padding: 0 12px;
+      color: #fff;
+      background: var(--brand);
+      border-color: var(--brand);
+      font-weight: 800;
+      justify-content: center;
+    }
+    .headline {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 12px;
+    }
+    .change-radar {
+      padding: 12px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .radar-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--muted);
+      padding: 10px;
+      min-width: 0;
+    }
+    .radar-label {
+      color: var(--soft);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .radar-value {
+      margin-top: 8px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .radar-value .num { font-size: 22px; font-weight: 850; }
+    .delta {
+      border-radius: 999px;
+      padding: 2px 7px;
+      font-size: 12px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+    .delta.good { color: var(--good); background: var(--good-bg); }
+    .delta.bad { color: var(--bad); background: var(--bad-bg); }
+    .delta.warn { color: var(--warn); background: var(--warn-bg); }
+    .mini-line {
+      height: 28px;
+      margin-top: 8px;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      align-items: end;
+      gap: 3px;
+    }
+    .mini-line i {
+      display: block;
+      border-radius: 3px 3px 0 0;
+      background: #c7d2fe;
+      min-height: 5px;
+    }
+    .mini-line.good i:last-child { background: var(--good); }
+    .mini-line.bad i:last-child { background: var(--bad); }
+    .mini-line.warn i:last-child { background: var(--warn); }
+    .panel-head {
+      height: 40px;
+      padding: 0 12px;
+      background: var(--muted);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 850;
+    }
+    .panel-body { padding: 10px; }
+    .alert-list { display: grid; gap: 7px; }
+    .alert-row {
+      border: 1px solid var(--line);
+      border-left-width: 4px;
+      border-radius: 8px;
+      padding: 9px 10px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      background: #fff;
+    }
+    .alert-row.bad { border-left-color: var(--bad); background: linear-gradient(90deg, var(--bad-bg), #fff 36%); }
+    .alert-row.warn { border-left-color: var(--warn); background: linear-gradient(90deg, var(--warn-bg), #fff 36%); }
+    .alert-row.good { border-left-color: var(--good); background: linear-gradient(90deg, var(--good-bg), #fff 36%); }
+    .alert-title {
+      font-weight: 800;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .alert-meta { color: var(--soft); margin-top: 2px; }
+    .tag {
+      height: 22px;
+      padding: 0 7px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .tag.bad { color: var(--bad); background: var(--bad-bg); border: 1px solid #fecaca; }
+    .tag.warn { color: var(--warn); background: var(--warn-bg); border: 1px solid #fed7aa; }
+    .tag.good { color: var(--good); background: var(--good-bg); border: 1px solid #bbf7d0; }
+    .table-wrap { overflow: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 980px;
+    }
+    th {
+      height: 34px;
+      padding: 0 9px;
+      text-align: left;
+      background: var(--muted);
+      border-bottom: 1px solid var(--line);
+      color: var(--soft);
+      font-weight: 850;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    td {
+      height: 42px;
+      padding: 0 9px;
+      border-bottom: 1px solid var(--line);
+      color: var(--sub);
+      white-space: nowrap;
+    }
+    tr:hover td { background: #fbfcff; }
+    td strong { color: var(--text); }
+    .metric-group {
+      display: inline-grid;
+      grid-template-columns: 78px 64px;
+      gap: 6px;
+      align-items: center;
+    }
+    .heat {
+      height: 24px;
+      min-width: 50px;
+      border-radius: 6px;
+      display: inline-grid;
+      place-items: center;
+      font-weight: 850;
+      font-variant-numeric: tabular-nums;
+    }
+    .heat.bad { color: var(--bad); background: var(--bad-bg); }
+    .heat.good { color: var(--good); background: var(--good-bg); }
+    .heat.warn { color: var(--warn); background: var(--warn-bg); }
+    .product {
+      display: grid;
+      gap: 2px;
+      min-width: 220px;
+    }
+    .product span { color: var(--soft); }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .ad-row {
+      display: grid;
+      grid-template-columns: 92px 1fr 72px 72px;
+      gap: 8px;
+      align-items: center;
+      min-height: 38px;
+      border-bottom: 1px solid var(--line);
+    }
+    .ad-row:last-child { border-bottom: 0; }
+    .bar {
+      height: 9px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      overflow: hidden;
+    }
+    .bar span { display: block; height: 100%; border-radius: inherit; }
+    .bar .bad { background: var(--bad); }
+    .bar .good { background: var(--good); }
+    .bar .warn { background: var(--warn); }
+    .timeline { display: grid; gap: 8px; }
+    .event {
+      display: grid;
+      grid-template-columns: 78px minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: start;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px;
+      background: #fff;
+    }
+    .event-time { color: var(--soft); }
+    .event-title { font-weight: 800; }
+    .event-text { color: var(--sub); margin-top: 2px; }
+    .note {
+      color: var(--soft);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .note span {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 5px 8px;
+      background: #fff;
+    }
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .toolbar { grid-template-columns: 1fr; }
+      .headline, .grid-2 { grid-template-columns: 1fr; }
+      .change-radar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><div class="mark">WB</div><span>ERP 运营台</span></div>
+      <nav class="nav">
+        <div class="active">变化监控</div>
+        <div>销售看板</div>
+        <div>广告分析</div>
+        <div>运营日志</div>
+        <div>客服工作台</div>
+      </nav>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div class="title">
+          <h1>数据变化优先 Demo</h1>
+          <span>默认显示变化、异常和运营动作，不把静态数值放在视觉中心</span>
+        </div>
+        <div class="note"><span>更新时间 2026-07-19 06:15</span><span>口径 RUB 统一折算</span></div>
+      </header>
+      <div class="content">
+        <div class="toolbar">
+          <div class="seg"><span>今天</span><span class="on">昨日</span><span>7天</span><span>30天</span></div>
+          <div class="field">2026-07-18 至 2026-07-18 <span>⌄</span></div>
+          <div class="field">全部产品 / SKU / 负责人 <span>⌕</span></div>
+          <button class="btn">刷新变化</button>
+        </div>
+
+        <section class="headline">
+          <div class="panel">
+            <div class="panel-head"><span>变化雷达</span><span class="tag bad">7 个异常</span></div>
+            <div class="change-radar">
+              <div class="radar-card">
+                <div class="radar-label"><span>销售额</span><span>全部店铺</span></div>
+                <div class="radar-value"><span class="num">1 248 930</span><span class="delta good">+8.4%</span></div>
+                <div class="mini-line good"><i style="height:31%"></i><i style="height:42%"></i><i style="height:39%"></i><i style="height:52%"></i><i style="height:57%"></i><i style="height:61%"></i><i style="height:74%"></i></div>
+              </div>
+              <div class="radar-card">
+                <div class="radar-label"><span>加购率</span><span>重点指标</span></div>
+                <div class="radar-value"><span class="num">6.21%</span><span class="delta bad">-24.8%</span></div>
+                <div class="mini-line bad"><i style="height:76%"></i><i style="height:72%"></i><i style="height:68%"></i><i style="height:61%"></i><i style="height:54%"></i><i style="height:48%"></i><i style="height:35%"></i></div>
+              </div>
+              <div class="radar-card">
+                <div class="radar-label"><span>广告占比</span><span>成本</span></div>
+                <div class="radar-value"><span class="num">18.32%</span><span class="delta warn">+4.6pp</span></div>
+                <div class="mini-line warn"><i style="height:29%"></i><i style="height:31%"></i><i style="height:33%"></i><i style="height:40%"></i><i style="height:47%"></i><i style="height:56%"></i><i style="height:67%"></i></div>
+              </div>
+              <div class="radar-card">
+                <div class="radar-label"><span>转化率</span><span>漏斗</span></div>
+                <div class="radar-value"><span class="num">2.84%</span><span class="delta bad">-11.3%</span></div>
+                <div class="mini-line bad"><i style="height:55%"></i><i style="height:59%"></i><i style="height:53%"></i><i style="height:50%"></i><i style="height:45%"></i><i style="height:42%"></i><i style="height:39%"></i></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><span>异常队列</span><span>按处理优先级</span></div>
+            <div class="panel-body alert-list">
+              <div class="alert-row bad">
+                <div><div class="alert-title">厨房置物架三层 白色款</div><div class="alert-meta">加购率 9.2% → 5.1%，广告费 +18.6%</div></div>
+                <span class="tag bad">先处理</span>
+              </div>
+              <div class="alert-row warn">
+                <div><div class="alert-title">折叠晾衣架 加厚不锈钢款</div><div class="alert-meta">访客 +22.4%，订单 -6.8%，转化断层</div></div>
+                <span class="tag warn">看详情</span>
+              </div>
+              <div class="alert-row good">
+                <div><div class="alert-title">浴室防滑垫 大尺寸灰色</div><div class="alert-meta">广告占比 -3.1pp，订单 +12.7%</div></div>
+                <span class="tag good">复盘</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><span>产品变化表</span><span>静态值降权，变化值高亮</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>产品</th>
+                  <th>负责人</th>
+                  <th>销售额 / 变化</th>
+                  <th>访客 / 变化</th>
+                  <th>加购率 / 变化</th>
+                  <th>转化率 / 变化</th>
+                  <th>广告占比 / 变化</th>
+                  <th>运营判断</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><div class="product"><strong>厨房置物架三层 白色款</strong><span>ID 18920455 / CH-7782</span></div></td>
+                  <td>Anna</td>
+                  <td><span class="metric-group"><span class="num">218 940 ₽</span><span class="heat good">+8.1%</span></span></td>
+                  <td><span class="metric-group"><span class="num">12 884</span><span class="heat good">+19.4%</span></span></td>
+                  <td><span class="metric-group"><span class="num">5.10%</span><span class="heat bad">-44.5%</span></span></td>
+                  <td><span class="metric-group"><span class="num">2.12%</span><span class="heat bad">-16.2%</span></span></td>
+                  <td><span class="metric-group"><span class="num">21.4%</span><span class="heat warn">+4.9pp</span></span></td>
+                  <td><span class="tag bad">流量涨但承接差</span></td>
+                </tr>
+                <tr>
+                  <td><div class="product"><strong>折叠晾衣架 加厚款</strong><span>ID 18763891 / XT-4421</span></div></td>
+                  <td>Mila</td>
+                  <td><span class="metric-group"><span class="num">146 120 ₽</span><span class="heat bad">-5.4%</span></span></td>
+                  <td><span class="metric-group"><span class="num">8 420</span><span class="heat good">+22.4%</span></span></td>
+                  <td><span class="metric-group"><span class="num">7.02%</span><span class="heat warn">-9.1%</span></span></td>
+                  <td><span class="metric-group"><span class="num">1.88%</span><span class="heat bad">-23.0%</span></span></td>
+                  <td><span class="metric-group"><span class="num">16.8%</span><span class="heat warn">+2.7pp</span></span></td>
+                  <td><span class="tag warn">检查价格/评价</span></td>
+                </tr>
+                <tr>
+                  <td><div class="product"><strong>浴室防滑垫 大尺寸灰色</strong><span>ID 16028421 / 157-8231</span></div></td>
+                  <td>Olga</td>
+                  <td><span class="metric-group"><span class="num">98 760 ₽</span><span class="heat good">+12.7%</span></span></td>
+                  <td><span class="metric-group"><span class="num">4 892</span><span class="heat good">+6.2%</span></span></td>
+                  <td><span class="metric-group"><span class="num">9.42%</span><span class="heat good">+11.5%</span></span></td>
+                  <td><span class="metric-group"><span class="num">3.41%</span><span class="heat good">+8.6%</span></span></td>
+                  <td><span class="metric-group"><span class="num">10.2%</span><span class="heat good">-3.1pp</span></span></td>
+                  <td><span class="tag good">可复制动作</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="grid-2">
+          <div class="panel">
+            <div class="panel-head"><span>广告变化拆解</span><span>按广告类型定位成本变化</span></div>
+            <div class="panel-body">
+              <div class="ad-row"><strong>CPM推荐</strong><div class="bar"><span class="bad" style="width:72%"></span></div><span class="num">+18.6%</span><span class="tag bad">升高</span></div>
+              <div class="ad-row"><strong>CPC搜索</strong><div class="bar"><span class="warn" style="width:48%"></span></div><span class="num">+6.3%</span><span class="tag warn">观察</span></div>
+              <div class="ad-row"><strong>CPM搜索</strong><div class="bar"><span class="good" style="width:32%"></span></div><span class="num">-4.8%</span><span class="tag good">改善</span></div>
+              <div class="ad-row"><strong>自然流量</strong><div class="bar"><span class="good" style="width:64%"></span></div><span class="num">+14.1%</span><span class="tag good">增长</span></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><span>日志关联效果</span><span>运营动作要能解释变化</span></div>
+            <div class="panel-body timeline">
+              <div class="event">
+                <div class="event-time">07-18</div>
+                <div><div class="event-title">降低 CPM 推荐预算</div><div class="event-text">次日广告占比 -3.1pp，订单 +12.7%，建议复用到相似品。</div></div>
+                <span class="tag good">正向</span>
+              </div>
+              <div class="event">
+                <div class="event-time">07-17</div>
+                <div><div class="event-title">厨房置物架加大曝光</div><div class="event-text">访客增长但加购率下滑，说明问题可能在主图/价格/差评。</div></div>
+                <span class="tag bad">负向</span>
+              </div>
+              <div class="event">
+                <div class="event-time">07-16</div>
+                <div><div class="event-title">补充尺寸图</div><div class="event-text">转化率短期无明显变化，继续观察 3 天均值。</div></div>
+                <span class="tag warn">待追踪</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
