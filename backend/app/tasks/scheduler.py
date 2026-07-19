@@ -17,8 +17,10 @@ def start_scheduler():
         scheduler.add_job(track_operation_effects, CronTrigger(hour=6, minute=10, timezone="Asia/Shanghai"))
         # Daily at 6:15 AM Beijing time - Yandex traffic sync (shows-sales)
         scheduler.add_job(sync_yandex_traffic_task, CronTrigger(hour=6, minute=15, timezone="Asia/Shanghai"))
-        # Every minute - scan due sync_schedules by shop and data type.
-        scheduler.add_job(sync_due_schedules_task, IntervalTrigger(minutes=1, timezone="Asia/Shanghai"))
+        # Scan due sync schedules. The scan can take several minutes because it
+        # triggers network syncs; keep the interval above typical run time to
+        # avoid noisy APScheduler "maximum instances reached" skips.
+        scheduler.add_job(sync_due_schedules_task, IntervalTrigger(minutes=5, timezone="Asia/Shanghai"))
         
         scheduler.start()
         print("定时任务调度器已启动")

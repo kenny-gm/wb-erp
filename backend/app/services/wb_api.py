@@ -7,6 +7,7 @@ import httpx
 import time
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
+from app.config import settings
 
 
 @dataclass
@@ -130,11 +131,13 @@ class WBAPIClient:
         endpoint: str,
         params: Optional[Dict] = None,
         json_data: Optional[Dict] = None,
-        retry: int = 3
+        retry: int = 3,
+        timeout: Optional[float] = None
     ) -> Dict[str, Any]:
         """发送 API 请求"""
         url = f"{self.API_DOMAINS.get(category, '')}{endpoint}"
         limiter = self._get_limiter(category)
+        timeout_seconds = timeout if timeout is not None else float(settings.WB_API_TIMEOUT)
         
         last_error = None
         
@@ -142,7 +145,7 @@ class WBAPIClient:
             try:
                 limiter.wait_if_needed()
                 
-                with httpx.Client(timeout=30.0) as client:
+                with httpx.Client(timeout=timeout_seconds) as client:
                     if method == "GET":
                         response = client.get(url, headers=self.headers, params=params)
                     elif method == "POST":
@@ -440,7 +443,8 @@ class WBAPIClient:
                 
                 response = self._request(
                     "POST", "analytics", "/api/analytics/v3/sales-funnel/products/history",
-                    json_data=json_data
+                    json_data=json_data,
+                    timeout=90.0
                 )
                 
                 if not response:
@@ -482,4 +486,3 @@ class WBAPIClient:
 # 注册为平台客户端
 from app.services.platform_client import register_platform_client, BasePlatformClient
 register_platform_client("wildberries", WBAPIClient)
-
