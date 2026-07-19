@@ -1370,9 +1370,9 @@ function getReturnSlaClass(item) {
 .filters {
   display: grid;
   grid-template-columns:
-    minmax(280px, 1fr)
+    minmax(240px, 1fr)
     minmax(0, auto)
-    132px
+    190px
     116px
     112px
     132px
