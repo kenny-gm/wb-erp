@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WB ERP UI CSS Demo</title>
+  <style>
+    :root {
+      --brand: #6d28d9;
+      --brand-soft: #f3efff;
+      --brand-border: #ded2ff;
+      --page: #f6f7fb;
+      --panel: #ffffff;
+      --panel-muted: #f9fafc;
+      --line: #e6e8ef;
+      --line-strong: #d3d7e3;
+      --text: #111827;
+      --text-mid: #4b5563;
+      --text-soft: #7b8496;
+      --good: #059669;
+      --good-bg: #ecfdf5;
+      --warn: #d97706;
+      --warn-bg: #fff7ed;
+      --bad: #dc2626;
+      --bad-bg: #fef2f2;
+      --info: #2563eb;
+      --info-bg: #eff6ff;
+      --feedback: #eaf8ef;
+      --question: #f3efff;
+      --return: #fff0f0;
+      --chat: #fff7e8;
+      --radius: 8px;
+      --shadow: 0 1px 2px rgba(15, 23, 42, .06);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background: var(--page);
+      font-family: var(--font);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    button, input, select { font: inherit; }
+    .app {
+      display: grid;
+      grid-template-columns: 184px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+    .sidebar {
+      background: #fff;
+      border-right: 1px solid var(--line);
+      padding: 12px 10px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+    .brand {
+      height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      margin-bottom: 10px;
+      font-weight: 750;
+      color: var(--brand);
+      letter-spacing: 0;
+    }
+    .brand-mark {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      background: var(--brand);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .nav {
+      display: grid;
+      gap: 3px;
+    }
+    .nav-item {
+      height: 36px;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 0 10px;
+      color: var(--text-mid);
+      font-weight: 600;
+    }
+    .nav-item svg { width: 16px; height: 16px; color: var(--text-soft); }
+    .nav-item.active {
+      color: var(--brand);
+      background: var(--brand-soft);
+    }
+    .nav-item.active svg { color: var(--brand); }
+    .main {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .topbar {
+      height: 54px;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    .page-title {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      min-width: 0;
+    }
+    .page-title h1 {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+    .page-title span { color: var(--text-soft); }
+    .account {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-mid);
+      font-weight: 600;
+    }
+    .avatar {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #111827;
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+    }
+    .content {
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+    }
+    .toolbar {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 10px;
+      display: grid;
+      grid-template-columns: auto auto minmax(220px, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .segmented, .field, .btn {
+      height: 32px;
+      border: 1px solid var(--line-strong);
+      border-radius: 7px;
+      background: #fff;
+      display: inline-flex;
+      align-items: center;
+    }
+    .segmented { padding: 2px; gap: 2px; }
+    .segmented span {
+      height: 26px;
+      min-width: 42px;
+      padding: 0 10px;
+      border-radius: 5px;
+      display: grid;
+      place-items: center;
+      color: var(--text-mid);
+      font-weight: 600;
+    }
+    .segmented .on {
+      background: var(--brand);
+      color: #fff;
+    }
+    .field {
+      padding: 0 10px;
+      color: var(--text-mid);
+      justify-content: space-between;
+      gap: 12px;
+      min-width: 130px;
+    }
+    .field.search { min-width: 240px; }
+    .btn {
+      justify-content: center;
+      gap: 6px;
+      padding: 0 12px;
+      color: #fff;
+      background: var(--brand);
+      border-color: var(--brand);
+      font-weight: 700;
+    }
+    .data-note {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      color: var(--text-mid);
+    }
+    .note-pill {
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 7px;
+      border: 1px solid var(--line);
+      background: #fff;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .matrix {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .matrix-row {
+      display: grid;
+      grid-template-columns: 150px repeat(3, minmax(0, 1fr));
+      border-top: 1px solid var(--line);
+      min-height: 58px;
+    }
+    .matrix-row:first-child { border-top: 0; }
+    .cell {
+      padding: 10px 12px;
+      border-left: 1px solid var(--line);
+      min-width: 0;
+    }
+    .cell:first-child { border-left: 0; }
+    .matrix-head {
+      min-height: 52px;
+      background: var(--panel-muted);
+      font-weight: 700;
+    }
+    .metric-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-mid);
+      font-weight: 700;
+    }
+    .metric-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      background: var(--info-bg);
+      color: var(--info);
+    }
+    .value-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 0;
+    }
+    .value {
+      font-family: var(--mono);
+      font-size: 17px;
+      font-weight: 800;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .delta {
+      flex: 0 0 auto;
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-weight: 800;
+    }
+    .delta.good { color: var(--good); background: var(--good-bg); }
+    .delta.bad { color: var(--bad); background: var(--bad-bg); }
+    .spark {
+      margin-top: 8px;
+      width: 100%;
+      height: 28px;
+      display: block;
+    }
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+    .panel {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .panel-head {
+      height: 42px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--panel-muted);
+      font-weight: 800;
+    }
+    .queue {
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      max-height: 520px;
+      overflow: auto;
+    }
+    .ticket {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-left-width: 4px;
+      border-radius: 8px;
+      background: #fff;
+      padding: 10px;
+      text-align: left;
+      display: grid;
+      gap: 7px;
+    }
+    .ticket.active { outline: 2px solid var(--brand-border); }
+    .ticket.feedback { border-left-color: #45b26b; background: linear-gradient(90deg, var(--feedback), #fff 32%); }
+    .ticket.question { border-left-color: #8b5cf6; background: linear-gradient(90deg, var(--question), #fff 32%); }
+    .ticket.return { border-left-color: #ef4444; background: linear-gradient(90deg, var(--return), #fff 32%); }
+    .ticket.chat { border-left-color: #f59e0b; background: linear-gradient(90deg, var(--chat), #fff 32%); }
+    .ticket-top, .ticket-meta, .ticket-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+    }
+    .tag {
+      height: 22px;
+      padding: 0 7px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid transparent;
+      font-size: 12px;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+    .tag.bad { color: var(--bad); background: var(--bad-bg); border-color: #fecaca; }
+    .tag.good { color: var(--good); background: var(--good-bg); border-color: #bbf7d0; }
+    .tag.warn { color: var(--warn); background: var(--warn-bg); border-color: #fed7aa; }
+    .tag.info { color: var(--info); background: var(--info-bg); border-color: #bfdbfe; }
+    .ticket-time, .muted { color: var(--text-soft); }
+    .ticket-name {
+      font-weight: 800;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .ticket-text {
+      color: var(--text-mid);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .detail {
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+    .detail-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: start;
+    }
+    .detail-title h2 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0;
+      line-height: 1.35;
+    }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .mini {
+      background: var(--panel-muted);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px;
+    }
+    .mini-label { color: var(--text-soft); font-size: 12px; }
+    .mini-value { margin-top: 2px; font-weight: 800; font-family: var(--mono); }
+    .reply-box {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 10px;
+      min-height: 92px;
+      color: var(--text-mid);
+    }
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .table th {
+      height: 36px;
+      padding: 0 10px;
+      text-align: left;
+      background: var(--panel-muted);
+      color: var(--text-mid);
+      font-weight: 800;
+      border-bottom: 1px solid var(--line);
+    }
+    .table td {
+      height: 42px;
+      padding: 0 10px;
+      border-bottom: 1px solid var(--line);
+      color: var(--text-mid);
+      white-space: nowrap;
+    }
+    .table td strong { color: var(--text); }
+    .table tr:hover td { background: #fbfcff; }
+    .tokens {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 8px;
+      padding: 10px;
+    }
+    .swatch {
+      min-height: 64px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px;
+      background: #fff;
+    }
+    .swatch-chip {
+      height: 22px;
+      border-radius: 5px;
+      margin-bottom: 8px;
+    }
+    .swatch-name { font-weight: 750; }
+    .swatch-code { color: var(--text-soft); font-family: var(--mono); font-size: 11px; }
+
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .toolbar { grid-template-columns: 1fr; }
+      .field.search { min-width: 0; }
+      .matrix-row { grid-template-columns: 120px repeat(3, minmax(160px, 1fr)); min-width: 720px; }
+      .matrix { overflow-x: auto; }
+      .workspace { grid-template-columns: 1fr; }
+      .tokens { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">WB</div><span>ERP 工作台</span></div>
+      <nav class="nav">
+        <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16l3-4 3 2 4-7"/></svg>销售看板</div>
+        <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-7"/></svg>广告分析</div>
+        <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>运营日志</div>
+        <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>客服工作台</div>
+        <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>系统管理</div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="page-title">
+          <h1>运营仪表盘视觉方向 Demo</h1>
+          <span>浅色 / 高密度 / 低阴影 / 状态明确</span>
+        </div>
+        <div class="account"><span class="muted">2026-07-19 11:26</span><div class="avatar">K</div></div>
+      </header>
+
+      <div class="content">
+        <div class="toolbar">
+          <div class="segmented"><span>今天</span><span class="on">昨日</span><span>7天</span><span>30天</span></div>
+          <div class="field">2026-07-18 至 2026-07-18 <span>⌄</span></div>
+          <div class="field search">全部产品 / SKU / 负责人 <span>⌕</span></div>
+          <button class="btn">查询</button>
+        </div>
+
+        <div class="data-note">
+          <span class="note-pill">数据更新时间：2026-07-19 06:15</span>
+          <span class="note-pill">汇率：1 CNY = 11 RUB</span>
+          <span class="note-pill">口径：全部店铺统一折算为 RUB</span>
+        </div>
+
+        <section class="matrix">
+          <div class="matrix-row matrix-head">
+            <div class="cell">指标</div>
+            <div class="cell">统一卢布 <span class="muted">全部店铺</span></div>
+            <div class="cell">RUB 店铺 <span class="muted">可筛选</span></div>
+            <div class="cell">CNY 店铺 <span class="muted">原币查看</span></div>
+          </div>
+          <div class="matrix-row">
+            <div class="cell metric-label"><span class="metric-icon">¥</span>销售额</div>
+            <div class="cell"><div class="value-line"><span class="value">1,248,930 ₽</span><span class="delta good">+8.4%</span></div><svg class="spark" viewBox="0 0 180 28"><polyline points="0,24 22,18 45,20 70,11 96,14 122,7 150,10 180,4" fill="none" stroke="#059669" stroke-width="2"/></svg></div>
+            <div class="cell"><div class="value-line"><span class="value">943,260 ₽</span><span class="delta good">+5.1%</span></div><svg class="spark" viewBox="0 0 180 28"><polyline points="0,22 25,20 50,16 75,18 100,10 130,8 180,6" fill="none" stroke="#059669" stroke-width="2"/></svg></div>
+            <div class="cell"><div class="value-line"><span class="value">27,788 ¥</span><span class="delta bad">-2.2%</span></div><svg class="spark" viewBox="0 0 180 28"><polyline points="0,8 28,10 55,9 84,15 113,17 145,20 180,22" fill="none" stroke="#dc2626" stroke-width="2"/></svg></div>
+          </div>
+          <div class="matrix-row">
+            <div class="cell metric-label"><span class="metric-icon">V</span>访客数</div>
+            <div class="cell"><div class="value-line"><span class="value">82,406</span><span class="delta good">+11.7%</span></div><svg class="spark" viewBox="0 0 180 28"><polyline points="0,23 20,21 48,13 72,16 98,11 126,8 152,9 180,5" fill="none" stroke="#2563eb" stroke-width="2"/></svg></div>
+            <div class="cell"><div class="value-line"><span class="value">59,182</span><span class="delta good">+9.3%</span></div><svg class="spark" viewBox="0 0 180 28"><polyline points="0,23 20,19 48,17 72,13 98,15 126,9 152,7 180,6" fill="none" stroke="#2563eb" stroke-width="2"/></svg></div>
+            <div class="cell"><div class="value-line"><span class="value">23,224</span><span class="delta good">+3.8%</span></div><svg class="spark" viewBox="0 0 180 28"><polyline points="0,18 20,19 48,15 72,16 98,13 126,12 152,10 180,9" fill="none" stroke="#2563eb" stroke-width="2"/></svg></div>
+          </div>
+          <div class="matrix-row">
+            <div class="cell metric-label"><span class="metric-icon">%</span>广告占比</div>
+            <div class="cell"><div class="value-line"><span class="value">13.82%</span><span class="delta bad">+1.5%</span></div></div>
+            <div class="cell"><div class="value-line"><span class="value">11.24%</span><span class="delta good">-0.8%</span></div></div>
+            <div class="cell"><div class="value-line"><span class="value">18.31%</span><span class="delta bad">+2.6%</span></div></div>
+          </div>
+        </section>
+
+        <section class="workspace">
+          <div class="panel">
+            <div class="panel-head"><span>客服队列</span><span class="tag bad">12 待处理</span></div>
+            <div class="queue">
+              <button class="ticket feedback active">
+                <div class="ticket-top"><div><span class="tag bad">评价</span> <span class="tag bad">差评待回复</span></div><span class="ticket-time">10:42</span></div>
+                <div class="ticket-name">厨房置物架三层可移动收纳架 白色款</div>
+                <div class="ticket-meta muted"><span>产品id：18920455</span><span>SKU：CH-7782</span><span>★ 2</span></div>
+                <div class="ticket-text">包装破损，轮子缺一个，买家要求补发配件。</div>
+                <div class="ticket-foot muted"><span>炊恒WB</span><span>负责人：Anna</span></div>
+              </button>
+              <button class="ticket question">
+                <div class="ticket-top"><div><span class="tag info">问答</span> <span class="tag warn">待回复</span></div><span class="ticket-time">09:18</span></div>
+                <div class="ticket-name">折叠晾衣架 加厚不锈钢款</div>
+                <div class="ticket-meta muted"><span>产品id：18763891</span><span>SKU：XT-4421</span><span></span></div>
+                <div class="ticket-text">买家询问承重和是否适合阳台使用。</div>
+                <div class="ticket-foot muted"><span>邢拓WB</span><span>负责人：Mila</span></div>
+              </button>
+              <button class="ticket return">
+                <div class="ticket-top"><div><span class="tag bad">退货</span> <span class="tag bad">剩余 17h</span></div><span class="ticket-time">昨天</span></div>
+                <div class="ticket-name">家用收纳盒 透明大号 4 件套</div>
+                <div class="ticket-meta muted"><span>产品id：17593002</span><span>SKU：CH-6110</span><span></span></div>
+                <div class="ticket-text">买家提交退货申请，需要核对图片和责任方。</div>
+                <div class="ticket-foot muted"><span>116WB</span><span>负责人：Lena</span></div>
+              </button>
+              <button class="ticket chat">
+                <div class="ticket-top"><div><span class="tag warn">聊天</span> <span class="tag warn">待卖家回复</span></div><span class="ticket-time">昨天</span></div>
+                <div class="ticket-name">浴室防滑垫 大尺寸灰色</div>
+                <div class="ticket-meta muted"><span>产品id：16028421</span><span>SKU：157-8231</span><span></span></div>
+                <div class="ticket-text">买家需要确认包裹是否已经发出。</div>
+                <div class="ticket-foot muted"><span>157WB</span><span>负责人：Olga</span></div>
+              </button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><span>客服详情</span><button class="btn">生成草稿</button></div>
+            <div class="detail">
+              <div class="detail-title">
+                <div>
+                  <div style="margin-bottom:8px"><span class="tag bad">评价</span> <span class="tag bad">差评待回复</span> <span class="tag info">WB #LTtcop4B</span></div>
+                  <h2>厨房置物架三层可移动收纳架 白色款</h2>
+                </div>
+                <span class="muted">2026-07-19 10:42</span>
+              </div>
+              <div class="detail-grid">
+                <div class="mini"><div class="mini-label">店铺</div><div class="mini-value">炊恒WB</div></div>
+                <div class="mini"><div class="mini-label">负责人</div><div class="mini-value">Anna</div></div>
+                <div class="mini"><div class="mini-label">nmId</div><div class="mini-value">18920455</div></div>
+                <div class="mini"><div class="mini-label">SKU</div><div class="mini-value">CH-7782</div></div>
+              </div>
+              <div class="reply-box">买家原文：包装破损，轮子缺一个，买家要求补发配件。<br><br>建议回复：您好，很抱歉给您带来不便。我们可以为您补发缺失配件，请您保留包装照片并通过订单页面联系我们。</div>
+              <table class="table">
+                <thead><tr><th>日期</th><th>操作类型</th><th>效果</th><th>记录</th></tr></thead>
+                <tbody>
+                  <tr><td>07-18</td><td><strong>调整广告</strong></td><td><span class="tag warn">待追踪</span></td><td>降低高 ACOS 词预算</td></tr>
+                  <tr><td>07-17</td><td><strong>优化页面</strong></td><td><span class="tag good">正向</span></td><td>补充尺寸图，转化率 +1.2%</td></tr>
+                  <tr><td>07-16</td><td><strong>优化价格</strong></td><td><span class="tag info">中性</span></td><td>价格从 799 调整到 769</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><span>Token / 色彩方向</span><span class="muted">统一后所有页面只引用这些变量</span></div>
+          <div class="tokens">
+            <div class="swatch"><div class="swatch-chip" style="background:#6d28d9"></div><div class="swatch-name">品牌</div><div class="swatch-code">--brand</div></div>
+            <div class="swatch"><div class="swatch-chip" style="background:#f6f7fb"></div><div class="swatch-name">页面底</div><div class="swatch-code">--page</div></div>
+            <div class="swatch"><div class="swatch-chip" style="background:#059669"></div><div class="swatch-name">正向</div><div class="swatch-code">--good</div></div>
+            <div class="swatch"><div class="swatch-chip" style="background:#d97706"></div><div class="swatch-name">预警</div><div class="swatch-code">--warn</div></div>
+            <div class="swatch"><div class="swatch-chip" style="background:#dc2626"></div><div class="swatch-name">异常</div><div class="swatch-code">--bad</div></div>
+            <div class="swatch"><div class="swatch-chip" style="background:#e6e8ef"></div><div class="swatch-name">边框</div><div class="swatch-code">--line</div></div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
