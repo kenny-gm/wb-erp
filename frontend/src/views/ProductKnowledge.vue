@@ -108,9 +108,6 @@
                 <el-form-item label="售后边界">
                   <el-input v-model="form.after_sales_policy" type="textarea" :rows="5" />
                 </el-form-item>
-                <el-form-item label="AI回复禁区">
-                  <el-input v-model="form.reply_rules" type="textarea" :rows="5" />
-                </el-form-item>
               </el-form>
             </el-tab-pane>
             <el-tab-pane label="FAQ" name="faq">
@@ -123,18 +120,15 @@
                 <el-button text type="danger" @click="removeFaq(index)">删除</el-button>
               </div>
             </el-tab-pane>
-            <el-tab-pane label="AI回复要求" name="examples">
+            <el-tab-pane label="内部备注" name="notes">
               <el-form label-position="top">
-                <el-form-item label="AI回复风格/语气要求（中文填写，俄语由大模型生成）">
+                <el-form-item label="中文内部备注">
                   <el-input
-                    v-model="form.answer_examples_ru"
+                    v-model="form.internal_notes_zh"
                     type="textarea"
                     :rows="8"
-                    placeholder="例如：语气礼貌简洁；先感谢买家；只解释产品使用方法；不要承诺退款、赔偿、补发或物流时效。"
+                    placeholder="只填写产品内部补充信息，不填写统一 AI 回复风格或提示词规则。"
                   />
-                </el-form-item>
-                <el-form-item label="中文内部备注">
-                  <el-input v-model="form.internal_notes_zh" type="textarea" :rows="6" />
                 </el-form-item>
               </el-form>
             </el-tab-pane>
@@ -188,8 +182,6 @@ const form = reactive({
   troubleshooting: '',
   faq: [],
   after_sales_policy: '',
-  reply_rules: '',
-  answer_examples_ru: '',
   internal_notes_zh: '',
   ai_enabled: true,
   status: 'active'
@@ -273,8 +265,6 @@ async function saveActive() {
       troubleshooting: form.troubleshooting,
       faq: form.faq,
       after_sales_policy: form.after_sales_policy,
-      reply_rules: form.reply_rules,
-      answer_examples_ru: form.answer_examples_ru,
       internal_notes_zh: form.internal_notes_zh,
       ai_enabled: form.ai_enabled,
       status: form.status

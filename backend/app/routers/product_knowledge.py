@@ -81,14 +81,12 @@ def _profile_to_dict(profile: ProductKnowledge) -> Dict[str, Any]:
         profile.usage_guide,
         profile.troubleshooting,
         profile.after_sales_policy,
-        profile.reply_rules,
-        profile.answer_examples_ru,
     ]
     faq = _json_loads(profile.faq_json, [])
     completed = sum(1 for value in fields if (value or "").strip())
     if faq:
         completed += 1
-    completeness = round(completed / 8 * 100)
+    completeness = round(completed / 6 * 100)
     return {
         "id": profile.id,
         "product_key": profile.product_key,
@@ -105,8 +103,6 @@ def _profile_to_dict(profile: ProductKnowledge) -> Dict[str, Any]:
         "troubleshooting": profile.troubleshooting or "",
         "faq": faq,
         "after_sales_policy": profile.after_sales_policy or "",
-        "reply_rules": profile.reply_rules or "",
-        "answer_examples_ru": profile.answer_examples_ru or "",
         "internal_notes_zh": profile.internal_notes_zh or "",
         "ai_enabled": bool(profile.ai_enabled),
         "status": profile.status or "active",
@@ -170,8 +166,6 @@ class KnowledgePayload(BaseModel):
     troubleshooting: Optional[str] = None
     faq: Optional[List[Dict[str, Any]]] = None
     after_sales_policy: Optional[str] = None
-    reply_rules: Optional[str] = None
-    answer_examples_ru: Optional[str] = None
     internal_notes_zh: Optional[str] = None
     ai_enabled: Optional[bool] = None
     status: Optional[str] = None
@@ -307,8 +301,6 @@ def build_product_knowledge_context(db: Session, item: CustomerServiceItem) -> D
         ("使用方法", profile.usage_guide),
         ("故障处理", profile.troubleshooting),
         ("售后边界", profile.after_sales_policy),
-        ("回复禁区", profile.reply_rules),
-        ("AI回复风格要求", profile.answer_examples_ru),
         ("内部备注", profile.internal_notes_zh),
     ]
     lines = [f"产品知识库: {profile.product_name}"]
