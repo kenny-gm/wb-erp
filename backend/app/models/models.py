@@ -459,7 +459,7 @@ class CustomerServiceItem(Base):
 
     raw_json = Column(Text, default="{}")
     buyer_key = Column(String(200), nullable=True, index=True)  # deprecated: WB 无稳定跨渠道买家ID，不再用于聚合，保留字段仅避免破坏性DB迁移
-    reply_sign = Column(String(200), nullable=True)  # 买家聊天回复凭证（WB API 发送用）
+    reply_sign = Column(Text, nullable=True)  # 买家聊天回复凭证（WB API 发送用）
     answer_visibility = Column(String(20), default="all")  # 历史兼容字段；WB 公开 API 当前统一公开回复
 
     # 翻译字段（手动触发，不自动翻译）

@@ -74,6 +74,10 @@ run_sqlite_legacy_migrations()
 from migrations.add_sync_lock import migrate_add_sync_locks
 migrate_add_sync_locks()  # 幂等，重复执行无影响
 
+# 迁移：扩大客服聊天 reply_sign 字段，支持 MySQL 存储 WB 超长回复凭证。
+from migrations.expand_customer_service_reply_sign import migrate_expand_customer_service_reply_sign
+migrate_expand_customer_service_reply_sign()  # 幂等，重复执行无影响
+
 # 导入路由
 from app.routers import auth, dashboard, products, shops, admin, users, inventory, orders, ads, customer_service, sync_schedules
 from app.routers import metric_thresholds
