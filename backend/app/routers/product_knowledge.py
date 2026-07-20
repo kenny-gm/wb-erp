@@ -301,7 +301,6 @@ def build_product_knowledge_context(db: Session, item: CustomerServiceItem) -> D
         ("使用方法", profile.usage_guide),
         ("故障处理", profile.troubleshooting),
         ("售后边界", profile.after_sales_policy),
-        ("内部备注", profile.internal_notes_zh),
     ]
     lines = [f"产品知识库: {profile.product_name}"]
     for title, value in sections:

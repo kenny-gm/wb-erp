@@ -127,7 +127,7 @@
                     v-model="form.internal_notes_zh"
                     type="textarea"
                     :rows="8"
-                    placeholder="只填写产品内部补充信息，不填写统一 AI 回复风格或提示词规则。"
+                    placeholder="只填写内部补充信息，不进入 AI 草稿生成；不要填写统一 AI 回复风格或提示词规则。"
                   />
                 </el-form-item>
               </el-form>
