@@ -215,7 +215,7 @@ class WBAPIClient:
         """获取商品列表 - 使用cursor分页"""
         try:
             response = self._request(
-                "POST", "content", "/content/v2/get/cards/list?locale=ru",
+                "POST", "content", f"/content/v2/get/cards/list?locale={locale}",
                 json_data={
                     "settings": {
                         "sort": {"ascending": False},
@@ -232,15 +232,30 @@ class WBAPIClient:
     def get_products_all(self, locale: str = "ru") -> List[Dict[str, Any]]:
         """获取所有商品"""
         all_products = []
-        offset = 0
         limit = 100
+        cursor = {"limit": limit}
         
         while True:
-            products = self.get_products(limit=limit, offset=offset, locale=locale)
+            response = self._request(
+                "POST", "content", f"/content/v2/get/cards/list?locale={locale}",
+                json_data={
+                    "settings": {
+                        "sort": {"ascending": False},
+                        "filter": {"withPhoto": -1},
+                        "cursor": cursor,
+                    }
+                }
+            )
+            products = response.get("cards", [])
             all_products.extend(products)
-            if len(products) < limit:
+
+            next_cursor = response.get("cursor") or {}
+            total = int(next_cursor.get("total") or len(products))
+            updated_at = next_cursor.get("updatedAt")
+            nm_id = next_cursor.get("nmID")
+            if total < limit or not products or not updated_at or not nm_id:
                 break
-            offset += limit
+            cursor = {"limit": limit, "updatedAt": updated_at, "nmID": nm_id}
         
         return all_products
     

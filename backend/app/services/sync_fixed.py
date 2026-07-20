@@ -84,7 +84,7 @@ class SyncService:
             logger.info(f"开始同步产品，shop_id={self.shop_id}")
 
             # 先尝试Content API
-            cards = self.client.get_products(limit=limit, offset=0, locale="ru")
+            cards = self.client.get_products_all(locale="ru")
             logger.info(f"Content API返回: {len(cards)}个产品")
 
             # 如果Content API返回空，使用Statistics API
