@@ -350,7 +350,7 @@ def list_product_knowledge(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    sync_profiles_from_products(db, current_user, auto_translate_limit=2)
+    sync_profiles_from_products(db, current_user, auto_translate_limit=0)
     query = db.query(ProductKnowledge)
     if status and status != "all":
         query = query.filter(ProductKnowledge.status == status)
