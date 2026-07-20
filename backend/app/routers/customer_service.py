@@ -579,11 +579,12 @@ def generate_ai_reply_draft(
         }
         system_prompt = template.system_prompt
         user_prompt = render_template(template.user_prompt_template, variables)
-        user_prompt += (
-            "\n\n产品知识库上下文（优先依据；没有出现的信息禁止编造）：\n"
-            f"{knowledge['context']}\n\n"
-            "如果产品知识库未命中或信息不足，请生成保守草稿，并避免具体承诺。"
-        )
+        if "{{product_knowledge}}" not in (template.user_prompt_template or ""):
+            user_prompt += (
+                "\n\n产品知识库引用内容（优先依据；没有出现的信息禁止编造）：\n"
+                f"{knowledge['context']}\n\n"
+                "如果产品知识库未命中或信息不足，请生成保守草稿，并避免具体承诺。"
+            )
         output = AIClient(db).chat_json(
             system_prompt,
             user_prompt,

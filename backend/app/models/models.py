@@ -96,6 +96,13 @@ class Product(Base):
     height = Column(Float, nullable=True)
     purchase_price = Column(Float, nullable=True, comment="采购价(CNY)")
     shipping_price = Column(Float, nullable=True, comment="头程单价(CNY)")
+    wb_title = Column(String(500), nullable=True, comment="WB商品卡标题")
+    wb_brand = Column(String(200), nullable=True, comment="WB商品卡品牌")
+    wb_subject_name = Column(String(300), nullable=True, comment="WB商品卡类目")
+    wb_description = Column(Text, nullable=True, comment="WB商品卡描述")
+    wb_characteristics_json = Column(Text, nullable=True, comment="WB商品卡参数/属性JSON")
+    wb_card_raw_json = Column(Text, nullable=True, comment="去图片后的WB商品卡原始JSON")
+    wb_card_updated_at = Column(DateTime, nullable=True, comment="WB商品卡信息更新时间")
     
     created_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")))
     updated_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")), onupdate=lambda ctx: datetime.now(ZoneInfo("Asia/Shanghai")))

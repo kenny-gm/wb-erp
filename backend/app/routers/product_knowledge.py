@@ -45,6 +45,23 @@ def _product_key(product_name: str) -> str:
     return hashlib.sha1(normalized.encode("utf-8")).hexdigest()
 
 
+def _product_for_item(db: Session, item: CustomerServiceItem) -> Optional[Product]:
+    product = getattr(item, "product", None)
+    if product:
+        return product
+    if item.product_id:
+        product = db.query(Product).filter(Product.id == item.product_id).first()
+        if product:
+            return product
+    if item.nm_id:
+        product = db.query(Product).filter(Product.nm_id == str(item.nm_id)).first()
+        if product:
+            return product
+    if item.sku:
+        return db.query(Product).filter(Product.sku == str(item.sku)).first()
+    return None
+
+
 def _allowed_owners(user: User) -> List[str]:
     raw = getattr(user, "allowed_owners", None)
     if isinstance(raw, list):
@@ -129,7 +146,12 @@ def sync_profiles_from_products(db: Session, user: User) -> int:
             profile = ProductKnowledge(product_key=key, product_name=name)
             db.add(profile)
             changed += 1
-        aliases = sorted({p.name for p in rows if p.name and p.name != name})
+        aliases = sorted({
+            value
+            for p in rows
+            for value in (p.name, getattr(p, "wb_title", None), getattr(p, "wb_subject_name", None))
+            if value and value != name
+        })
         product_ids = sorted({p.id for p in rows})
         nm_ids = sorted({p.nm_id for p in rows if p.nm_id})
         skus = sorted({p.sku for p in rows if p.sku})
@@ -257,6 +279,20 @@ def update_product_knowledge(
 
 
 def find_product_knowledge_for_item(db: Session, item: CustomerServiceItem) -> Optional[ProductKnowledge]:
+    probes = [str(v) for v in (item.nm_id, item.sku) if v]
+    for probe in probes:
+        profile = db.query(ProductKnowledge).filter(
+            ProductKnowledge.status == "active",
+            ProductKnowledge.ai_enabled == True,  # noqa: E712
+            or_(
+                ProductKnowledge.linked_nm_ids_json.like(f"%{probe}%"),
+                ProductKnowledge.linked_skus_json.like(f"%{probe}%"),
+                ProductKnowledge.aliases_json.like(f"%{probe}%"),
+            )
+        ).first()
+        if profile:
+            return profile
+
     names = []
     product = getattr(item, "product", None)
     if product and _product_name(product):
@@ -269,20 +305,6 @@ def find_product_knowledge_for_item(db: Session, item: CustomerServiceItem) -> O
             ProductKnowledge.product_key == _product_key(name),
             ProductKnowledge.status == "active",
             ProductKnowledge.ai_enabled == True,  # noqa: E712
-        ).first()
-        if profile:
-            return profile
-
-    probes = [str(v) for v in (item.nm_id, item.sku) if v]
-    for probe in probes:
-        profile = db.query(ProductKnowledge).filter(
-            ProductKnowledge.status == "active",
-            ProductKnowledge.ai_enabled == True,  # noqa: E712
-            or_(
-                ProductKnowledge.linked_nm_ids_json.like(f"%{probe}%"),
-                ProductKnowledge.linked_skus_json.like(f"%{probe}%"),
-                ProductKnowledge.aliases_json.like(f"%{probe}%"),
-            )
         ).first()
         if profile:
             return profile
@@ -306,6 +328,33 @@ def build_product_knowledge_context(db: Session, item: CustomerServiceItem) -> D
     for title, value in sections:
         if value and value.strip():
             lines.append(f"{title}: {value.strip()}")
+
+    product = _product_for_item(db, item)
+    if product:
+        wb_lines = []
+        for title, value in [
+            ("标题", getattr(product, "wb_title", None)),
+            ("品牌", getattr(product, "wb_brand", None)),
+            ("类目", getattr(product, "wb_subject_name", None)),
+            ("描述", getattr(product, "wb_description", None)),
+        ]:
+            if value and str(value).strip():
+                wb_lines.append(f"{title}: {str(value).strip()}")
+        characteristics = _json_loads(getattr(product, "wb_characteristics_json", None), [])
+        if characteristics:
+            wb_lines.append("参数/属性:")
+            for row in characteristics[:20]:
+                name = str(row.get("name") or row.get("charcName") or "").strip()
+                value = row.get("value")
+                if isinstance(value, list):
+                    value = ", ".join(str(v) for v in value if str(v).strip())
+                value = str(value or "").strip()
+                if name or value:
+                    wb_lines.append(f"- {name}: {value}")
+        if wb_lines:
+            lines.append("WB商品卡事实（来自WB Content API，不含图片）:")
+            lines.extend(wb_lines)
+
     if faq:
         lines.append("FAQ:")
         for row in faq[:8]:

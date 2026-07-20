@@ -63,6 +63,13 @@ class ProductResponse(BaseModel):
     purchase_price: Optional[float] = None
     shipping_price: Optional[float] = None
     commission_rate: Optional[float] = None
+    wb_title: Optional[str] = None
+    wb_brand: Optional[str] = None
+    wb_subject_name: Optional[str] = None
+    wb_description: Optional[str] = None
+    wb_characteristics_json: Optional[str] = None
+    wb_card_raw_json: Optional[str] = None
+    wb_card_updated_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -396,6 +403,7 @@ def sync_single_product(
 
     # 使用WB API获取产品详情
     from app.services.wb_api import WBAPIClient
+    from app.services.wb_product_card import apply_wb_card_fields
     client = WBAPIClient(shop.api_token)
 
     # 调用Content API获取产品列表(包含dimensions)
@@ -410,6 +418,7 @@ def sync_single_product(
             product.length = dimensions.get('length', 0)
             product.width = dimensions.get('width', 0)
             product.height = dimensions.get('height', 0)
+            apply_wb_card_fields(product, card)
             db.commit()
             return {
                 "success": True,

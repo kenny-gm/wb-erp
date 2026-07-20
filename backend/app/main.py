@@ -82,6 +82,14 @@ migrate_expand_customer_service_reply_sign()  # 幂等，重复执行无影响
 from migrations.add_product_knowledge import migrate_add_product_knowledge
 migrate_add_product_knowledge()  # 幂等，重复执行无影响
 
+# 迁移：products 保存 WB 商品卡文本字段（不保存图片）。
+from migrations.add_product_wb_card_fields import migrate_add_product_wb_card_fields
+migrate_add_product_wb_card_fields()  # 幂等，重复执行无影响
+
+# 迁移：customer_reply Prompt 显式引用产品知识库变量。
+from migrations.add_product_knowledge_to_customer_reply_prompt import migrate_add_product_knowledge_to_customer_reply_prompt
+migrate_add_product_knowledge_to_customer_reply_prompt()  # 幂等，重复执行无影响
+
 # 导入路由
 from app.routers import auth, dashboard, products, shops, admin, users, inventory, orders, ads, customer_service, sync_schedules, product_knowledge
 from app.routers import metric_thresholds

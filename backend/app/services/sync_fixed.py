@@ -19,6 +19,7 @@ from app.models.models import (
     AdRecord, AdKeywordStat, SyncLog, InventoryRecord
 )
 from app.services.wb_api import WBAPIClient
+from app.services.wb_product_card import apply_wb_card_fields, product_name_from_card
 from app.services.yandex_client import YandexClient
 
 logger = logging.getLogger("sync")
@@ -111,18 +112,7 @@ class SyncService:
                 vendor_code = card.get("vendorCode", card.get("supplierArticle", ""))
 
                 # 获取产品名称
-                name = f"产品 {nm_id}"
-                characteristics = card.get("characterstics", [])
-                for char in characteristics:
-                    if char.get("name") == "Наименование" or char.get("id") == 0:
-                        name = char.get("value", "")
-                        break
-
-                # 如果没有从characteristics获取到名称，使用默认名称
-                if name == f"产品 {nm_id}":
-                    # Statistics API返回的数据没有characteristics，使用SKU作为名称
-                    if vendor_code:
-                        name = vendor_code
+                name = product_name_from_card(card, vendor_code or f"产品 {nm_id}")
 
                 logger.info(f"处理产品: nmID={nm_id}, vendorCode={vendor_code}, name={name[:30]}")
 
@@ -136,6 +126,7 @@ class SyncService:
                 dimensions = card.get("dimensions", {})
 
                 if existing:
+                    apply_wb_card_fields(existing, card)
                     if overwrite:
                         # 更新已存在商品
                         existing.name = name
@@ -171,6 +162,7 @@ class SyncService:
                         width=dimensions.get("width", 0),
                         height=dimensions.get("height", 0),
                     )
+                    apply_wb_card_fields(product, card)
                     self.db.add(product)
                     count += 1
                     logger.info(f"新增产品: nmID={nm_id}, name={name[:30]}")

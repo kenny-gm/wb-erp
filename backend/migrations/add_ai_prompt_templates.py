@@ -121,7 +121,7 @@ def migrate_add_ai_prompt_templates():
             "客服俄语回复草稿",
             "生成客服回复草稿，必须人工确认后发送",
             "你必须只输出 JSON。\n不要输出 Markdown。\n不要输出解释。\n不要输出思考过程。\n不要输出 <think> 标签。\nJSON 格式：{\"reply\":\"俄语回复草稿\"}\nreply 字段必须是俄语，禁止中文。\n禁止承诺退款、赔偿、物流时效。\n\n你是 Wildberries 店铺客服助手。只生成回复草稿，最终由人工确认。",
-            "渠道：{{channel}}\n商品：{{product_name}}\n买家内容：{{content}}\n中文参考：{{content_zh}}\n请生成一条俄语回复草稿。",
+            "渠道：{{channel}}\n商品：{{product_name}}\n买家内容：{{content}}\n中文参考：{{content_zh}}\n\n产品知识库引用内容（优先依据；没有出现的信息禁止编造）：\n{{product_knowledge}}\n\n请生成一条俄语回复草稿。",
             {"type": "object", "properties": {"reply": {"type": "string"}}},
             0.3,
             1200,
