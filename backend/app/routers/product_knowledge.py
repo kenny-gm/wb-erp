@@ -151,6 +151,7 @@ def _sync_profile_basic_info(
     db: Session,
     profile: ProductKnowledge,
     products: Optional[List[Product]] = None,
+    auto_translate: bool = True,
 ) -> bool:
     linked_ids = _json_loads(profile.linked_product_ids_json, [])
     rows = products
@@ -166,7 +167,7 @@ def _sync_profile_basic_info(
             profile.basic_info_zh = ""
             changed = True
 
-    if (profile.basic_info or "").strip() and not (profile.basic_info_zh or "").strip():
+    if auto_translate and (profile.basic_info or "").strip() and not (profile.basic_info_zh or "").strip():
         if _try_translate_basic_info_to_zh(db, profile):
             changed = True
 
@@ -268,7 +269,7 @@ def _profile_to_dict(profile: ProductKnowledge) -> Dict[str, Any]:
     }
 
 
-def sync_profiles_from_products(db: Session, user: User) -> int:
+def sync_profiles_from_products(db: Session, user: User, auto_translate_limit: int = 3) -> int:
     products = _base_product_query(db, user).filter(Product.nm_id != "0").all()
     grouped: Dict[str, List[Product]] = {}
     for product in products:
@@ -278,6 +279,7 @@ def sync_profiles_from_products(db: Session, user: User) -> int:
         grouped.setdefault(name, []).append(product)
 
     changed = 0
+    translations_remaining = max(auto_translate_limit, 0)
     for name, rows in grouped.items():
         key = _product_key(name)
         profile = db.query(ProductKnowledge).filter(ProductKnowledge.product_key == key).first()
@@ -310,8 +312,12 @@ def sync_profiles_from_products(db: Session, user: User) -> int:
             if getattr(profile, field) != value:
                 setattr(profile, field, value)
                 touched = True
-        if _sync_profile_basic_info(db, profile, rows):
+        before_zh = (profile.basic_info_zh or "").strip()
+        if _sync_profile_basic_info(db, profile, rows, auto_translate=translations_remaining > 0):
             touched = True
+        after_zh = (profile.basic_info_zh or "").strip()
+        if not before_zh and after_zh and translations_remaining > 0:
+            translations_remaining -= 1
         if touched:
             profile.updated_at = _now()
             changed += 1
@@ -344,7 +350,7 @@ def list_product_knowledge(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    sync_profiles_from_products(db, current_user)
+    sync_profiles_from_products(db, current_user, auto_translate_limit=2)
     query = db.query(ProductKnowledge)
     if status and status != "all":
         query = query.filter(ProductKnowledge.status == status)
@@ -371,7 +377,7 @@ def refresh_from_products(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    changed = sync_profiles_from_products(db, current_user)
+    changed = sync_profiles_from_products(db, current_user, auto_translate_limit=5)
     db.commit()
     return {"success": True, "created": changed}
 
