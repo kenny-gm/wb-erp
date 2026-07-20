@@ -78,8 +78,12 @@ migrate_add_sync_locks()  # 幂等，重复执行无影响
 from migrations.expand_customer_service_reply_sign import migrate_expand_customer_service_reply_sign
 migrate_expand_customer_service_reply_sign()  # 幂等，重复执行无影响
 
+# 迁移：产品知识库，支持客服 AI 草稿引用产品档案。
+from migrations.add_product_knowledge import migrate_add_product_knowledge
+migrate_add_product_knowledge()  # 幂等，重复执行无影响
+
 # 导入路由
-from app.routers import auth, dashboard, products, shops, admin, users, inventory, orders, ads, customer_service, sync_schedules
+from app.routers import auth, dashboard, products, shops, admin, users, inventory, orders, ads, customer_service, sync_schedules, product_knowledge
 from app.routers import metric_thresholds
 from app.routers import operation_logs, effect_analysis
 from app.routers import ai_settings, ai_prompts
@@ -90,7 +94,7 @@ from app.models.models import (
     User, Shop, Product, ProductPermission, InventoryRecord, InventorySnapshot,
     Order, OrderItem, AdRecord, SystemSetting, UISetting, MenuItem, SyncLog,
     SyncSchedule, MetricHistory, OperationLog,
-    CustomerServiceItem, CustomerServiceMessage, CustomerServiceAction,
+    CustomerServiceItem, CustomerServiceMessage, CustomerServiceAction, ProductKnowledge,
     AIPromptTemplate
 )
 
@@ -151,6 +155,7 @@ app.include_router(orders.router)
 app.include_router(ads.router)
 app.include_router(customer_service.router)
 app.include_router(sync_schedules.router)
+app.include_router(product_knowledge.router)
 app.include_router(metric_thresholds.router)
 app.include_router(operation_logs.router)
 app.include_router(effect_analysis.router)

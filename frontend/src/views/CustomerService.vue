@@ -450,6 +450,17 @@
             <el-button v-if="hasCSperm('customer_service:ai_draft')" :loading="drafting" @click="generateDraft">生成俄语草稿</el-button>
             <span>AI 只生成草稿，发送前必须人工确认。</span>
           </div>
+          <div v-if="draftKnowledgeSources.length" class="knowledge-source-line">
+            <span>AI已引用产品知识库：</span>
+            <el-tag
+              v-for="source in draftKnowledgeSources"
+              :key="source.id"
+              size="small"
+              type="success"
+            >
+              {{ source.product_name }} · 完整度 {{ source.completeness }}%
+            </el-tag>
+          </div>
           <el-input
             v-model="replyText"
             type="textarea"
@@ -485,6 +496,7 @@ const authStore = useAuthStore()
 const loading = ref(false)
 const syncing = ref(false)
 const drafting = ref(false)
+const draftKnowledgeSources = ref([])
 const sending = ref(false)
 const answeringReturn = ref(false)
 const rejectingQuestion = ref(false)
@@ -876,6 +888,7 @@ async function generateDraft() {
   try {
     const res = await axios.post(`/api/customer-service/items/${activeItem.value.id}/ai-draft`)
     const draft = res.data.draft || ''
+    draftKnowledgeSources.value = res.data.knowledge_sources || []
     replyText.value = draft
     await selectItem(activeItem.value)
     replyText.value = draft
@@ -1985,6 +1998,16 @@ function getReturnSlaClass(item) {
   justify-content: space-between;
   min-height: 32px;
   margin-bottom: 10px;
+}
+
+.knowledge-source-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  color: #4b5563;
+  font-size: 13px;
 }
 
 .reply-actions {

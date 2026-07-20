@@ -18,6 +18,7 @@ export const useAuthStore = defineStore('auth', () => {
     { key: 'ads', name: '广告分析', path: '/ads' },
     { key: 'operation-logs', name: '运营日志', path: '/operation-logs' },
     { key: 'customer-service', name: '客服工作台', path: '/customer-service' },
+    { key: 'product-knowledge', name: '产品知识库', path: '/product-knowledge' },
     { key: 'admin', name: '系统管理', path: '/admin' }
   ])
   // 如果后端菜单表有更多菜单，先用后端数据覆盖

@@ -31,6 +31,7 @@ from app.models.models import (
     User,
 )
 from app.routers.auth import get_current_user
+from app.routers.product_knowledge import build_product_knowledge_context
 from app.services.ai_client import AIClient, AIClientError
 from app.services.ai_prompt_service import get_active_template, render_template
 from app.services.customer_service_sync import CustomerServiceSyncService
@@ -543,6 +544,7 @@ def generate_ai_reply_draft(
 ):
     require_cs_permission(current_user, "customer_service:ai_draft")
     item = _get_visible_item(db, item_id, current_user)
+    knowledge = {"context": "未读取产品知识库。", "sources": []}
     try:
         template = get_active_template(db, "customer_reply")
 
@@ -556,6 +558,7 @@ def generate_ai_reply_draft(
 
         raw = _json_loads(item.raw_json, {})
         is_return_related = item.channel == "return_claim" or "return" in raw
+        knowledge = build_product_knowledge_context(db, item)
 
         variables = {
             "channel": str(item.channel) if item.channel is not None else "",
@@ -572,9 +575,15 @@ def generate_ai_reply_draft(
             "return_context": "",
             "existing_answer": "",
             "internal_note": getattr(item, "internal_note", "") or "",
+            "product_knowledge": knowledge["context"],
         }
         system_prompt = template.system_prompt
         user_prompt = render_template(template.user_prompt_template, variables)
+        user_prompt += (
+            "\n\n产品知识库上下文（优先依据；没有出现的信息禁止编造）：\n"
+            f"{knowledge['context']}\n\n"
+            "如果产品知识库未命中或信息不足，请生成保守草稿，并避免具体承诺。"
+        )
         output = AIClient(db).chat_json(
             system_prompt,
             user_prompt,
@@ -603,7 +612,7 @@ def generate_ai_reply_draft(
             item,
             current_user,
             "ai_draft_generated",
-            request={"channel": item.channel, "template": "customer_reply"},
+            request={"channel": item.channel, "template": "customer_reply", "knowledge_sources": knowledge["sources"]},
             success=False,
             error=str(exc),
         )
@@ -615,12 +624,12 @@ def generate_ai_reply_draft(
         item,
         current_user,
         "ai_draft_generated",
-        request={"channel": item.channel, "template": "customer_reply"},
-        response={"draft": draft},
+        request={"channel": item.channel, "template": "customer_reply", "knowledge_sources": knowledge["sources"]},
+        response={"draft": draft, "knowledge_sources": knowledge["sources"]},
     )
     _touch_handled(item, current_user)
     db.commit()
-    return {"success": True, "draft": draft}
+    return {"success": True, "draft": draft, "knowledge_sources": knowledge["sources"]}
 
 
 @router.post("/items/{item_id}/translate")

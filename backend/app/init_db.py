@@ -194,6 +194,7 @@ def migrate_add_all_menu_items():
             ("inventory", "库存管理", "Box", "/inventory", 4),
             ("orders", "订单管理", "Document", "/orders", 5),
             ("customer-service", "客服工作台", "ChatDotRound", "/customer-service", 6),
+            ("product-knowledge", "产品知识库", "Document", "/product-knowledge", 7),
             ("admin", "系统管理", "Setting", "/admin", 99),
         ]
         added = []

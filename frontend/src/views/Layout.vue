@@ -38,6 +38,11 @@
           <el-icon><ChatDotRound /></el-icon>
           <span>客服工作台</span>
         </el-menu-item>
+
+        <el-menu-item v-if="authStore.canAccess('product-knowledge')" index="/product-knowledge">
+          <el-icon><Document /></el-icon>
+          <span>产品知识库</span>
+        </el-menu-item>
         
         <el-menu-item v-if="authStore.isAdmin" index="/admin">
           <el-icon><Setting /></el-icon>

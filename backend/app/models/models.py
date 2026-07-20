@@ -121,6 +121,43 @@ class ProductPermission(Base):
     product = relationship("Product", back_populates="permissions")
 
 
+class ProductKnowledge(Base):
+    """按中文产品名称维护的一体化知识库档案"""
+    __tablename__ = "product_knowledge"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_key = Column(String(64), unique=True, nullable=False, index=True)
+    product_name = Column(String(500), nullable=False, index=True)
+    aliases_json = Column(Text, default="[]")
+    linked_product_ids_json = Column(Text, default="[]")
+    linked_nm_ids_json = Column(Text, default="[]")
+    linked_skus_json = Column(Text, default="[]")
+    owners_json = Column(Text, default="[]")
+    shop_names_json = Column(Text, default="[]")
+
+    basic_info = Column(Text, default="")
+    features = Column(Text, default="")
+    usage_guide = Column(Text, default="")
+    troubleshooting = Column(Text, default="")
+    faq_json = Column(Text, default="[]")
+    after_sales_policy = Column(Text, default="")
+    reply_rules = Column(Text, default="")
+    answer_examples_ru = Column(Text, default="")
+    internal_notes_zh = Column(Text, default="")
+
+    ai_enabled = Column(Boolean, default=True)
+    status = Column(String(20), default="active")
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")))
+    updated_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")), onupdate=lambda ctx: datetime.now(ZoneInfo("Asia/Shanghai")))
+
+    __table_args__ = (
+        Index("ix_product_knowledge_name_status", "product_name", "status"),
+    )
+
+
 class InventoryRecord(Base):
     """库存入库记录"""
     __tablename__ = "inventory_records"

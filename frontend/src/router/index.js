@@ -47,6 +47,12 @@ const routes = [
         component: () => import('../views/CustomerService.vue'),
         meta: { title: '客服工作台' }
       },
+      {
+        path: 'product-knowledge',
+        name: 'ProductKnowledge',
+        component: () => import('../views/ProductKnowledge.vue'),
+        meta: { title: '产品知识库' }
+      },
       // 后台管理路由
       {
         path: 'admin',
