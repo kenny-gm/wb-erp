@@ -644,7 +644,7 @@ async function prefetchLogsForDateRange() {
 }
 
 .col-toggle { width: 30px; text-align: center; }
-.col-manager { width: 60px; }
+.col-manager { width: 72px; }
 .col-product { width: 140px; }
 .col-shop { width: 140px; }
 .col-num { width: 70px; text-align: right; }
@@ -674,11 +674,14 @@ async function prefetchLogsForDateRange() {
 .tree-table td.sticky-manager {
   left: 30px;
   z-index: 21;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tree-table th.col-product,
 .tree-table td.sticky-product {
-  left: 90px;
+  left: 102px;
   z-index: 21;
   box-shadow: 8px 0 12px -12px rgba(15, 23, 42, 0.35);
 }
@@ -873,7 +876,7 @@ async function prefetchLogsForDateRange() {
   }
 
   .col-toggle { width: 30px; }
-  .col-manager { width: 48px; }
+  .col-manager { width: 72px; }
   .col-product { width: 108px; }
 
   .tree-table th.col-manager,
@@ -883,13 +886,18 @@ async function prefetchLogsForDateRange() {
 
   .tree-table th.col-product,
   .tree-table td.sticky-product {
-    left: 78px;
+    left: 102px;
   }
 
-  .tree-table td.sticky-manager,
   .tree-table td.sticky-product {
     white-space: normal;
     word-break: break-word;
+    line-height: 1.3;
+  }
+
+  .tree-table td.sticky-manager {
+    white-space: nowrap;
+    word-break: normal;
     line-height: 1.3;
   }
 
