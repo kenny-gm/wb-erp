@@ -797,11 +797,15 @@ onMounted(async () => {
   .filter-bar { grid-template-columns: 1fr; }
   .metric-matrix-section {
     overflow-x: auto;
+    overflow-y: visible;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
+    touch-action: pan-x pan-y;
   }
   .metric-matrix {
+    width: 720px;
     min-width: 720px;
+    max-width: none;
     overflow: visible;
   }
   .matrix-row {
@@ -818,7 +822,7 @@ onMounted(async () => {
   }
 }
 
-@media (max-width: 430px) {
+@media (max-width: 768px) {
   .filter-bar {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -834,9 +838,16 @@ onMounted(async () => {
 
   .filter-item:first-child,
   .filter-item:nth-child(2),
-  .filter-item.flex-1,
   .filter-bar > .el-button {
     grid-column: 1 / -1;
+  }
+
+  .filter-item:nth-child(3) {
+    grid-column: 1;
+  }
+
+  .filter-item.flex-1 {
+    grid-column: 2;
   }
 
   .filter-bar :deep(.el-button-group) {
@@ -873,7 +884,9 @@ onMounted(async () => {
 
   .metric-matrix {
     margin-inline: -2px;
+    width: 620px;
     min-width: 620px;
+    max-width: none;
     overflow: visible;
   }
 
