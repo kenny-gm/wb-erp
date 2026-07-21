@@ -15,12 +15,12 @@
 
     <div class="filter-bar">
       <div class="filter-item quick-filter">
-        <el-button-group>
+        <div class="quick-buttons">
           <el-button :type="quickType === 'today' ? 'primary' : ''" @click="setQuickDate('today')">今天</el-button>
           <el-button :type="quickType === 'yesterday' ? 'primary' : ''" @click="setQuickDate('yesterday')">昨日</el-button>
           <el-button :type="quickType === '7d' ? 'primary' : ''" @click="setQuickDate('7d')">7天</el-button>
           <el-button :type="quickType === '30d' ? 'primary' : ''" @click="setQuickDate('30d')">30天</el-button>
-        </el-button-group>
+        </div>
       </div>
       <div class="filter-item date-filter">
         <el-date-picker v-model="filters.dateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" format="YYYY-MM-DD" value-format="YYYY-MM-DD" @change="handleDateChange" />
@@ -481,16 +481,28 @@ onMounted(async () => {
   font-size: 13px;
 }
 
-.filter-bar :deep(.el-button-group) { display: inline-flex; }
-.filter-bar :deep(.el-button-group .el-button) {
+.quick-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+  min-width: 232px;
+}
+
+.quick-buttons :deep(.el-button) {
   height: 32px;
-  padding: 0 14px;
+  min-width: 0;
+  margin-left: -1px;
+  padding: 0 12px;
   border-radius: 0;
   font-size: 13px;
   font-weight: 700;
+  white-space: nowrap;
 }
-.filter-bar :deep(.el-button-group .el-button:first-child) { border-radius: var(--radius-md) 0 0 var(--radius-md); }
-.filter-bar :deep(.el-button-group .el-button:last-child) { border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+.quick-buttons :deep(.el-button:first-child) {
+  margin-left: 0;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+.quick-buttons :deep(.el-button:last-child) { border-radius: 0 var(--radius-md) var(--radius-md) 0; }
 .filter-bar > .el-button {
   height: 32px;
   border-radius: var(--radius-md);
@@ -875,18 +887,18 @@ onMounted(async () => {
   .product-filter { grid-area: product; }
   .query-button { grid-area: query; }
 
-  .filter-bar :deep(.el-button-group) {
+  .quick-buttons {
     width: 100% !important;
-    display: grid !important;
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    min-width: 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .filter-bar :deep(.el-button-group .el-button),
+  .quick-buttons :deep(.el-button),
   .query-button {
     width: auto !important;
     min-height: 34px !important;
     height: 34px !important;
-    padding: 0 6px !important;
+    padding: 0 4px !important;
     font-size: 12px !important;
     white-space: nowrap !important;
   }
