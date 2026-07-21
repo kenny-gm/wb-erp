@@ -490,7 +490,10 @@ onMounted(async () => {
   padding: 0 14px;
 }
 
-.metric-matrix-section { margin: 0; }
+.metric-matrix-section {
+  margin: 0;
+  max-width: 100%;
+}
 .metric-matrix {
   background: var(--surface-panel);
   border: 1px solid var(--border-subtle);
@@ -792,26 +795,36 @@ onMounted(async () => {
 
 @media (max-width: 980px) {
   .filter-bar { grid-template-columns: 1fr; }
+  .metric-matrix-section {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+  .metric-matrix {
+    min-width: 720px;
+    overflow: visible;
+  }
   .matrix-row {
     grid-template-columns: 112px repeat(3, minmax(160px, 1fr));
     min-width: 720px;
   }
-  .metric-matrix { overflow-x: auto; }
   .matrix-metric-label,
   .matrix-metric-heading {
     position: sticky;
     left: 0;
     z-index: 2;
+    background: var(--surface-muted);
     box-shadow: 1px 0 0 var(--border-subtle);
   }
 }
 
 @media (max-width: 430px) {
   .filter-bar {
-    display: flex;
-    flex-direction: column;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: stretch;
-    padding: 10px;
+    gap: 6px;
+    padding: 8px;
   }
 
   .filter-item,
@@ -819,8 +832,49 @@ onMounted(async () => {
     width: 100%;
   }
 
+  .filter-item:first-child,
+  .filter-item:nth-child(2),
+  .filter-item.flex-1,
+  .filter-bar > .el-button {
+    grid-column: 1 / -1;
+  }
+
+  .filter-bar :deep(.el-button-group) {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  .filter-bar :deep(.el-button-group .el-button),
+  .filter-bar > .el-button {
+    width: auto !important;
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 0 6px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+  }
+
+  .filter-bar :deep(.el-select),
+  .filter-bar :deep(.el-date-editor),
+  .filter-bar :deep(.el-input) {
+    width: 100% !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    font-size: 12px !important;
+  }
+
+  .filter-bar :deep(.el-input__wrapper),
+  .filter-bar :deep(.el-select__wrapper),
+  .filter-bar :deep(.el-date-editor.el-input__wrapper) {
+    min-height: 34px !important;
+    padding-inline: 8px !important;
+  }
+
   .metric-matrix {
     margin-inline: -2px;
+    min-width: 620px;
+    overflow: visible;
   }
 
   .matrix-row {
@@ -837,6 +891,13 @@ onMounted(async () => {
 
   .matrix-value {
     font-size: 15px;
+  }
+
+  .matrix-metric-heading,
+  .matrix-metric-label {
+    left: 0;
+    z-index: 4;
+    box-shadow: 8px 0 12px -12px rgba(15, 23, 42, 0.35);
   }
 
   .card-header,
