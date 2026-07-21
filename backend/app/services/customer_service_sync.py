@@ -76,6 +76,23 @@ class CustomerServiceSyncService:
                     HAVING c > 1
                 ) AS duplicate_messages
             """,
+            "cross_channel_chat_messages": """
+                SELECT COUNT(*)
+                FROM customer_service_messages m
+                JOIN customer_service_items i ON i.id = m.item_id
+                WHERE i.channel != 'chat'
+                  AND (
+                    m.raw_json LIKE '%"chatID"%'
+                    OR m.raw_json LIKE '%"chatId"%'
+                    OR m.raw_json LIKE '%"dialogId"%'
+                    OR m.raw_json LIKE '%"replySign"%'
+                    OR m.raw_json LIKE '%"reply_sign"%'
+                    OR (
+                        m.raw_json LIKE '%"eventType"%message%'
+                        AND m.raw_json LIKE '%"message"%'
+                    )
+                  )
+            """,
         }
         return {
             key: int(self.db.execute(text(query), {"shop_id": self.shop.id}).scalar() or 0)
@@ -92,6 +109,12 @@ class CustomerServiceSyncService:
         for key in ("orphan_messages", "orphan_actions", "item_dup_keys", "msg_dup_dedup"):
             if after[key]:
                 failures.append(f"{key}={after[key]}")
+        before_cross_channel = before.get("cross_channel_chat_messages", 0)
+        if after["cross_channel_chat_messages"] > before_cross_channel:
+            failures.append(
+                "cross_channel_chat_messages "
+                f"{before_cross_channel} -> {after['cross_channel_chat_messages']}"
+            )
         if failures:
             raise RuntimeError(f"{context} 后客服数据完整性异常: " + "; ".join(failures))
 
