@@ -14,7 +14,7 @@
     </div>
 
     <div class="filter-bar">
-      <div class="filter-item">
+      <div class="filter-item quick-filter">
         <el-button-group>
           <el-button :type="quickType === 'today' ? 'primary' : ''" @click="setQuickDate('today')">今天</el-button>
           <el-button :type="quickType === 'yesterday' ? 'primary' : ''" @click="setQuickDate('yesterday')">昨日</el-button>
@@ -22,67 +22,74 @@
           <el-button :type="quickType === '30d' ? 'primary' : ''" @click="setQuickDate('30d')">30天</el-button>
         </el-button-group>
       </div>
-      <div class="filter-item">
+      <div class="filter-item date-filter">
         <el-date-picker v-model="filters.dateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" format="YYYY-MM-DD" value-format="YYYY-MM-DD" @change="handleDateChange" style="width: 240px" />
       </div>
-      <div class="filter-item">
+      <div class="filter-item owner-filter">
         <el-select v-model="filters.owner" placeholder="全部负责人" clearable style="width: 120px">
           <el-option v-for="o in owners" :key="o" :label="o" :value="o" />
         </el-select>
       </div>
-      <div class="filter-item flex-1">
+      <div class="filter-item product-filter flex-1">
         <el-select v-model="filters.productId" placeholder="全部产品" clearable filterable style="width: 100%">
           <el-option v-for="p in uniqueProducts" :key="p" :label="p" :value="p" />
         </el-select>
       </div>
-      <el-button type="primary" @click="fetchData">查询</el-button>
+      <el-button class="query-button" type="primary" @click="fetchData">查询</el-button>
     </div>
 
     <section class="metric-matrix-section">
       <div class="metric-matrix">
-        <div class="matrix-row matrix-header-row">
-          <div class="matrix-metric-heading">指标</div>
-          <div v-for="section in metricSections" :key="section.key" class="matrix-section-heading">
-            <div class="matrix-section-title">{{ section.title }}</div>
-            <div class="matrix-section-subtitle">{{ section.subtitle }}</div>
-            <el-select
-              v-if="section.currency"
-              v-model="section.shopIds"
-              class="section-shop-filter"
-              :placeholder="section.currency + ' 全部店铺'"
-              clearable
-              multiple
-              collapse-tags
-              collapse-tags-tooltip
-              filterable
-            >
-              <el-option
-                v-for="shop in getSectionShopOptions(section.currency)"
-                :key="shop.id"
-                :label="shop.name"
-                :value="shop.id"
-              />
-            </el-select>
-          </div>
-        </div>
-
-        <div v-for="card in metricCards" :key="card.key" class="matrix-row">
-          <div class="matrix-metric-label">
+        <div class="matrix-fixed-column">
+          <div class="matrix-fixed-cell matrix-metric-heading">指标</div>
+          <div v-for="card in metricCards" :key="card.key" class="matrix-fixed-cell matrix-metric-label">
             <el-icon><component :is="card.icon" /></el-icon>
             <span>{{ card.label }}</span>
           </div>
-          <div v-for="section in metricSections" :key="section.key + '-' + card.key" class="matrix-value-cell">
-            <div class="matrix-value-line">
-              <span class="matrix-value">{{ formatMetricValue(section, card) }}</span>
-              <span class="matrix-change" :class="getChangeClass(section.summary[card.changeKey], card.reverseChange)">
-                {{ formatChange(section.summary[card.changeKey]) }}
-              </span>
+        </div>
+
+        <div class="matrix-scroll-pane">
+          <div class="matrix-scroll-content">
+            <div class="matrix-scroll-row matrix-header-row">
+              <div v-for="section in metricSections" :key="section.key" class="matrix-section-heading">
+                <div class="matrix-section-title">{{ section.title }}</div>
+                <div class="matrix-section-subtitle">{{ section.subtitle }}</div>
+                <el-select
+                  v-if="section.currency"
+                  v-model="section.shopIds"
+                  class="section-shop-filter"
+                  :placeholder="section.currency + ' 全部店铺'"
+                  clearable
+                  multiple
+                  collapse-tags
+                  collapse-tags-tooltip
+                  filterable
+                >
+                  <el-option
+                    v-for="shop in getSectionShopOptions(section.currency)"
+                    :key="shop.id"
+                    :label="shop.name"
+                    :value="shop.id"
+                  />
+                </el-select>
+              </div>
             </div>
-            <div class="matrix-chart" v-if="hasDateRange && section.trend[card.trendKey].length">
-              <svg class="matrix-line-chart" viewBox="0 0 100 50" preserveAspectRatio="none">
-                <path :d="getAreaPath(section.trend[card.trendKey], section.trend.max[card.trendKey])" :fill="card.color" fill-opacity="0.14" />
-                <polyline :points="getLinePoints(section.trend[card.trendKey], section.trend.max[card.trendKey])" fill="none" :stroke="card.color" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
+
+            <div v-for="card in metricCards" :key="card.key" class="matrix-scroll-row">
+              <div v-for="section in metricSections" :key="section.key + '-' + card.key" class="matrix-value-cell">
+                <div class="matrix-value-line">
+                  <span class="matrix-value">{{ formatMetricValue(section, card) }}</span>
+                  <span class="matrix-change" :class="getChangeClass(section.summary[card.changeKey], card.reverseChange)">
+                    {{ formatChange(section.summary[card.changeKey]) }}
+                  </span>
+                </div>
+                <div class="matrix-chart" v-if="hasDateRange && section.trend[card.trendKey].length">
+                  <svg class="matrix-line-chart" viewBox="0 0 100 50" preserveAspectRatio="none">
+                    <path :d="getAreaPath(section.trend[card.trendKey], section.trend.max[card.trendKey])" :fill="card.color" fill-opacity="0.14" />
+                    <polyline :points="getLinePoints(section.trend[card.trendKey], section.trend.max[card.trendKey])" fill="none" :stroke="card.color" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -495,6 +502,8 @@ onMounted(async () => {
   max-width: 100%;
 }
 .metric-matrix {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
   background: var(--surface-panel);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
@@ -502,24 +511,57 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-.matrix-row {
-  display: grid;
-  grid-template-columns: 150px repeat(3, minmax(220px, 1fr));
-  border-top: 1px solid var(--border-subtle);
-  min-height: 58px;
+.matrix-fixed-column {
+  position: relative;
+  z-index: 3;
+  background: var(--surface-muted);
+  border-right: 1px solid var(--border-subtle);
+  box-shadow: 8px 0 12px -12px rgba(15, 23, 42, 0.35);
 }
-.matrix-row:first-child { border-top: 0; }
+
+.matrix-scroll-pane {
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+}
+
+.matrix-scroll-content {
+  min-width: 660px;
+}
+
+.matrix-fixed-cell,
+.matrix-scroll-row {
+  min-height: 58px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.matrix-fixed-cell:first-child,
+.matrix-scroll-row:first-child {
+  min-height: 112px;
+  border-top: 0;
+}
+
+.matrix-scroll-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+}
+
 .matrix-header-row { background: var(--surface-muted); }
 
 .matrix-metric-heading {
+  display: flex;
+  align-items: center;
   padding: 14px 16px;
   font-size: 13px;
   font-weight: 750;
   color: var(--text-subtle);
-  border-right: 1px solid var(--border-subtle);
 }
 
 .matrix-section-heading {
+  min-width: 0;
   padding: 12px 14px;
   border-right: 1px solid var(--border-subtle);
 }
@@ -543,7 +585,6 @@ onMounted(async () => {
   gap: 8px;
   padding: 14px 16px;
   background: var(--surface-muted);
-  border-right: 1px solid var(--border-subtle);
   font-size: 13px;
   font-weight: 700;
   color: var(--text-subtle);
@@ -795,30 +836,14 @@ onMounted(async () => {
 
 @media (max-width: 980px) {
   .filter-bar { grid-template-columns: 1fr; }
-  .metric-matrix-section {
-    overflow-x: auto;
-    overflow-y: visible;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-x: contain;
-    touch-action: pan-x pan-y;
-  }
   .metric-matrix {
-    width: 720px;
-    min-width: 720px;
-    max-width: none;
-    overflow: visible;
+    grid-template-columns: 112px minmax(0, 1fr);
   }
-  .matrix-row {
-    grid-template-columns: 112px repeat(3, minmax(160px, 1fr));
-    min-width: 720px;
+  .matrix-scroll-content {
+    min-width: 540px;
   }
-  .matrix-metric-label,
-  .matrix-metric-heading {
-    position: sticky;
-    left: 0;
-    z-index: 2;
-    background: var(--surface-muted);
-    box-shadow: 1px 0 0 var(--border-subtle);
+  .matrix-scroll-row {
+    grid-template-columns: repeat(3, minmax(180px, 1fr));
   }
 }
 
@@ -834,20 +859,19 @@ onMounted(async () => {
   .filter-item,
   .filter-item.flex-1 {
     width: 100%;
+    min-width: 0 !important;
+    padding: 0 !important;
   }
 
-  .filter-item:first-child,
-  .filter-item:nth-child(2),
-  .filter-bar > .el-button {
+  .quick-filter,
+  .date-filter,
+  .product-filter,
+  .query-button {
     grid-column: 1 / -1;
   }
 
-  .filter-item:nth-child(3) {
+  .owner-filter {
     grid-column: 1;
-  }
-
-  .filter-item.flex-1 {
-    grid-column: 2;
   }
 
   .filter-bar :deep(.el-button-group) {
@@ -857,7 +881,7 @@ onMounted(async () => {
   }
 
   .filter-bar :deep(.el-button-group .el-button),
-  .filter-bar > .el-button {
+  .query-button {
     width: auto !important;
     min-height: 34px !important;
     height: 34px !important;
@@ -884,15 +908,15 @@ onMounted(async () => {
 
   .metric-matrix {
     margin-inline: -2px;
-    width: 620px;
-    min-width: 620px;
-    max-width: none;
-    overflow: visible;
+    grid-template-columns: 92px minmax(0, 1fr);
   }
 
-  .matrix-row {
-    grid-template-columns: 96px repeat(3, minmax(148px, 1fr));
-    min-width: 620px;
+  .matrix-scroll-content {
+    min-width: 600px;
+  }
+
+  .matrix-scroll-row {
+    grid-template-columns: repeat(3, 200px);
   }
 
   .matrix-metric-heading,
@@ -908,8 +932,6 @@ onMounted(async () => {
 
   .matrix-metric-heading,
   .matrix-metric-label {
-    left: 0;
-    z-index: 4;
     box-shadow: 8px 0 12px -12px rgba(15, 23, 42, 0.35);
   }
 
