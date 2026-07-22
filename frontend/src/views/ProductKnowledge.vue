@@ -38,6 +38,7 @@
     <section class="content-grid">
       <div class="list-panel">
         <el-table
+          class="knowledge-table"
           :data="items"
           v-loading="loading"
           height="calc(100vh - 250px)"
@@ -67,6 +68,31 @@
             </template>
           </el-table-column>
         </el-table>
+        <div class="mobile-knowledge-list" v-loading="loading">
+          <button
+            v-for="item in items"
+            :key="item.id"
+            class="mobile-knowledge-card"
+            :class="{ active: active?.id === item.id }"
+            type="button"
+            @click="openItem(item)"
+          >
+            <div class="mobile-card-head">
+              <strong>{{ item.product_name }}</strong>
+              <el-tag :type="item.ai_enabled ? 'success' : 'info'" size="small">
+                {{ item.ai_enabled ? '可用' : '关闭' }}
+              </el-tag>
+            </div>
+            <div class="mobile-card-meta">
+              <span>{{ item.owners.join(' / ') || '-' }}</span>
+              <span>{{ item.shop_names.join(' / ') || '-' }}</span>
+            </div>
+            <div class="mobile-card-foot">
+              <span>SKU {{ item.linked_skus.length }}</span>
+              <el-progress :percentage="item.completeness" :stroke-width="7" />
+            </div>
+          </button>
+        </div>
       </div>
 
       <div class="detail-panel">
@@ -367,6 +393,10 @@ onMounted(fetchKnowledge)
   background: #fff;
 }
 
+.mobile-knowledge-list {
+  display: none;
+}
+
 .detail-panel {
   padding: 16px;
   min-height: calc(100vh - 250px);
@@ -436,16 +466,36 @@ onMounted(fetchKnowledge)
 @media (max-width: 430px) {
   .product-knowledge {
     gap: 10px;
+    padding-bottom: 12px;
   }
 
   .toolbar {
-    flex-direction: column;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 108px !important;
+    flex-direction: initial !important;
+    gap: 8px;
     align-items: stretch;
   }
 
+  .search-input {
+    grid-column: 1 / -1;
+  }
+
   .search-input,
-  .status-select {
+  .status-select,
+  .toolbar :deep(.el-button) {
     width: 100%;
+  }
+
+  .toolbar :deep(.el-input__wrapper),
+  .toolbar :deep(.el-select__wrapper),
+  .toolbar :deep(.el-button) {
+    min-height: 36px;
+  }
+
+  .toolbar > :deep(.el-button) {
+    min-width: 0;
+    padding: 0 8px;
   }
 
   .summary-row {
@@ -471,15 +521,80 @@ onMounted(fetchKnowledge)
   }
 
   .list-panel {
-    overflow-x: auto;
+    border: 0;
+    background: transparent;
+    overflow: visible !important;
   }
 
-  .list-panel :deep(.el-table) {
-    min-width: 720px;
+  .knowledge-table {
+    display: none !important;
   }
 
-  .list-panel :deep(.el-table__inner-wrapper) {
-    max-height: 48dvh;
+  .mobile-knowledge-list {
+    display: grid;
+    gap: 8px;
+    max-height: 46dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobile-knowledge-card {
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #fff;
+    color: inherit;
+    text-align: left;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+
+  .mobile-knowledge-card.active {
+    border-color: #409eff;
+    box-shadow: 0 0 0 1px rgba(64, 158, 255, 0.12);
+  }
+
+  .mobile-card-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: start;
+  }
+
+  .mobile-card-head strong {
+    min-width: 0;
+    color: #111827;
+    font-size: 14px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-card-meta {
+    display: grid;
+    gap: 4px;
+    color: #6b7280;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .mobile-card-meta span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-card-foot {
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    color: #374151;
+    font-size: 12px;
+    font-weight: 700;
   }
 
   .detail-panel {
@@ -498,17 +613,51 @@ onMounted(fetchKnowledge)
     overflow-wrap: anywhere;
   }
 
+  .detail-head p {
+    font-size: 12px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+
   .head-actions {
     width: 100%;
-    justify-content: flex-start;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 96px !important;
+    flex-wrap: initial !important;
+    gap: 8px;
+    justify-content: stretch;
   }
 
   .head-actions :deep(.el-button) {
-    flex: 1 1 120px;
+    width: 100%;
   }
 
   .knowledge-tabs :deep(.el-tabs__content) {
     padding-top: 10px;
+  }
+
+  .knowledge-tabs :deep(.el-tabs__nav-wrap) {
+    overflow: hidden;
+  }
+
+  .knowledge-tabs :deep(.el-tabs__nav-scroll) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .knowledge-tabs :deep(.el-tabs__item) {
+    padding: 0 10px;
+    font-size: 13px;
+  }
+
+  .product-knowledge :deep(.el-textarea__inner) {
+    min-height: 132px !important;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .faq-item {
+    padding: 10px;
   }
 }
 </style>
