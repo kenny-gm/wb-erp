@@ -3,7 +3,7 @@
     <div class="card-header">
       <h3>CPC搜索关键词</h3>
       <div class="header-info">
-        <span class="total-spend">总花费: {{ formatNumber(totalSpend) }} ₽</span>
+        <span class="total-spend">总花费: {{ formatNumber(totalSpend) }} {{ currencySymbol }}</span>
       </div>
     </div>
     
@@ -23,7 +23,7 @@
       </div>
       <div class="overview-card">
         <div class="card-label">平均CPC</div>
-        <div class="card-value">{{ avgCpc.toFixed(2) }} ₽</div>
+        <div class="card-value">{{ avgCpc.toFixed(2) }} {{ currencySymbol }}</div>
       </div>
       <div class="overview-card">
         <div class="card-label">平均排名</div>
@@ -79,18 +79,18 @@
             <div v-else class="detail-table-wrap">
               <div class="detail-header-bar">
                 <span class="detail-title">每日明细 - {{ props.row.keyword }}</span>
-                <span class="detail-meta">总花费: {{ formatNumber(detailTotalSpend) }} ₽ | 总点击: {{ formatNumber(detailTotalClicks) }} | 总订单: {{ formatNumber(detailTotalOrders) }}</span>
+                <span class="detail-meta">总花费: {{ formatNumber(detailTotalSpend) }} {{ currencySymbol }} | 总点击: {{ formatNumber(detailTotalClicks) }} | 总订单: {{ formatNumber(detailTotalOrders) }}</span>
               </div>
               <el-table :data="detailData" size="small" :show-header="true">
                 <el-table-column prop="date" label="日期" min-width="100" align="center" />
                 <el-table-column label="花费" align="right" min-width="90">
-                  <template #default="d">{{ formatNumber(d.row.spend) }} ₽</template>
+                  <template #default="d">{{ formatNumber(d.row.spend) }} {{ currencySymbol }}</template>
                 </el-table-column>
                 <el-table-column label="点击" align="right" min-width="70">
                   <template #default="d">{{ formatNumber(d.row.clicks) }}</template>
                 </el-table-column>
                 <el-table-column label="CPC" align="right" min-width="70">
-                  <template #default="d">{{ d.row.cpc.toFixed(2) }} ₽</template>
+                  <template #default="d">{{ d.row.cpc.toFixed(2) }} {{ currencySymbol }}</template>
                 </el-table-column>
                 <el-table-column label="订单" align="right" min-width="60">
                   <template #default="d">{{ formatNumber(d.row.orders) }}</template>
@@ -124,7 +124,7 @@
       </el-table-column>
       <el-table-column label="花费" align="right" min-width="100" sortable prop="spend" :sort-orders="['descending', 'ascending']">
         <template #default="props">
-          {{ formatNumber(props.row.spend) }} ₽
+          {{ formatNumber(props.row.spend) }} {{ currencySymbol }}
         </template>
       </el-table-column>
       <el-table-column label="点击" align="right" min-width="80" sortable prop="clicks" :sort-orders="['descending', 'ascending']">
@@ -134,7 +134,7 @@
       </el-table-column>
       <el-table-column label="CPC" align="right" min-width="80">
         <template #default="props">
-          {{ props.row.cpc.toFixed(2) }} ₽
+          {{ props.row.cpc.toFixed(2) }} {{ currencySymbol }}
         </template>
       </el-table-column>
       <el-table-column label="订单" align="right" min-width="70" sortable prop="orders" :sort-orders="['descending', 'ascending']">
@@ -205,6 +205,10 @@ const props = defineProps({
   productId: {
     type: Number,
     default: null
+  },
+  currencySymbol: {
+    type: String,
+    default: '₽'
   }
 })
 

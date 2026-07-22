@@ -117,7 +117,7 @@
           <div class="metric-label"><el-icon><Notification /></el-icon> 广告花费</div>
           <div class="metric-change" :class="coreMetrics.ad_spend_change >= 0 ? 'negative' : 'positive'">{{ formatChange(coreMetrics.ad_spend_change) }}</div>
         </div>
-        <div class="metric-value">{{ formatNumber(coreMetrics.ad_spend) }} ₽</div>
+        <div class="metric-value">{{ formatNumber(coreMetrics.ad_spend) }} {{ currentCurrencySymbol }}</div>
         <div class="chart-area" v-if="dailyData.length">
           <svg class="line-chart" viewBox="0 0 100 50" preserveAspectRatio="none">
             <path :d="getAreaPath(metricTrends.ad_spend, maxTrend.ad_spend)" fill="#ef4444" fill-opacity="0.2" />
@@ -299,7 +299,7 @@
           <span style="font-weight: 600; color: #8b5cf6;">CPM推荐广告</span>
         </div>
       </template>
-      <CpmRecommendationsTable :data="cpmRecommendationsData" />
+      <CpmRecommendationsTable :data="cpmRecommendationsData" :currency-symbol="currentCurrencySymbol" />
     </el-card>
 
     <!-- CPC搜索广告（绿色半透明背景） -->
@@ -313,13 +313,14 @@
           >CPC搜索关键词</span>
         </div>
       </template>
-      <CpcSearchDailyTable :data="cpcDailyData" />
+      <CpcSearchDailyTable :data="cpcDailyData" :currency-symbol="currentCurrencySymbol" />
       <CpcKeywordsTable 
         v-show="cpcKeywordsExpanded"
         :keywords="cpcKeywordsData"
         :dateFrom="filters.start_date"
         :dateTo="filters.end_date"
         :productId="selectedProduct"
+        :currency-symbol="currentCurrencySymbol"
       />
     </el-card>
 
@@ -334,13 +335,14 @@
           >CPM搜索关键词</span>
         </div>
       </template>
-      <CpmSearchTable :data="cpmSearchData" />
+      <CpmSearchTable :data="cpmSearchData" :currency-symbol="currentCurrencySymbol" />
       <CpmKeywordsTable 
         v-show="cpmKeywordsExpanded"
         :keywords="cpmKeywordsData"
         :dateFrom="filters.start_date"
         :dateTo="filters.end_date"
         :productId="selectedProduct"
+        :currency-symbol="currentCurrencySymbol"
       />
     </el-card>
 
@@ -631,6 +633,10 @@ const currentProduct = computed(() => {
 const currentShop = computed(() => {
   if (!selectedShop.value || shops.value.length === 0) return null
   return shops.value.find(s => s.id === selectedShop.value) || null
+})
+
+const currentCurrencySymbol = computed(() => {
+  return (currentShop.value?.currency || 'RUB') === 'CNY' ? '¥' : '₽'
 })
 
 // 计算日期范围
@@ -1229,11 +1235,11 @@ watch(selectedProduct, (newProductId) => {
 
 // 监听店铺变化
 watch(selectedShop, (newShopId) => {
+  selectedProduct.value = null
   if (newShopId) {
     fetchProducts(newShopId)
   } else {
     products.value = []
-    selectedProduct.value = null
   }
 })
 

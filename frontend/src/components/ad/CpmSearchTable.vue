@@ -3,7 +3,7 @@
     <div class="cpm-search-header">
       <h3>CPM搜索广告</h3>
       <div class="header-info">
-        <span class="total-cost">总花费: {{ formatNumber(totalCost) }} ₽</span>
+        <span class="total-cost">总花费: {{ formatNumber(totalCost) }} {{ currencySymbol }}</span>
       </div>
     </div>
     
@@ -26,7 +26,7 @@
       </el-table-column>
       <el-table-column label="花费" align="right" min-width="120">
         <template #default="props">
-          {{ formatNumber(props.row.cost) }} ₽
+          {{ formatNumber(props.row.cost) }} {{ currencySymbol }}
         </template>
       </el-table-column>
       <el-table-column label="订单" align="right" min-width="70">
@@ -56,12 +56,12 @@
       </el-table-column>
       <el-table-column label="CPM" align="right" min-width="90">
         <template #default="props">
-          {{ calcCpm(props.row) }} ₽
+          {{ calcCpm(props.row) }} {{ currencySymbol }}
         </template>
       </el-table-column>
       <el-table-column label="CPC" align="right" min-width="90">
         <template #default="props">
-          {{ calcCpc(props.row) }} ₽
+          {{ calcCpc(props.row) }} {{ currencySymbol }}
         </template>
       </el-table-column>
     </el-table>
@@ -72,7 +72,8 @@
 import { ref, computed } from 'vue'
 
 const props = defineProps({
-  data: { type: Array, default: () => [] }
+  data: { type: Array, default: () => [] },
+  currencySymbol: { type: String, default: '₽' }
 })
 
 const tableData = computed(() => {
