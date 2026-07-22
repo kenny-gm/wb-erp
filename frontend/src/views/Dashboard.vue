@@ -167,8 +167,8 @@ function createTrend() {
 
 const metricSections = reactive([
   { key: 'unified', title: '统一卢布', subtitle: '全部店铺统一折算为 RUB', currency: null, displayCurrency: 'RUB', amountUnit: '₽', shopIds: [], summary: createSummary(), trend: createTrend() },
-  { key: 'rub', title: 'RUB 店铺', subtitle: '可单独筛选 RUB 店铺', currency: 'RUB', displayCurrency: 'RUB', amountUnit: '₽', shopIds: [], summary: createSummary(), trend: createTrend() },
-  { key: 'cny', title: 'CNY 店铺', subtitle: '可单独筛选 CNY 店铺，金额显示原始 CNY', currency: 'CNY', displayCurrency: 'NATIVE', amountUnit: '¥', shopIds: [], summary: createSummary(), trend: createTrend() },
+  { key: 'rub', title: 'RUB 店铺', subtitle: 'RUB 本币显示', currency: 'RUB', displayCurrency: 'RUB', amountUnit: '₽', shopIds: [], summary: createSummary(), trend: createTrend() },
+  { key: 'cny', title: 'CNY 店铺', subtitle: 'CNY 本币显示', currency: 'CNY', displayCurrency: 'NATIVE', amountUnit: '¥', shopIds: [], summary: createSummary(), trend: createTrend() },
 ])
 
 const metricCards = [
