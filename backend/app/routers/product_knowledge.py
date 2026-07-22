@@ -231,6 +231,33 @@ def _allowed_owners(user: User) -> List[str]:
     return []
 
 
+def _allowed_menus(user: User) -> List[str]:
+    raw = getattr(user, "allowed_menus", None)
+    if isinstance(raw, list):
+        return [str(menu).strip() for menu in raw if str(menu).strip()]
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return [str(menu).strip() for menu in parsed if str(menu).strip()]
+        except json.JSONDecodeError:
+            return [menu.strip() for menu in raw.split(",") if menu.strip()]
+    return []
+
+
+def _role_value(user: User) -> str:
+    raw = getattr(user, "role", "") or ""
+    return getattr(raw, "value", str(raw)).lower()
+
+
+def _has_product_knowledge_menu(user: User) -> bool:
+    role = _role_value(user)
+    if role in ("admin", "manager"):
+        return True
+    menus = _allowed_menus(user)
+    return not menus or "product-knowledge" in menus
+
+
 def _base_product_query(db: Session, user: User):
     query = db.query(Product)
     owners = _allowed_owners(user)
@@ -240,9 +267,10 @@ def _base_product_query(db: Session, user: User):
 
 
 def _can_edit(profile: ProductKnowledge, user: User) -> bool:
-    if user.role in (UserRole.ADMIN, UserRole.MANAGER):
+    role = _role_value(user)
+    if role in (UserRole.ADMIN.value, UserRole.MANAGER.value):
         return True
-    if user.role != UserRole.PRODUCT_OWNER:
+    if not _has_product_knowledge_menu(user):
         return False
     owners = set(_allowed_owners(user))
     if not owners:
@@ -251,7 +279,7 @@ def _can_edit(profile: ProductKnowledge, user: User) -> bool:
     return bool(owners & profile_owners)
 
 
-def _profile_to_dict(profile: ProductKnowledge) -> Dict[str, Any]:
+def _profile_to_dict(profile: ProductKnowledge, user: User | None = None) -> Dict[str, Any]:
     fields = [
         profile.basic_info,
         profile.basic_info_zh,
@@ -287,6 +315,7 @@ def _profile_to_dict(profile: ProductKnowledge) -> Dict[str, Any]:
         "ai_enabled": bool(profile.ai_enabled),
         "status": profile.status or "active",
         "completeness": completeness,
+        "can_edit": _can_edit(profile, user) if user else False,
         "updated_at": profile.updated_at.isoformat() if profile.updated_at else None,
         "reviewed_at": profile.reviewed_at.isoformat() if profile.reviewed_at else None,
     }
@@ -392,7 +421,7 @@ def list_product_knowledge(
             ProductKnowledge.linked_nm_ids_json.like(like),
         ))
     rows = query.order_by(ProductKnowledge.updated_at.desc(), ProductKnowledge.product_name.asc()).all()
-    return {"items": [_profile_to_dict(row) for row in rows], "total": len(rows)}
+    return {"items": [_profile_to_dict(row, current_user) for row in rows], "total": len(rows)}
 
 
 @router.post("/refresh-from-products")
@@ -422,7 +451,7 @@ def get_product_knowledge(
         profile.updated_at = _now()
         db.commit()
         db.refresh(profile)
-    return _profile_to_dict(profile)
+    return _profile_to_dict(profile, current_user)
 
 
 @router.put("/{profile_id}")
@@ -448,7 +477,7 @@ def update_product_knowledge(
     profile.updated_at = _now()
     db.commit()
     db.refresh(profile)
-    return {"success": True, "item": _profile_to_dict(profile)}
+    return {"success": True, "item": _profile_to_dict(profile, current_user)}
 
 
 @router.post("/{profile_id}/translate-basic-info")
@@ -474,7 +503,7 @@ def translate_basic_info(
     profile.updated_at = _now()
     db.commit()
     db.refresh(profile)
-    return {"success": True, "item": _profile_to_dict(profile)}
+    return {"success": True, "item": _profile_to_dict(profile, current_user)}
 
 
 def find_product_knowledge_for_item(db: Session, item: CustomerServiceItem) -> Optional[ProductKnowledge]:

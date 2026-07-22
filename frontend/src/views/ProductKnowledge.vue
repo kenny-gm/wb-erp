@@ -103,8 +103,8 @@
               <p>{{ form.shop_names.join(' / ') || '未关联店铺' }}</p>
             </div>
             <div class="head-actions">
-              <el-switch v-model="form.ai_enabled" active-text="AI可用" inactive-text="AI关闭" />
-              <el-button type="primary" :loading="saving" @click="saveActive">保存</el-button>
+              <el-switch v-model="form.ai_enabled" active-text="AI可用" inactive-text="AI关闭" :disabled="!form.can_edit" />
+              <el-button type="primary" :loading="saving" :disabled="!form.can_edit" @click="saveActive">保存</el-button>
             </div>
           </div>
 
@@ -134,6 +134,7 @@
                     v-model="form.features"
                     type="textarea"
                     :rows="6"
+                    :disabled="!form.can_edit"
                     placeholder="由产品负责人补充 WB 商品卡没有覆盖的功能卖点、能力边界、适用场景差异和买家关注点。"
                   />
                 </el-form-item>
@@ -142,28 +143,28 @@
             <el-tab-pane label="使用方法" name="usage">
               <el-form label-position="top">
                 <el-form-item label="使用方法 / 清洗保养 / 注意事项">
-                  <el-input v-model="form.usage_guide" type="textarea" :rows="10" />
+                  <el-input v-model="form.usage_guide" type="textarea" :rows="10" :disabled="!form.can_edit" />
                 </el-form-item>
               </el-form>
             </el-tab-pane>
             <el-tab-pane label="故障售后" name="support">
               <el-form label-position="top">
                 <el-form-item label="故障解决办法">
-                  <el-input v-model="form.troubleshooting" type="textarea" :rows="7" />
+                  <el-input v-model="form.troubleshooting" type="textarea" :rows="7" :disabled="!form.can_edit" />
                 </el-form-item>
                 <el-form-item label="售后边界">
-                  <el-input v-model="form.after_sales_policy" type="textarea" :rows="5" />
+                  <el-input v-model="form.after_sales_policy" type="textarea" :rows="5" :disabled="!form.can_edit" />
                 </el-form-item>
               </el-form>
             </el-tab-pane>
             <el-tab-pane label="FAQ" name="faq">
               <div class="faq-toolbar">
-                <el-button size="small" @click="addFaq">新增问题</el-button>
+                <el-button size="small" :disabled="!form.can_edit" @click="addFaq">新增问题</el-button>
               </div>
               <div v-for="(faq, index) in form.faq" :key="index" class="faq-item">
-                <el-input v-model="faq.question" placeholder="买家可能怎么问" />
-                <el-input v-model="faq.answer_zh" type="textarea" :rows="3" placeholder="中文标准答案/处理说明，AI 会自动生成俄语草稿" />
-                <el-button text type="danger" @click="removeFaq(index)">删除</el-button>
+                <el-input v-model="faq.question" placeholder="买家可能怎么问" :disabled="!form.can_edit" />
+                <el-input v-model="faq.answer_zh" type="textarea" :rows="3" placeholder="中文标准答案/处理说明，AI 会自动生成俄语草稿" :disabled="!form.can_edit" />
+                <el-button text type="danger" :disabled="!form.can_edit" @click="removeFaq(index)">删除</el-button>
               </div>
             </el-tab-pane>
             <el-tab-pane label="内部备注" name="notes">
@@ -173,6 +174,7 @@
                     v-model="form.internal_notes_zh"
                     type="textarea"
                     :rows="8"
+                    :disabled="!form.can_edit"
                     placeholder="只填写内部补充信息，不进入 AI 草稿生成；不要填写统一 AI 回复风格或提示词规则。"
                   />
                 </el-form-item>
@@ -231,7 +233,8 @@ const form = reactive({
   after_sales_policy: '',
   internal_notes_zh: '',
   ai_enabled: true,
-  status: 'active'
+  status: 'active',
+  can_edit: false
 })
 
 const total = computed(() => items.value.length)
@@ -303,6 +306,10 @@ function removeFaq(index) {
 
 async function saveActive() {
   if (!form.id) return
+  if (!form.can_edit) {
+    ElMessage.warning('当前账号无权编辑该产品知识库')
+    return
+  }
   saving.value = true
   try {
     const payload = {
