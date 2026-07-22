@@ -128,21 +128,6 @@
       <el-select class="filter-select filter-owner" v-model="filters.owner" placeholder="负责人" clearable @change="reload">
         <el-option v-for="owner in ownerOptions" :key="owner" :label="owner" :value="owner" />
       </el-select>
-      <el-select class="filter-select filter-channel" v-model="filters.channel" placeholder="类型" @change="handleChannelStatusChange">
-        <el-option label="全部类型" value="all" />
-        <el-option label="问答" value="question" />
-        <el-option label="评价" value="feedback" />
-        <el-option label="买家聊天" value="chat" />
-        <el-option label="退货申请" value="return_claim" />
-      </el-select>
-      <el-select class="filter-select filter-status" v-model="filters.status" placeholder="状态" @change="handleChannelStatusChange">
-        <el-option label="未处理" value="open" />
-        <el-option label="全部状态" value="all" />
-        <el-option label="待回复" value="unanswered" />
-        <el-option label="已回复待买家" value="replied" />
-        <el-option label="内部处理中" value="pending_internal" />
-        <el-option label="已关闭" value="closed" />
-      </el-select>
       <el-button class="filter-refresh" type="primary" @click="reload">刷新</el-button>
     </div>
 
@@ -747,12 +732,6 @@ function handleQuickKeySelect(key) {
   }
 }
 
-async function handleChannelStatusChange() {
-  // 手动切换类型/状态时清除 quick_key，避免与顶部快捷筛选冲突
-  filters.quick_key = null
-  activeItem.value = null
-  await Promise.all([loadStats(), loadItems()])
-}
 const ownerOptions = computed(() => {
   const set = new Set()
   const allowed = authStore.user?.allowed_owners
@@ -1376,12 +1355,10 @@ function getReturnSlaClass(item) {
 .filters {
   display: grid;
   grid-template-columns:
-    minmax(220px, 1fr)
-    160px
-    190px
-    116px
-    112px
-    132px
+    minmax(260px, 1fr)
+    180px
+    220px
+    140px
     72px;
   gap: 6px;
   align-items: center;
