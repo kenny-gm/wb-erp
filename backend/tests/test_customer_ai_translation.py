@@ -229,6 +229,37 @@ def test_translate_item_writes_fields():
     db.close()
 
 
+def test_translate_text_accepts_plain_text_response():
+    """翻译模型返回纯文本时也能提取中文翻译"""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.database import Base
+    from app.services.customer_translation_service import CustomerTranslationService
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+
+    class FakeTemplate:
+        system_prompt = "你必须只输出 JSON。"
+        user_prompt_template = "原文：\n{{text}}"
+        temperature = 0.1
+        max_tokens = 1200
+
+    class FakeAI:
+        def chat_text(self, *a, **kw):
+            return "买家询问订单什么时候送达。"
+
+    svc = CustomerTranslationService(db)
+    with patch.object(svc, "ai", FakeAI()):
+        with patch("app.services.customer_translation_service.get_active_template", return_value=FakeTemplate()):
+            result = svc.translate_text("Когда придет заказ?")
+
+    assert result == "买家询问订单什么时候送达。"
+    db.close()
+
+
 def test_translate_item_cached():
     """item hash 未变时不重复调用 AI（缓存命中）"""
     from sqlalchemy import create_engine

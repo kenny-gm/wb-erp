@@ -7,6 +7,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -25,6 +27,47 @@ def source_hash(text: str) -> str:
     return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
 
 
+def _extract_translated_text(raw: str) -> str:
+    """从 AI 输出中提取中文翻译，兼容 JSON、fenced JSON 和纯文本。"""
+    text = (raw or "").strip()
+    if not text:
+        return ""
+
+    candidates = [text]
+    fenced = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text, flags=re.IGNORECASE)
+    if fenced:
+        candidates.insert(0, fenced.group(1).strip())
+
+    start = text.find("{")
+    if start != -1:
+        depth = 0
+        for i, ch in enumerate(text[start:], start):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    candidates.insert(0, text[start:i + 1])
+                    break
+
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            translated = parsed.get("translated_text") or parsed.get("translation") or parsed.get("text")
+            if isinstance(translated, str) and translated.strip():
+                return translated.strip()
+
+    text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s*```$", "", text).strip()
+    text = re.sub(r"^(translated_text|translation|翻译|中文翻译)\s*[:：]\s*", "", text, flags=re.IGNORECASE).strip()
+    if (text.startswith('"') and text.endswith('"')) or (text.startswith("'") and text.endswith("'")):
+        text = text[1:-1].strip()
+    return text
+
+
 class CustomerTranslationService:
     def __init__(self, db: Session):
         self.db = db
@@ -39,13 +82,22 @@ class CustomerTranslationService:
         template = get_active_template(self.db, "translate_to_zh")
         system_prompt = template.system_prompt
         user_prompt = render_template(template.user_prompt_template, {"text": text})
-        output = self.ai.chat_json(
-            system_prompt,
-            user_prompt,
-            template.temperature,
-            template.max_tokens,
-        )
-        translated = output.get("translated_text") or output.get("translation") or ""
+        if hasattr(self.ai, "chat_text"):
+            raw = self.ai.chat_text(
+                system_prompt,
+                user_prompt,
+                template.temperature,
+                template.max_tokens,
+            )
+            translated = _extract_translated_text(raw)
+        else:
+            output = self.ai.chat_json(
+                system_prompt,
+                user_prompt,
+                template.temperature,
+                template.max_tokens,
+            )
+            translated = output.get("translated_text") or output.get("translation") or ""
         if not translated:
             raise AIClientError("AI 未返回 translated_text")
         return translated.strip()
