@@ -9,6 +9,7 @@ v1 范围：
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
@@ -588,14 +589,25 @@ def generate_ai_reply_draft(
                 f"{knowledge['context']}\n\n"
                 "如果产品知识库未命中或信息不足，请生成保守草稿，并避免具体承诺。"
             )
-        output = AIClient(db).chat_json(
-            system_prompt,
-            user_prompt,
-            template.temperature,
-            template.max_tokens,
-        )
-        # MiniMax 等模型可能返回 reply_ru / draft_ru，兼容处理
-        draft = (output.get("reply") or output.get("reply_ru") or output.get("draft") or output.get("draft_ru") or "").strip()
+        ai_client = AIClient(db)
+        try:
+            output = ai_client.chat_json(
+                system_prompt,
+                user_prompt,
+                template.temperature,
+                template.max_tokens,
+            )
+            draft = _extract_ai_reply_draft(output)
+        except AIClientError as exc:
+            if "不是合法 JSON" not in str(exc):
+                raise
+            raw_output = ai_client.chat_text(
+                system_prompt,
+                user_prompt,
+                template.temperature,
+                template.max_tokens,
+            )
+            draft = _extract_ai_reply_draft(raw_output)
         if not draft:
             raise AIClientError("AI 未返回回复内容")
         if _contains_cjk(draft):
@@ -1465,6 +1477,50 @@ def _rating_stars(rating: Optional[int]) -> str:
 
 def _contains_cjk(text: str) -> bool:
     return any("\u4e00" <= ch <= "\u9fff" for ch in text)
+
+
+def _extract_ai_reply_draft(output: Any) -> str:
+    """从 AI 输出中提取俄语草稿，兼容 JSON、fenced JSON 和纯文本。"""
+    if isinstance(output, dict):
+        value = output.get("reply") or output.get("reply_ru") or output.get("draft") or output.get("draft_ru")
+        return value.strip() if isinstance(value, str) else ""
+
+    raw = (output or "").strip()
+    if not raw:
+        return ""
+
+    candidates = [raw]
+    fenced = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", raw, flags=re.IGNORECASE)
+    if fenced:
+        candidates.insert(0, fenced.group(1).strip())
+
+    start = raw.find("{")
+    if start != -1:
+        depth = 0
+        for i, ch in enumerate(raw[start:], start):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    candidates.insert(0, raw[start:i + 1])
+                    break
+
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        draft = _extract_ai_reply_draft(parsed)
+        if draft:
+            return draft
+
+    raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.IGNORECASE).strip()
+    raw = re.sub(r"\s*```$", "", raw).strip()
+    raw = re.sub(r"^(reply|reply_ru|draft|draft_ru|ответ|черновик)\s*[:：]\s*", "", raw, flags=re.IGNORECASE).strip()
+    if (raw.startswith('"') and raw.endswith('"')) or (raw.startswith("'") and raw.endswith("'")):
+        raw = raw[1:-1].strip()
+    return raw
 
 
 def _raw(item: CustomerServiceItem) -> Dict[str, Any]:

@@ -326,6 +326,15 @@ def test_ai_draft_passes_with_valid_reply():
                         assert result["draft"] == "Здравствуйте! Спасибо за отзыв!"
 
 
+def test_ai_draft_extracts_plain_text_reply():
+    """ai-draft 解析兼容纯俄语文本，避免模型非 JSON 输出时报错"""
+    from app.routers.customer_service import _extract_ai_reply_draft
+
+    assert _extract_ai_reply_draft({"reply_ru": "Здравствуйте! Спасибо за отзыв!"}) == "Здравствуйте! Спасибо за отзыв!"
+    assert _extract_ai_reply_draft('{"draft_ru":"Здравствуйте! Мы проверим информацию."}') == "Здравствуйте! Мы проверим информацию."
+    assert _extract_ai_reply_draft("Ответ: Здравствуйте! Пожалуйста, уточните детали.") == "Здравствуйте! Пожалуйста, уточните детали."
+
+
 def test_ai_draft_passes_short_nmid():
     """nm_id 长度<4 时不拦截（避免误伤）"""
     short_item = FakeItem()
