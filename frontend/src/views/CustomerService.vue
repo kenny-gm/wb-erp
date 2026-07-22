@@ -423,6 +423,36 @@
           </template>
         </el-dialog>
 
+        <el-dialog
+          v-model="draftDialogVisible"
+          title="AI 俄语草稿"
+          width="min(560px, 92vw)"
+          class="draft-result-dialog"
+          :close-on-click-modal="false"
+        >
+          <el-input
+            v-model="draftPreviewText"
+            type="textarea"
+            :rows="7"
+            readonly
+          />
+          <div v-if="activeDraftKnowledgeSources.length" class="draft-dialog-sources">
+            <span>已引用产品知识库：</span>
+            <el-tag
+              v-for="source in activeDraftKnowledgeSources"
+              :key="source.id"
+              size="small"
+              type="success"
+            >
+              {{ source.product_name }} · 完整度 {{ source.completeness }}%
+            </el-tag>
+          </div>
+          <template #footer>
+            <el-button @click="draftDialogVisible = false">关闭</el-button>
+            <el-button type="primary" @click="draftDialogVisible = false">使用此草稿</el-button>
+          </template>
+        </el-dialog>
+
         <div v-if="activeItem.channel === 'return_claim' && hasCSperm('customer_service:handle_return')" class="return-actions">
           <div class="return-note">
             买家退货申请需在发起后 120 小时内处理，超时将自动批准。
@@ -499,7 +529,9 @@ const answeringReturn = ref(false)
 const rejectingQuestion = ref(false)
 const rejectDialogVisible = ref(false)
 const rejectCustomDialogVisible = ref(false)
+const draftDialogVisible = ref(false)
 const rejectCustomText = ref('')
+const draftPreviewText = ref('')
 const shops = ref([])
 const items = ref([])
 const activeItem = ref(null)
@@ -800,6 +832,8 @@ async function selectItem(item) {
   activeItem.value = null
   returnActions.value = []
   replyText.value = ''
+  draftPreviewText.value = ''
+  draftDialogVisible.value = false
   noteText.value = ''
   draftKnowledgeSources.value = []
   draftKnowledgeItemId.value = null
@@ -896,8 +930,11 @@ async function generateDraft() {
     await selectItem(item)
     if (!activeItem.value || activeItem.value.id !== itemId) return
     replyText.value = draft
+    draftPreviewText.value = draft
     draftKnowledgeSources.value = knowledgeSources
     draftKnowledgeItemId.value = itemId
+    draftDialogVisible.value = true
+    ElMessage.success('俄语草稿已生成')
   } catch (err) {
     ElMessage.error(err?.response?.data?.detail || '生成草稿失败')
   } finally {
@@ -1967,6 +2004,16 @@ function getReturnSlaClass(item) {
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 8px;
+  color: #4b5563;
+  font-size: 13px;
+}
+
+.draft-dialog-sources {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
   color: #4b5563;
   font-size: 13px;
 }
