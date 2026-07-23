@@ -496,7 +496,7 @@
       </section>
     </div>
 
-    <el-dialog v-model="autoReplySettingsVisible" title="AI 自动回复设置" width="520px" :close-on-click-modal="false">
+    <el-dialog v-model="autoReplySettingsVisible" title="AI 自动回复设置" width="640px" :close-on-click-modal="false">
       <el-form label-width="150px" class="auto-reply-form">
         <el-form-item label="总开关">
           <el-switch v-model="autoReplySettings.enabled" active-text="开启" inactive-text="关闭" />
@@ -510,6 +510,18 @@
         </el-form-item>
         <el-form-item label="差评自动回复">
           <el-switch v-model="autoReplySettings.feedback_negative_enabled" active-text="允许" inactive-text="关闭" />
+        </el-form-item>
+        <el-form-item label="评论每日上限">
+          <el-input-number v-model="autoReplySettings.channel_daily_limits.feedback" :min="0" :max="500" />
+        </el-form-item>
+        <el-form-item label="聊天每日上限">
+          <el-input-number v-model="autoReplySettings.channel_daily_limits.chat" :min="0" :max="500" />
+        </el-form-item>
+        <el-form-item label="问答每日上限">
+          <el-input-number v-model="autoReplySettings.channel_daily_limits.question" :min="0" :max="500" />
+        </el-form-item>
+        <el-form-item label="差评每日上限">
+          <el-input-number v-model="autoReplySettings.feedback_negative_daily_limit" :min="0" :max="500" />
         </el-form-item>
         <el-form-item label="单次运行上限">
           <el-input-number v-model="autoReplySettings.max_per_run" :min="1" :max="100" />
@@ -605,6 +617,12 @@ const autoReplySettings = reactive({
   feedback_negative_enabled: true,
   max_per_run: 20,
   max_per_shop_per_day: 50,
+  channel_daily_limits: {
+    feedback: 30,
+    question: 20,
+    chat: 20,
+  },
+  feedback_negative_daily_limit: 5,
   consecutive_failures_pause: 5,
 })
 
@@ -858,10 +876,23 @@ async function loadShops() {
 async function loadAutoReplySettings() {
   try {
     const res = await axios.get('/api/customer-service/auto-reply/settings')
-    Object.assign(autoReplySettings, res.data || {})
+    mergeAutoReplySettings(res.data || {})
   } catch {
     // 旧后端未重启时保持默认关闭，不影响客服工作台主体功能。
   }
+}
+
+function mergeAutoReplySettings(data = {}) {
+  Object.assign(autoReplySettings, data)
+  const limits = data.channel_daily_limits || autoReplySettings.channel_daily_limits || {}
+  autoReplySettings.channel_daily_limits = {
+    feedback: Number(limits.feedback ?? 30),
+    question: Number(limits.question ?? 20),
+    chat: Number(limits.chat ?? 20),
+  }
+  autoReplySettings.feedback_negative_daily_limit = Number(
+    data.feedback_negative_daily_limit ?? autoReplySettings.feedback_negative_daily_limit ?? 5,
+  )
 }
 
 async function saveAutoReplySettings() {
@@ -873,9 +904,11 @@ async function saveAutoReplySettings() {
       feedback_negative_enabled: autoReplySettings.feedback_negative_enabled,
       max_per_run: autoReplySettings.max_per_run,
       max_per_shop_per_day: autoReplySettings.max_per_shop_per_day,
+      channel_daily_limits: autoReplySettings.channel_daily_limits,
+      feedback_negative_daily_limit: autoReplySettings.feedback_negative_daily_limit,
       consecutive_failures_pause: autoReplySettings.consecutive_failures_pause,
     })
-    Object.assign(autoReplySettings, res.data || {})
+    mergeAutoReplySettings(res.data || {})
     autoReplySettingsVisible.value = false
     ElMessage.success(autoReplySettings.enabled ? 'AI自动回复已开启' : 'AI自动回复已关闭')
   } catch (err) {

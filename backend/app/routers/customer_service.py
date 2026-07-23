@@ -100,6 +100,8 @@ class AutoReplySettingsRequest(BaseModel):
     feedback_negative_enabled: bool = True
     max_per_run: int = 20
     max_per_shop_per_day: int = 50
+    channel_daily_limits: Dict[str, int] = {"feedback": 30, "question": 20, "chat": 20}
+    feedback_negative_daily_limit: int = 5
     consecutive_failures_pause: int = 5
 
 

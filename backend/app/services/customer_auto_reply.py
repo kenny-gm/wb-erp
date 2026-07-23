@@ -48,6 +48,12 @@ DEFAULT_AUTO_REPLY_SETTINGS = {
     "feedback_negative_enabled": True,
     "max_per_run": 20,
     "max_per_shop_per_day": 50,
+    "channel_daily_limits": {
+        "feedback": 30,
+        "question": 20,
+        "chat": 20,
+    },
+    "feedback_negative_daily_limit": 5,
     "consecutive_failures_pause": 5,
 }
 
@@ -68,6 +74,15 @@ class CustomerAutoReplyService:
             "feedback_negative_enabled": bool(payload.get("feedback_negative_enabled", settings["feedback_negative_enabled"])),
             "max_per_run": _clamp_int(payload.get("max_per_run", settings["max_per_run"]), 1, 100),
             "max_per_shop_per_day": _clamp_int(payload.get("max_per_shop_per_day", settings["max_per_shop_per_day"]), 1, 500),
+            "channel_daily_limits": _normalize_channel_limits(
+                payload.get("channel_daily_limits", settings["channel_daily_limits"]),
+                settings["channel_daily_limits"],
+            ),
+            "feedback_negative_daily_limit": _clamp_int(
+                payload.get("feedback_negative_daily_limit", settings["feedback_negative_daily_limit"]),
+                0,
+                500,
+            ),
             "consecutive_failures_pause": _clamp_int(
                 payload.get("consecutive_failures_pause", settings["consecutive_failures_pause"]),
                 1,
@@ -79,6 +94,16 @@ class CustomerAutoReplyService:
         _set_setting(self.db, "customer_ai_auto_reply_feedback_negative_enabled", _bool_text(next_settings["feedback_negative_enabled"]))
         _set_setting(self.db, "customer_ai_auto_reply_max_per_run", str(next_settings["max_per_run"]))
         _set_setting(self.db, "customer_ai_auto_reply_max_per_shop_per_day", str(next_settings["max_per_shop_per_day"]))
+        _set_setting(
+            self.db,
+            "customer_ai_auto_reply_channel_daily_limits",
+            json.dumps(next_settings["channel_daily_limits"], ensure_ascii=False),
+        )
+        _set_setting(
+            self.db,
+            "customer_ai_auto_reply_feedback_negative_daily_limit",
+            str(next_settings["feedback_negative_daily_limit"]),
+        )
         _set_setting(self.db, "customer_ai_auto_reply_consecutive_failures_pause", str(next_settings["consecutive_failures_pause"]))
         self.db.commit()
         return self.get_settings()
@@ -109,6 +134,15 @@ class CustomerAutoReplyService:
                     continue
                 if self._shop_sent_today(item.shop_id) >= settings["max_per_shop_per_day"]:
                     self._record_report_item(run, item, "skipped", "", "已达到店铺每日上限")
+                    run.skipped_count += 1
+                    continue
+                channel_limit = settings["channel_daily_limits"].get(item.channel, settings["max_per_shop_per_day"])
+                if self._channel_sent_today(item.shop_id, item.channel) >= channel_limit:
+                    self._record_report_item(run, item, "skipped", "", f"已达到{item.channel}渠道每日上限")
+                    run.skipped_count += 1
+                    continue
+                if _is_negative_feedback(item) and self._negative_feedback_sent_today(item.shop_id) >= settings["feedback_negative_daily_limit"]:
+                    self._record_report_item(run, item, "skipped", "", "已达到差评每日上限")
                     run.skipped_count += 1
                     continue
                 decision = self._process_item(run, item, settings)
@@ -158,7 +192,7 @@ class CustomerAutoReplyService:
             CustomerServiceItem.external_created_at.is_(None),
             CustomerServiceItem.external_created_at.asc(),
             CustomerServiceItem.id.asc(),
-        ).limit(settings["max_per_run"] * 3).all()
+        ).limit(settings["max_per_run"] * 10).all()
 
     def _process_item(self, run: CustomerAutoReplyRun, item: CustomerServiceItem, settings: Dict[str, Any]) -> str:
         latest_buyer_message_id = _latest_buyer_message_id(item)
@@ -390,6 +424,28 @@ class CustomerAutoReplyService:
             CustomerAutoReplyItem.created_at >= today,
         ).count()
 
+    def _channel_sent_today(self, shop_id: int, channel: str) -> int:
+        today = datetime.combine(_now().date(), time.min)
+        return self.db.query(CustomerAutoReplyItem).filter(
+            CustomerAutoReplyItem.shop_id == shop_id,
+            CustomerAutoReplyItem.channel == channel,
+            CustomerAutoReplyItem.decision == "sent",
+            CustomerAutoReplyItem.created_at >= today,
+        ).count()
+
+    def _negative_feedback_sent_today(self, shop_id: int) -> int:
+        today = datetime.combine(_now().date(), time.min)
+        return self.db.query(CustomerAutoReplyItem).join(
+            CustomerServiceItem,
+            CustomerAutoReplyItem.item_id == CustomerServiceItem.id,
+        ).filter(
+            CustomerAutoReplyItem.shop_id == shop_id,
+            CustomerAutoReplyItem.channel == "feedback",
+            CustomerAutoReplyItem.decision == "sent",
+            CustomerAutoReplyItem.created_at >= today,
+            CustomerServiceItem.rating < 4,
+        ).count()
+
     def _pause_on_failures(self, settings: Dict[str, Any]) -> None:
         limit = settings["consecutive_failures_pause"]
         recent = self.db.query(CustomerAutoReplyItem).order_by(CustomerAutoReplyItem.created_at.desc()).limit(limit).all()
@@ -400,6 +456,10 @@ class CustomerAutoReplyService:
 def _get_auto_reply_settings(db: Session) -> Dict[str, Any]:
     values = {row.key: row.value for row in db.query(SystemSetting).filter(SystemSetting.key.like("customer_ai_auto_reply_%")).all()}
     channels = _json_loads(values.get("customer_ai_auto_reply_channels"), DEFAULT_AUTO_REPLY_SETTINGS["channels"])
+    channel_daily_limits = _normalize_channel_limits(
+        _json_loads(values.get("customer_ai_auto_reply_channel_daily_limits"), DEFAULT_AUTO_REPLY_SETTINGS["channel_daily_limits"]),
+        DEFAULT_AUTO_REPLY_SETTINGS["channel_daily_limits"],
+    )
     return {
         "enabled": _as_bool(values.get("customer_ai_auto_reply_enabled"), DEFAULT_AUTO_REPLY_SETTINGS["enabled"]),
         "channels": [c for c in channels if c in AUTO_REPLY_CHANNELS] or DEFAULT_AUTO_REPLY_SETTINGS["channels"],
@@ -414,6 +474,13 @@ def _get_auto_reply_settings(db: Session) -> Dict[str, Any]:
             500,
             DEFAULT_AUTO_REPLY_SETTINGS["max_per_shop_per_day"],
         ),
+        "channel_daily_limits": channel_daily_limits,
+        "feedback_negative_daily_limit": _clamp_int(
+            values.get("customer_ai_auto_reply_feedback_negative_daily_limit"),
+            0,
+            500,
+            DEFAULT_AUTO_REPLY_SETTINGS["feedback_negative_daily_limit"],
+        ),
         "consecutive_failures_pause": _clamp_int(
             values.get("customer_ai_auto_reply_consecutive_failures_pause"),
             1,
@@ -421,6 +488,18 @@ def _get_auto_reply_settings(db: Session) -> Dict[str, Any]:
             DEFAULT_AUTO_REPLY_SETTINGS["consecutive_failures_pause"],
         ),
     }
+
+
+def _normalize_channel_limits(value: Any, default: Dict[str, int]) -> Dict[str, int]:
+    raw = value if isinstance(value, dict) else {}
+    result: Dict[str, int] = {}
+    for channel in AUTO_REPLY_CHANNELS:
+        result[channel] = _clamp_int(raw.get(channel), 0, 500, default.get(channel, 0))
+    return result
+
+
+def _is_negative_feedback(item: CustomerServiceItem) -> bool:
+    return item.channel == "feedback" and item.rating is not None and item.rating < 4
 
 
 def _set_setting(db: Session, key: str, value: str) -> None:

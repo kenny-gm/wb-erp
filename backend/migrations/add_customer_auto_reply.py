@@ -21,6 +21,11 @@ DEFAULT_SETTINGS = {
     "customer_ai_auto_reply_feedback_negative_enabled": ("true", "是否允许自动回复 feedback 差评"),
     "customer_ai_auto_reply_max_per_run": ("20", "AI 自动回复单次运行最大发送数"),
     "customer_ai_auto_reply_max_per_shop_per_day": ("50", "AI 自动回复每店铺每日最大发送数"),
+    "customer_ai_auto_reply_channel_daily_limits": (
+        json.dumps({"feedback": 30, "question": 20, "chat": 20}, ensure_ascii=False),
+        "AI 自动回复每店铺每日各渠道发送上限",
+    ),
+    "customer_ai_auto_reply_feedback_negative_daily_limit": ("5", "AI 自动回复每店铺每日差评发送上限"),
     "customer_ai_auto_reply_consecutive_failures_pause": ("5", "连续失败达到该数量后自动关闭总开关"),
 }
 
