@@ -1248,20 +1248,18 @@ def _run_customer_service_sync_task(shop_id: int, channel: str, days: int, log_i
                 else:
                     sync_log.status = "completed"
                     sync_log.records_count = total
-                    sync_log.message = f"同步完成（{shop.name}）"
+                    auto_info = result.get("auto_reply_run") if isinstance(result, dict) else None
+                    if auto_info and "error" not in auto_info:
+                        sync_log.message = (
+                            f"同步完成（{shop.name}）；AI自动回复 "
+                            f"发送{auto_info.get('sent', 0)}，拦截{auto_info.get('blocked', 0)}，失败{auto_info.get('failed', 0)}"
+                        )
+                    elif auto_info and "error" in auto_info:
+                        sync_log.message = f"同步完成（{shop.name}）；AI自动回复异常：{auto_info['error'][:200]}"
+                    else:
+                        sync_log.message = f"同步完成（{shop.name}）"
                 sync_log.finished_at = datetime.now(SHANGHAI_TZ)
                 db.commit()
-
-            if overall_success:
-                auto_run = CustomerAutoReplyService(db).run(shop_id=shop.id, trigger_source="sync")
-                if auto_run:
-                    sync_log = db.query(SyncLog).filter(SyncLog.id == log_id).first()
-                    if sync_log:
-                        sync_log.message = (
-                            f"{sync_log.message or '同步完成'}；AI自动回复 "
-                            f"发送{auto_run.sent_count}，拦截{auto_run.blocked_count}，失败{auto_run.failed_count}"
-                        )
-                        db.commit()
         except WBCustomerRateLimit as exc:
             sync_log = db.query(SyncLog).filter(SyncLog.id == log_id).first()
             if sync_log:

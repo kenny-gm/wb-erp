@@ -137,7 +137,28 @@ class CustomerServiceSyncService:
                     rate_limited_channels.append(channel)
                 errors.append(f"{channel}: {result.get('error', 'unknown')}")
         overall_success = not failed_channels
-        return {
+
+        # 同步完成后触发 AI 自动回复 hook（无论从 UI 还是 scheduler 触发的同步都走这里）
+        auto_run_summary: Optional[Dict[str, Any]] = None
+        if overall_success:
+            try:
+                from app.services.customer_auto_reply import CustomerAutoReplyService
+                auto_run = CustomerAutoReplyService(self.db).run(shop_id=self.shop.id, trigger_source="sync")
+                if auto_run is not None:
+                    auto_run_summary = {
+                        "run_id": auto_run.id,
+                        "mode": auto_run.mode,
+                        "sent": auto_run.sent_count,
+                        "blocked": auto_run.blocked_count,
+                        "failed": auto_run.failed_count,
+                        "skipped": auto_run.skipped_count,
+                        "draft": auto_run.draft_count,
+                    }
+            except Exception as exc:
+                logger.exception("customer_auto_reply post-sync hook failed: %s", exc)
+                auto_run_summary = {"error": str(exc)[:500]}
+
+        payload: Dict[str, Any] = {
             "success": overall_success,
             "count": total,
             "results": results,
@@ -145,6 +166,9 @@ class CustomerServiceSyncService:
             "rate_limited_channels": rate_limited_channels,
             "errors": errors,
         }
+        if auto_run_summary is not None:
+            payload["auto_reply_run"] = auto_run_summary
+        return payload
 
     def sync_questions(self, days: int = CUSTOMER_SERVICE_HISTORY_DAYS) -> Dict[str, Any]:
         sync_log = self._create_sync_log("customer_service_questions")
