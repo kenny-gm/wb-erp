@@ -331,8 +331,45 @@ def test_ai_draft_extracts_plain_text_reply():
     from app.routers.customer_service import _extract_ai_reply_draft
 
     assert _extract_ai_reply_draft({"reply_ru": "Здравствуйте! Спасибо за отзыв!"}) == "Здравствуйте! Спасибо за отзыв!"
+    assert _extract_ai_reply_draft({"answer": "Здравствуйте! Ответ по товару."}) == "Здравствуйте! Ответ по товару."
+    assert _extract_ai_reply_draft({"data": {"text_ru": "Здравствуйте! Текст ответа."}}) == "Здравствуйте! Текст ответа."
+    assert _extract_ai_reply_draft([{"response": "Здравствуйте! Ответ из массива."}]) == "Здравствуйте! Ответ из массива."
     assert _extract_ai_reply_draft('{"draft_ru":"Здравствуйте! Мы проверим информацию."}') == "Здравствуйте! Мы проверим информацию."
     assert _extract_ai_reply_draft("Ответ: Здравствуйте! Пожалуйста, уточните детали.") == "Здравствуйте! Пожалуйста, уточните детали."
+
+
+def test_ai_draft_falls_back_to_text_when_json_has_no_reply():
+    """chat_json 返回合法 JSON 但没有回复字段时，自动用 chat_text 兜底。"""
+    with patch("app.routers.customer_service.get_active_template") as mock_get_tpl:
+        with patch("app.routers.customer_service.AIClient") as mock_ai_cls:
+            mock_tpl = MagicMock()
+            mock_tpl.system_prompt = "x"
+            mock_tpl.user_prompt_template = "{{content}}"
+            mock_tpl.temperature = 0.25
+            mock_tpl.max_tokens = 500
+            mock_get_tpl.return_value = mock_tpl
+
+            mock_ai = MagicMock()
+            mock_ai.chat_json.return_value = {"ok": True}
+            mock_ai.chat_text.return_value = "Здравствуйте! Спасибо за обращение."
+            mock_ai_cls.return_value = mock_ai
+
+            with patch("app.routers.customer_service.require_cs_permission"):
+                with patch("app.routers.customer_service.build_product_knowledge_context",
+                           return_value={"context": "无", "sources": []}):
+                    with patch("app.routers.customer_service._get_visible_item", return_value=FakeItem()):
+                        with patch("app.routers.customer_service._record_action"):
+                            with patch("app.routers.customer_service._touch_handled"):
+                                from app.routers.customer_service import generate_ai_reply_draft
+
+                                result = generate_ai_reply_draft(
+                                    item_id=1,
+                                    db=FakeDB(),
+                                    current_user=MagicMock(),
+                                )
+                                assert result["success"] is True
+                                assert result["draft"] == "Здравствуйте! Спасибо за обращение."
+                                mock_ai.chat_text.assert_called_once()
 
 
 def test_ai_draft_passes_short_nmid():

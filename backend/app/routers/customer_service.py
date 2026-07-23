@@ -598,6 +598,14 @@ def generate_ai_reply_draft(
                 template.max_tokens,
             )
             draft = _extract_ai_reply_draft(output)
+            if not draft:
+                raw_output = ai_client.chat_text(
+                    system_prompt,
+                    user_prompt,
+                    template.temperature,
+                    template.max_tokens,
+                )
+                draft = _extract_ai_reply_draft(raw_output)
         except AIClientError as exc:
             if "不是合法 JSON" not in str(exc):
                 raise
@@ -1482,8 +1490,41 @@ def _contains_cjk(text: str) -> bool:
 def _extract_ai_reply_draft(output: Any) -> str:
     """从 AI 输出中提取俄语草稿，兼容 JSON、fenced JSON 和纯文本。"""
     if isinstance(output, dict):
-        value = output.get("reply") or output.get("reply_ru") or output.get("draft") or output.get("draft_ru")
-        return value.strip() if isinstance(value, str) else ""
+        keys = (
+            "reply",
+            "reply_ru",
+            "draft",
+            "draft_ru",
+            "answer",
+            "answer_ru",
+            "message",
+            "message_ru",
+            "text",
+            "text_ru",
+            "content",
+            "response",
+            "response_ru",
+        )
+        for key in keys:
+            value = output.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+            nested = _extract_ai_reply_draft(value)
+            if nested:
+                return nested
+        for value in output.values():
+            nested = _extract_ai_reply_draft(value)
+            if nested:
+                return nested
+        return ""
+    if isinstance(output, list):
+        for value in output:
+            nested = _extract_ai_reply_draft(value)
+            if nested:
+                return nested
+        return ""
+    if not isinstance(output, str):
+        return ""
 
     raw = (output or "").strip()
     if not raw:
