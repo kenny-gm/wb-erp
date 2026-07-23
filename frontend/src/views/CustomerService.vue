@@ -867,7 +867,7 @@ async function syncCustomerService() {
     const syncRes = await axios.post('/api/customer-service/sync', {
       shop_id: filters.shop_id || null,
       channel: filters.channel === 'all' ? 'all' : `${filters.channel}s`,
-      days: 180
+      days: 30
     })
     const logIds = syncRes.data.log_ids || []
     if (logIds.length === 0) {

@@ -31,7 +31,7 @@ from app.services.wb_customer_client import WBCustomerClient, WBCustomerRateLimi
 
 
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
-CUSTOMER_SERVICE_HISTORY_DAYS = 180
+CUSTOMER_SERVICE_HISTORY_DAYS = 30
 
 
 class CustomerServiceSyncService:
