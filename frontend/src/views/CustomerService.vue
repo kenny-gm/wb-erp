@@ -467,7 +467,7 @@
             <el-button @click="replyText = ''">清空</el-button>
             <el-button
               v-if="(activeItem.channel === 'feedback' && hasCSperm('customer_service:reply_feedback')) || (activeItem.channel === 'question' && hasCSperm('customer_service:answer_question')) || (activeItem.channel === 'chat' && hasCSperm('customer_service:send_chat'))"
-              type="primary" :loading="sending" @click="sendReply">
+              type="primary" :loading="sending" :disabled="sending" @click="sendReply">
               {{ activeItem.reply_status === 'answered' ? '修改回复' : '发送回复' }}
             </el-button>
           </div>
@@ -950,6 +950,7 @@ async function translateMessage(message) {
 }
 
 async function sendReply() {
+  if (sending.value) return
   if (!activeItem.value || !replyText.value.trim()) {
     ElMessage.warning('请填写回复内容')
     return

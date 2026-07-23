@@ -1389,11 +1389,37 @@ def _valid_item_messages(item: CustomerServiceItem) -> List[CustomerServiceMessa
     Filter them out at read time so dirty historical rows do not appear in
     detail views or enter AI reply prompts.
     """
-    return [
+    messages = [
         message
         for message in (item.messages or [])
         if not _is_cross_channel_message(item, message)
     ]
+    if item.channel == "chat":
+        messages = _without_local_chat_echoes(messages)
+    return messages
+
+
+def _without_local_chat_echoes(messages: List[CustomerServiceMessage]) -> List[CustomerServiceMessage]:
+    remote_seller_texts = {
+        (message.message_text or "").strip()
+        for message in messages
+        if message.direction == "seller" and not _is_local_message(message) and (message.message_text or "").strip()
+    }
+    if not remote_seller_texts:
+        return messages
+    return [
+        message
+        for message in messages
+        if not (
+            message.direction == "seller"
+            and _is_local_message(message)
+            and (message.message_text or "").strip() in remote_seller_texts
+        )
+    ]
+
+
+def _is_local_message(message: CustomerServiceMessage) -> bool:
+    return bool((message.external_message_id or "").startswith("local:"))
 
 
 def _is_cross_channel_message(item: CustomerServiceItem, message: CustomerServiceMessage) -> bool:

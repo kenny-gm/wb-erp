@@ -839,6 +839,15 @@ class CustomerServiceSyncService:
             existing.attachments_json = self._json(attachments)
             existing.raw_json = self._json(raw)
             return
+        local_echo = self._find_local_chat_echo(item, direction, text)
+        if local_echo:
+            local_echo.external_message_id = external_message_id
+            local_echo.message_dedup_key = dedup_key
+            local_echo.message_text = text or local_echo.message_text
+            local_echo.attachments_json = self._json(attachments)
+            local_echo.created_at_external = created_at_external or local_echo.created_at_external
+            local_echo.raw_json = self._json(raw)
+            return
         msg = CustomerServiceMessage(
             item=item,
             external_message_id=external_message_id,
@@ -864,6 +873,30 @@ class CustomerServiceSyncService:
                 existing.attachments_json = self._json(attachments)
                 existing.raw_json = self._json(raw)
                 return
+
+    def _find_local_chat_echo(
+        self,
+        item: CustomerServiceItem,
+        direction: str,
+        text: str,
+    ) -> Optional[CustomerServiceMessage]:
+        if item.channel != "chat" or direction != "seller" or not item.id:
+            return None
+        normalized_text = (text or "").strip()
+        if not normalized_text:
+            return None
+        return (
+            self.db.query(CustomerServiceMessage)
+            .filter(
+                CustomerServiceMessage.item_id == item.id,
+                CustomerServiceMessage.direction == "seller",
+                CustomerServiceMessage.message_dedup_key.is_(None),
+                CustomerServiceMessage.external_message_id.like(f"local:{item.id}:%"),
+                CustomerServiceMessage.message_text == normalized_text,
+            )
+            .order_by(CustomerServiceMessage.created_at.desc(), CustomerServiceMessage.id.desc())
+            .first()
+        )
 
     @staticmethod
     def _raw_is_chat_event(raw: Dict[str, Any]) -> bool:
