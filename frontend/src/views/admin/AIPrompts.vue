@@ -77,6 +77,14 @@
                   @click="activateVersion(v.version)"
                   :loading="activating"
                 >激活</el-button>
+                <el-button
+                  v-if="!v.is_active"
+                  size="small"
+                  text
+                  type="danger"
+                  @click="deleteVersion(v.version)"
+                  :loading="deletingVersion === v.version"
+                >删除</el-button>
               </div>
             </div>
 
@@ -129,12 +137,13 @@
 
 <script setup>
 import { reactive, ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 
 const loading = ref(false)
 const saving = ref(false)
 const activating = ref(false)
+const deletingVersion = ref(null)
 const rendering = ref(false)
 const testingAI = ref(false)
 const templateList = ref([])
@@ -264,6 +273,34 @@ async function activateVersion(version) {
     ElMessage.error('激活失败：' + (e.response?.data?.detail || e.message))
   } finally {
     activating.value = false
+  }
+}
+
+async function deleteVersion(version) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除 ${activeKey.value} 的 v${version} 旧版本？删除后不可从页面恢复。`,
+      '删除旧版本',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      }
+    )
+  } catch {
+    return
+  }
+
+  deletingVersion.value = version
+  try {
+    await axios.delete(`/api/ai-prompts/${activeKey.value}/versions/${version}`)
+    ElMessage.success(`v${version} 已删除`)
+    await selectTemplate(activeKey.value)
+  } catch (e) {
+    ElMessage.error('删除失败：' + (e.response?.data?.detail || e.message))
+  } finally {
+    deletingVersion.value = null
   }
 }
 

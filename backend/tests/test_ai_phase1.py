@@ -196,6 +196,41 @@ def test_activate_version_only_one_active():
     db.close()
 
 
+def test_delete_version_removes_inactive_only():
+    """delete_version 只能删除旧版本，不能删除当前激活版本"""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.database import Base
+    from app.models.models import AIPromptTemplate
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+
+    from app.services.ai_prompt_service import create_new_version, delete_version
+
+    create_new_version(db, "test_key3", {"name": "t1", "system_prompt": "sp", "user_prompt_template": "up"}, user_id=1)
+    create_new_version(db, "test_key3", {"name": "t2", "system_prompt": "sp", "user_prompt_template": "up"}, user_id=1)
+
+    deleted = delete_version(db, "test_key3", 1)
+    assert deleted.version == 1
+    old = db.query(AIPromptTemplate).filter(AIPromptTemplate.template_key == "test_key3", AIPromptTemplate.version == 1).first()
+    assert old is None
+
+    active = db.query(AIPromptTemplate).filter(AIPromptTemplate.template_key == "test_key3", AIPromptTemplate.version == 2).first()
+    assert active is not None
+    assert active.is_active == True
+
+    try:
+        delete_version(db, "test_key3", 2)
+        assert False, "当前激活版本不能删除"
+    except ValueError as exc:
+        assert "当前激活版本不能删除" in str(exc)
+
+    db.close()
+
+
 # ============================================================
 # 测试 10-12: AI Client
 # ============================================================

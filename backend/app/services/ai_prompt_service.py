@@ -119,6 +119,30 @@ def activate_version(
     return target
 
 
+def delete_version(
+    db: Session,
+    template_key: str,
+    version: int,
+) -> AIPromptTemplate:
+    """
+    删除指定旧版本。
+    当前激活版本不能删除，避免模板没有可用 active 版本。
+    """
+    target = (
+        db.query(AIPromptTemplate)
+        .filter(AIPromptTemplate.template_key == template_key, AIPromptTemplate.version == version)
+        .first()
+    )
+    if not target:
+        raise ValueError(f"template_key={template_key}, version={version} 不存在")
+    if target.is_active:
+        raise ValueError("当前激活版本不能删除")
+
+    db.delete(target)
+    db.commit()
+    return target
+
+
 def list_all_versions(db: Session, template_key: str) -> List[Dict[str, Any]]:
     """返回某 key 所有版本，active 排第一"""
     rows = (

@@ -6,6 +6,7 @@ GET /api/ai-prompts/{template_key}     - 获取某 key 所有版本
 PATCH /api/ai-prompts/{template_key}   - 保存新版本（不覆盖旧版本）
 POST /api/ai-prompts/{template_key}/test - 渲染 / 调用 AI 测试
 POST /api/ai-prompts/{template_key}/activate-version - 激活指定版本
+DELETE /api/ai-prompts/{template_key}/versions/{version} - 删除旧版本
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from app.services.ai_client import AIClient, AIClientDisabled, AIClientError
 from app.services.ai_prompt_service import (
     activate_version as svc_activate_version,
     create_new_version,
+    delete_version as svc_delete_version,
     get_active_template,
     list_all_versions,
     list_templates,
@@ -184,3 +186,22 @@ def activate_prompt_version(
         return {"success": True, "version": tpl.version}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/{template_key}/versions/{version}")
+def delete_prompt_version(
+    template_key: str,
+    version: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_admin),
+):
+    """删除指定旧版本（仅 admin，不能删除当前激活版本）"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="权限不足")
+    try:
+        tpl = svc_delete_version(db, template_key, version)
+        return {"success": True, "version": tpl.version}
+    except ValueError as e:
+        message = str(e)
+        code = status.HTTP_400_BAD_REQUEST if "当前激活版本" in message else status.HTTP_404_NOT_FOUND
+        raise HTTPException(status_code=code, detail=message)
