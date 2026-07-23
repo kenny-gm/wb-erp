@@ -24,6 +24,8 @@ from starlette.background import BackgroundTask
 
 from app.database import SessionLocal, get_db
 from app.models.models import (
+    CustomerAutoReplyItem,
+    CustomerAutoReplyRun,
     CustomerServiceAction,
     CustomerServiceItem,
     CustomerServiceMessage,
@@ -35,6 +37,7 @@ from app.routers.auth import get_current_user
 from app.routers.product_knowledge import build_product_knowledge_context
 from app.services.ai_client import AIClient, AIClientError
 from app.services.ai_prompt_service import get_active_template, render_template
+from app.services.customer_auto_reply import CustomerAutoReplyService
 from app.services.customer_service_sync import CUSTOMER_SERVICE_HISTORY_DAYS, CustomerServiceSyncService
 from app.services.customer_translation_service import CustomerTranslationService
 from app.services.sync_lock import SyncLockService
@@ -89,6 +92,15 @@ class SyncRequest(BaseModel):
     channel: str = "all"  # all/questions/feedbacks/chats/return_claims
     days: int = CUSTOMER_SERVICE_HISTORY_DAYS
     force_full_sync: bool = False  # 强制从头同步（清除聊天 cursor）
+
+
+class AutoReplySettingsRequest(BaseModel):
+    enabled: bool
+    channels: List[str] = ["feedback", "question", "chat"]
+    feedback_negative_enabled: bool = True
+    max_per_run: int = 20
+    max_per_shop_per_day: int = 50
+    consecutive_failures_pause: int = 5
 
 
 @router.get("/stats")
@@ -203,6 +215,70 @@ def get_customer_service_stats(
         # 全局
         "overdue": overdue,
     }
+
+
+@router.get("/auto-reply/settings")
+def get_auto_reply_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_cs_permission(current_user, "customer_service:read")
+    return CustomerAutoReplyService(db).get_settings()
+
+
+@router.put("/auto-reply/settings")
+def update_auto_reply_settings(
+    data: AutoReplySettingsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_cs_permission(current_user, "customer_service:sync")
+    return CustomerAutoReplyService(db).update_settings(data.dict())
+
+
+@router.post("/auto-reply/run-now")
+def run_auto_reply_now(
+    shop_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_cs_permission(current_user, "customer_service:sync")
+    run = CustomerAutoReplyService(db).run(shop_id=shop_id, trigger_source="manual")
+    if not run:
+        return {"success": True, "skipped": True, "message": "AI 自动回复开关关闭，已跳过"}
+    return {"success": run.status == "completed", "run": _serialize_auto_reply_run(run, include_items=True)}
+
+
+@router.get("/auto-reply/reports")
+def list_auto_reply_reports(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_cs_permission(current_user, "customer_service:read")
+    query = db.query(CustomerAutoReplyRun).order_by(CustomerAutoReplyRun.started_at.desc())
+    total = query.count()
+    runs = query.offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [_serialize_auto_reply_run(run) for run in runs],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@router.get("/auto-reply/reports/{run_id}")
+def get_auto_reply_report(
+    run_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_cs_permission(current_user, "customer_service:read")
+    run = db.query(CustomerAutoReplyRun).filter(CustomerAutoReplyRun.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="自动回复报告不存在")
+    return _serialize_auto_reply_run(run, include_items=True)
 
 
 @router.get("/inbox")
@@ -1173,6 +1249,17 @@ def _run_customer_service_sync_task(shop_id: int, channel: str, days: int, log_i
                     sync_log.message = f"同步完成（{shop.name}）"
                 sync_log.finished_at = datetime.now(SHANGHAI_TZ)
                 db.commit()
+
+            if overall_success:
+                auto_run = CustomerAutoReplyService(db).run(shop_id=shop.id, trigger_source="sync")
+                if auto_run:
+                    sync_log = db.query(SyncLog).filter(SyncLog.id == log_id).first()
+                    if sync_log:
+                        sync_log.message = (
+                            f"{sync_log.message or '同步完成'}；AI自动回复 "
+                            f"发送{auto_run.sent_count}，拦截{auto_run.blocked_count}，失败{auto_run.failed_count}"
+                        )
+                        db.commit()
         except WBCustomerRateLimit as exc:
             sync_log = db.query(SyncLog).filter(SyncLog.id == log_id).first()
             if sync_log:
@@ -1454,6 +1541,57 @@ def _serialize_action(action: CustomerServiceAction) -> Dict[str, Any]:
         "quality_score": action.quality_score,
         "quality_result": action.quality_result,
         "quality_reason": action.quality_reason,
+    }
+
+
+def _serialize_auto_reply_run(run: CustomerAutoReplyRun, include_items: bool = False) -> Dict[str, Any]:
+    data = {
+        "id": run.id,
+        "trigger_source": run.trigger_source,
+        "mode": run.mode,
+        "status": run.status,
+        "shop_id": run.shop_id,
+        "shop_name": run.shop.name if run.shop else "",
+        "scanned_count": run.scanned_count,
+        "draft_count": run.draft_count,
+        "sent_count": run.sent_count,
+        "blocked_count": run.blocked_count,
+        "failed_count": run.failed_count,
+        "skipped_count": run.skipped_count,
+        "message": run.message,
+        "started_at": _fmt(run.started_at),
+        "finished_at": _fmt(run.finished_at),
+        "created_at": _fmt(run.created_at),
+    }
+    if include_items:
+        items = sorted(run.items or [], key=lambda row: row.created_at, reverse=True)
+        data["items"] = [_serialize_auto_reply_item(row) for row in items]
+    return data
+
+
+def _serialize_auto_reply_item(row: CustomerAutoReplyItem) -> Dict[str, Any]:
+    item = row.item
+    return {
+        "id": row.id,
+        "run_id": row.run_id,
+        "item_id": row.item_id,
+        "shop_id": row.shop_id,
+        "shop_name": row.shop.name if row.shop else "",
+        "channel": row.channel,
+        "external_id": item.external_id if item else "",
+        "product_name": item.product_name if item else "",
+        "content": item.content if item else "",
+        "content_zh": item.content_zh if item else "",
+        "rating": item.rating if item else None,
+        "auto_reply_key": row.auto_reply_key,
+        "latest_buyer_message_id": row.latest_buyer_message_id,
+        "draft_text": row.draft_text,
+        "decision": row.decision,
+        "block_reason": row.block_reason,
+        "wb_response": _json_loads(row.wb_response_json, {}),
+        "prompt_template_key": row.prompt_template_key,
+        "prompt_version": row.prompt_version,
+        "created_at": _fmt(row.created_at),
     }
 
 

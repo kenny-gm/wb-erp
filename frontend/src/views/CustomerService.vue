@@ -6,6 +6,22 @@
         <span>问答、评价、聊天、退货申请</span>
       </div>
       <div class="toolbar-actions" v-if="canManage">
+        <div class="auto-reply-control" :class="{ enabled: autoReplySettings.enabled }">
+          <span class="auto-reply-label">AI自动回复</span>
+          <el-switch
+            v-model="autoReplySettings.enabled"
+            :loading="savingAutoReply"
+            inline-prompt
+            active-text="开启"
+            inactive-text="关闭"
+            @change="toggleAutoReply"
+          />
+          <el-tag size="small" :type="autoReplySettings.enabled ? 'success' : 'info'">
+            {{ autoReplySettings.enabled ? '运行中' : '人工回复模式' }}
+          </el-tag>
+        </div>
+        <el-button plain @click="openAutoReplyReport">自动回复报告</el-button>
+        <el-button plain @click="autoReplySettingsVisible = true">设置</el-button>
         <el-button v-if="hasCSperm('customer_service:sync')" :loading="syncing" @click="syncCustomerService">同步客服数据</el-button>
       </div>
     </div>
@@ -479,6 +495,72 @@
         <el-empty description="请选择一条客服事项" />
       </section>
     </div>
+
+    <el-dialog v-model="autoReplySettingsVisible" title="AI 自动回复设置" width="520px" :close-on-click-modal="false">
+      <el-form label-width="150px" class="auto-reply-form">
+        <el-form-item label="总开关">
+          <el-switch v-model="autoReplySettings.enabled" active-text="开启" inactive-text="关闭" />
+        </el-form-item>
+        <el-form-item label="自动回复渠道">
+          <el-checkbox-group v-model="autoReplySettings.channels">
+            <el-checkbox label="feedback">评论</el-checkbox>
+            <el-checkbox label="chat">买家聊天</el-checkbox>
+            <el-checkbox label="question">买家问答</el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
+        <el-form-item label="差评自动回复">
+          <el-switch v-model="autoReplySettings.feedback_negative_enabled" active-text="允许" inactive-text="关闭" />
+        </el-form-item>
+        <el-form-item label="单次运行上限">
+          <el-input-number v-model="autoReplySettings.max_per_run" :min="1" :max="100" />
+        </el-form-item>
+        <el-form-item label="每店每日上限">
+          <el-input-number v-model="autoReplySettings.max_per_shop_per_day" :min="1" :max="500" />
+        </el-form-item>
+        <el-form-item label="连续失败暂停">
+          <el-input-number v-model="autoReplySettings.consecutive_failures_pause" :min="1" :max="50" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="autoReplySettingsVisible = false">取消</el-button>
+        <el-button type="primary" :loading="savingAutoReply" @click="saveAutoReplySettings">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="autoReplyReportVisible" title="AI 自动回复报告" width="880px">
+      <div class="auto-reply-report-head">
+        <el-button size="small" :loading="loadingAutoReplyReports" @click="loadAutoReplyReports">刷新</el-button>
+      </div>
+      <el-table :data="autoReplyReports" v-loading="loadingAutoReplyReports" size="small" stripe>
+        <el-table-column prop="started_at" label="开始时间" width="150" />
+        <el-table-column prop="shop_name" label="店铺" width="120" />
+        <el-table-column prop="trigger_source" label="来源" width="90" />
+        <el-table-column prop="status" label="状态" width="90" />
+        <el-table-column prop="scanned_count" label="扫描" width="70" />
+        <el-table-column prop="sent_count" label="发送" width="70" />
+        <el-table-column prop="blocked_count" label="拦截" width="70" />
+        <el-table-column prop="failed_count" label="失败" width="70" />
+        <el-table-column prop="message" label="说明" min-width="160" show-overflow-tooltip />
+        <el-table-column label="操作" width="90">
+          <template #default="{ row }">
+            <el-button size="small" text type="primary" @click="loadAutoReplyReportDetail(row.id)">明细</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div v-if="autoReplyReportDetail" class="auto-reply-detail">
+        <h4>运行 #{{ autoReplyReportDetail.id }} 明细</h4>
+        <el-table :data="autoReplyReportDetail.items || []" size="small" stripe max-height="360">
+          <el-table-column prop="created_at" label="时间" width="145" />
+          <el-table-column prop="shop_name" label="店铺" width="110" />
+          <el-table-column prop="channel" label="渠道" width="90" />
+          <el-table-column prop="decision" label="结果" width="90" />
+          <el-table-column prop="external_id" label="WB ID" width="110" show-overflow-tooltip />
+          <el-table-column prop="content_zh" label="买家内容" min-width="160" show-overflow-tooltip />
+          <el-table-column prop="draft_text" label="AI回复" min-width="220" show-overflow-tooltip />
+          <el-table-column prop="block_reason" label="原因" min-width="160" show-overflow-tooltip />
+        </el-table>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -511,6 +593,20 @@ const savingNote = ref(false)
 const detailRequestSeq = ref(0)  // 请求序列号，防串详情
 const translatingItem = ref(false)
 const translatingMessageId = ref(null)
+const savingAutoReply = ref(false)
+const loadingAutoReplyReports = ref(false)
+const autoReplySettingsVisible = ref(false)
+const autoReplyReportVisible = ref(false)
+const autoReplyReports = ref([])
+const autoReplyReportDetail = ref(null)
+const autoReplySettings = reactive({
+  enabled: false,
+  channels: ['feedback', 'question', 'chat'],
+  feedback_negative_enabled: true,
+  max_per_run: 20,
+  max_per_shop_per_day: 50,
+  consecutive_failures_pause: 5,
+})
 
 const filters = reactive({
   search: '',
@@ -747,7 +843,7 @@ const ownerOptions = computed(() => {
 
 onMounted(async () => {
   await authStore.fetchUser()
-  await Promise.all([loadShops(), loadStats(), loadItems()])
+  await Promise.all([loadShops(), loadStats(), loadItems(), loadAutoReplySettings()])
 })
 
 async function loadShops() {
@@ -756,6 +852,69 @@ async function loadShops() {
     shops.value = res.data || []
   } catch (error) {
     shops.value = []
+  }
+}
+
+async function loadAutoReplySettings() {
+  try {
+    const res = await axios.get('/api/customer-service/auto-reply/settings')
+    Object.assign(autoReplySettings, res.data || {})
+  } catch {
+    // 旧后端未重启时保持默认关闭，不影响客服工作台主体功能。
+  }
+}
+
+async function saveAutoReplySettings() {
+  savingAutoReply.value = true
+  try {
+    const res = await axios.put('/api/customer-service/auto-reply/settings', {
+      enabled: autoReplySettings.enabled,
+      channels: autoReplySettings.channels,
+      feedback_negative_enabled: autoReplySettings.feedback_negative_enabled,
+      max_per_run: autoReplySettings.max_per_run,
+      max_per_shop_per_day: autoReplySettings.max_per_shop_per_day,
+      consecutive_failures_pause: autoReplySettings.consecutive_failures_pause,
+    })
+    Object.assign(autoReplySettings, res.data || {})
+    autoReplySettingsVisible.value = false
+    ElMessage.success(autoReplySettings.enabled ? 'AI自动回复已开启' : 'AI自动回复已关闭')
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.detail || '保存自动回复设置失败')
+  } finally {
+    savingAutoReply.value = false
+  }
+}
+
+async function toggleAutoReply() {
+  await saveAutoReplySettings()
+}
+
+async function openAutoReplyReport() {
+  autoReplyReportVisible.value = true
+  autoReplyReportDetail.value = null
+  await loadAutoReplyReports()
+}
+
+async function loadAutoReplyReports() {
+  loadingAutoReplyReports.value = true
+  try {
+    const res = await axios.get('/api/customer-service/auto-reply/reports', {
+      params: { page: 1, page_size: 20 }
+    })
+    autoReplyReports.value = res.data.items || []
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.detail || '加载自动回复报告失败')
+  } finally {
+    loadingAutoReplyReports.value = false
+  }
+}
+
+async function loadAutoReplyReportDetail(runId) {
+  try {
+    const res = await axios.get(`/api/customer-service/auto-reply/reports/${runId}`)
+    autoReplyReportDetail.value = res.data
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.detail || '加载自动回复明细失败')
   }
 }
 
@@ -2081,6 +2240,49 @@ function getReturnSlaClass(item) {
   display: flex;
   justify-content: flex-end;
   margin-top: 8px;
+}
+
+.auto-reply-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #f8fafc;
+}
+
+.auto-reply-control.enabled {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.auto-reply-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.auto-reply-form :deep(.el-checkbox-group) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.auto-reply-report-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+.auto-reply-detail {
+  margin-top: 14px;
+}
+
+.auto-reply-detail h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--color-text);
 }
 
 @media (max-width: 980px) {

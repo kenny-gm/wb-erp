@@ -607,6 +607,67 @@ class CustomerServiceAction(Base):
     )
 
 
+class CustomerAutoReplyRun(Base):
+    """客服 AI 自动回复运行批次。"""
+    __tablename__ = "customer_auto_reply_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    trigger_source = Column(String(50), default="sync")
+    mode = Column(String(20), default="send")
+    status = Column(String(20), default="running")
+    shop_id = Column(Integer, ForeignKey("shops.id"), nullable=True)
+    scanned_count = Column(Integer, default=0)
+    draft_count = Column(Integer, default=0)
+    sent_count = Column(Integer, default=0)
+    blocked_count = Column(Integer, default=0)
+    failed_count = Column(Integer, default=0)
+    skipped_count = Column(Integer, default=0)
+    message = Column(Text, default="")
+    started_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")))
+    finished_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")))
+
+    shop = relationship("Shop")
+    items = relationship("CustomerAutoReplyItem", back_populates="run")
+
+    __table_args__ = (
+        Index("ix_customer_auto_reply_run_time", "started_at"),
+        Index("ix_customer_auto_reply_run_status", "status"),
+    )
+
+
+class CustomerAutoReplyItem(Base):
+    """客服 AI 自动回复单条处理记录。"""
+    __tablename__ = "customer_auto_reply_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    run_id = Column(Integer, ForeignKey("customer_auto_reply_runs.id"), nullable=False)
+    item_id = Column(Integer, ForeignKey("customer_service_items.id"), nullable=False)
+    shop_id = Column(Integer, ForeignKey("shops.id"), nullable=False)
+    channel = Column(String(30), nullable=False)
+    auto_reply_key = Column(String(240), nullable=False, unique=True, index=True)
+    latest_buyer_message_id = Column(String(120), default="")
+    draft_text = Column(Text, default="")
+    decision = Column(String(30), default="skipped")  # processing/sent/blocked/failed/skipped
+    block_reason = Column(Text, default="")
+    wb_response_json = Column(Text, default="{}")
+    prompt_template_key = Column(String(80), default="")
+    prompt_version = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")))
+    updated_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Shanghai")), onupdate=lambda ctx: datetime.now(ZoneInfo("Asia/Shanghai")))
+
+    run = relationship("CustomerAutoReplyRun", back_populates="items")
+    item = relationship("CustomerServiceItem")
+    shop = relationship("Shop")
+
+    __table_args__ = (
+        Index("ix_customer_auto_reply_item_run", "run_id"),
+        Index("ix_customer_auto_reply_item_item", "item_id"),
+        Index("ix_customer_auto_reply_item_created", "created_at"),
+        Index("ix_customer_auto_reply_item_decision", "decision"),
+    )
+
+
 
 
 
