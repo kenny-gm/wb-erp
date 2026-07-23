@@ -44,6 +44,7 @@ AI_DRAFT_RETRY_MAX_TOKENS = 1800
 
 DEFAULT_AUTO_REPLY_SETTINGS = {
     "enabled": False,
+    "mode": "dry_run",
     "channels": ["feedback", "question", "chat"],
     "feedback_negative_enabled": True,
     "max_per_run": 20,
@@ -70,6 +71,7 @@ class CustomerAutoReplyService:
         allowed_channels = [c for c in payload.get("channels", settings["channels"]) if c in AUTO_REPLY_CHANNELS]
         next_settings = {
             "enabled": bool(payload.get("enabled", settings["enabled"])),
+            "mode": _normalize_mode(payload.get("mode", settings["mode"])),
             "channels": allowed_channels or ["feedback", "question", "chat"],
             "feedback_negative_enabled": bool(payload.get("feedback_negative_enabled", settings["feedback_negative_enabled"])),
             "max_per_run": _clamp_int(payload.get("max_per_run", settings["max_per_run"]), 1, 100),
@@ -90,6 +92,7 @@ class CustomerAutoReplyService:
             ),
         }
         _set_setting(self.db, "customer_ai_auto_reply_enabled", _bool_text(next_settings["enabled"]))
+        _set_setting(self.db, "customer_ai_auto_reply_mode", next_settings["mode"])
         _set_setting(self.db, "customer_ai_auto_reply_channels", json.dumps(next_settings["channels"], ensure_ascii=False))
         _set_setting(self.db, "customer_ai_auto_reply_feedback_negative_enabled", _bool_text(next_settings["feedback_negative_enabled"]))
         _set_setting(self.db, "customer_ai_auto_reply_max_per_run", str(next_settings["max_per_run"]))
@@ -108,14 +111,16 @@ class CustomerAutoReplyService:
         self.db.commit()
         return self.get_settings()
 
-    def run(self, shop_id: Optional[int] = None, trigger_source: str = "sync") -> Optional[CustomerAutoReplyRun]:
+    def run(self, shop_id: Optional[int] = None, trigger_source: str = "sync", force_mode: Optional[str] = None) -> Optional[CustomerAutoReplyRun]:
         settings = self.get_settings()
         if not settings["enabled"]:
             return None
 
+        run_mode = _normalize_mode(force_mode or settings.get("mode") or DEFAULT_AUTO_REPLY_SETTINGS["mode"])
+
         run = CustomerAutoReplyRun(
             trigger_source=trigger_source,
-            mode="send",
+            mode=run_mode,
             status="running",
             shop_id=shop_id,
             started_at=_now(),
@@ -148,6 +153,8 @@ class CustomerAutoReplyService:
                 decision = self._process_item(run, item, settings)
                 if decision == "sent":
                     run.sent_count += 1
+                    run.draft_count += 1
+                elif decision == "draft_only":
                     run.draft_count += 1
                 elif decision == "blocked":
                     run.blocked_count += 1
@@ -221,6 +228,19 @@ class CustomerAutoReplyService:
                 self._update_report_item(report_row, "blocked", draft, block_reason, template_key, template.version)
                 self._record_action(item, "auto_reply_blocked", {"auto_reply_key": auto_reply_key}, {"draft": draft}, False, block_reason)
                 return "blocked"
+
+            if run.mode == "dry_run":
+                self._update_report_item(report_row, "draft_only", draft, "mode=dry_run", template_key, template.version)
+                self._record_action(
+                    item,
+                    "auto_reply_draft_only",
+                    {"auto_reply_key": auto_reply_key, "template": template_key, "knowledge_sources": knowledge_sources},
+                    {"draft": draft},
+                    False,
+                    "mode=dry_run",
+                    item.first_replied_at is None,
+                )
+                return "draft_only"
 
             response, action_type = self._send_reply(item, draft)
             self._mark_replied(item, draft, response)
@@ -462,6 +482,7 @@ def _get_auto_reply_settings(db: Session) -> Dict[str, Any]:
     )
     return {
         "enabled": _as_bool(values.get("customer_ai_auto_reply_enabled"), DEFAULT_AUTO_REPLY_SETTINGS["enabled"]),
+        "mode": _normalize_mode(values.get("customer_ai_auto_reply_mode")),
         "channels": [c for c in channels if c in AUTO_REPLY_CHANNELS] or DEFAULT_AUTO_REPLY_SETTINGS["channels"],
         "feedback_negative_enabled": _as_bool(
             values.get("customer_ai_auto_reply_feedback_negative_enabled"),
@@ -496,6 +517,13 @@ def _normalize_channel_limits(value: Any, default: Dict[str, int]) -> Dict[str, 
     for channel in AUTO_REPLY_CHANNELS:
         result[channel] = _clamp_int(raw.get(channel), 0, 500, default.get(channel, 0))
     return result
+
+
+def _normalize_mode(value: Any) -> str:
+    if not value:
+        return DEFAULT_AUTO_REPLY_SETTINGS["mode"]
+    text = str(value).strip().lower()
+    return text if text in ("send", "dry_run") else DEFAULT_AUTO_REPLY_SETTINGS["mode"]
 
 
 def _is_negative_feedback(item: CustomerServiceItem) -> bool:
