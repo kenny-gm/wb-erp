@@ -211,6 +211,11 @@ class CustomerAutoReplyService:
     def _process_item(self, run: CustomerAutoReplyRun, item: CustomerServiceItem, settings: Dict[str, Any]) -> str:
         latest_buyer_message_id = _latest_buyer_message_id(item)
         auto_reply_key = f"{item.shop_id}:{item.channel}:{item.id}:{latest_buyer_message_id}"
+        # P1-4 修复：dry_run 模式加前缀避免抢占 send 模式的唯一键
+        # 今晚事故：run #1+run #2 dry_run 共写了 399 条不带前缀的 auto_reply_key，
+        # run #3 切 send 后扫到同一 item 同一 latest_buyer_message_id → 误判为"已处理" → 200/200 skipped
+        if run.mode == "dry_run":
+            auto_reply_key = f"dry_run:{auto_reply_key}"
         if self.db.query(CustomerAutoReplyItem).filter(CustomerAutoReplyItem.auto_reply_key == auto_reply_key).first():
             self._record_report_item(run, item, "skipped", "", "该买家消息已处理过", None, latest_buyer_message_id)
             return "skipped"
