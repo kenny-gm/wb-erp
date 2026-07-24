@@ -9,7 +9,9 @@ API Key 只从环境变量或数据库加密存储读取，禁止日志打印 Ke
 from __future__ import annotations
 
 import json
+import logging
 import re
+import time
 from typing import Any, Dict, Optional
 
 import requests
@@ -18,6 +20,8 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models.models import SystemSetting
 from app.services.secret_crypto import decrypt_secret, encrypt_secret, SecretCryptoError
+
+logger = logging.getLogger(__name__)
 
 
 def strip_thinking_blocks(text: str) -> str:
@@ -120,7 +124,13 @@ class AIClient:
         max_tokens: int,
         timeout: int,
     ) -> str:
-        """通用 OpenAI 兼容请求，返回文本内容"""
+        """通用 OpenAI 兼容请求，返回文本内容。
+
+        重试策略（P1-1 修复）：
+        - permanent errors (401/403/404): 立即失败
+        - transient errors (429/500/502/503/504/timeout): 指数退避，最多重试 3 次
+        - 避免一次 provider 配额抖动击穿整批请求（今晚事故中 169 条同时报 429）
+        """
         payload = {
             "model": model,
             "messages": [
@@ -130,16 +140,62 @@ class AIClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-        resp = requests.post(
-            url,
-            headers=self._build_headers(),
-            json=payload,
-            timeout=timeout,
-        )
-        if resp.status_code != 200:
-            raise AIClientError(f"AI API 错误 [{resp.status_code}]: {resp.text[:300]}")
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+
+        max_retries = 3
+        backoff_seconds = 1.0
+        last_error: Optional[AIClientError] = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                resp = requests.post(
+                    url,
+                    headers=self._build_headers(),
+                    json=payload,
+                    timeout=timeout,
+                )
+            except requests.exceptions.Timeout as exc:
+                last_error = AIClientError(f"AI API 请求超时: {exc}")
+                if attempt < max_retries:
+                    logger.warning(
+                        "AI API timeout 触发退避（第 %d/%d 次重试，sleep %.1fs）",
+                        attempt + 1, max_retries, backoff_seconds,
+                    )
+                    time.sleep(backoff_seconds)
+                    backoff_seconds *= 2
+                    continue
+                raise last_error
+
+            if resp.status_code == 200:
+                data = resp.json()
+                return data["choices"][0]["message"]["content"]
+
+            # permanent errors: 不重试
+            if resp.status_code in (401, 403, 404):
+                raise AIClientError(
+                    f"AI API 错误 [{resp.status_code}]: {resp.text[:300]}"
+                )
+
+            # transient errors: 重试
+            if resp.status_code in (429, 500, 502, 503, 504):
+                if attempt < max_retries:
+                    logger.warning(
+                        "AI API %s 触发退避（第 %d/%d 次重试，sleep %.1fs）",
+                        resp.status_code, attempt + 1, max_retries, backoff_seconds,
+                    )
+                    time.sleep(backoff_seconds)
+                    backoff_seconds *= 2
+                    continue
+                raise AIClientError(
+                    f"AI API 错误 [{resp.status_code}]: {resp.text[:300]}"
+                )
+
+            # 其他 4xx：立即失败
+            raise AIClientError(
+                f"AI API 错误 [{resp.status_code}]: {resp.text[:300]}"
+            )
+
+        # 代码上不会走到这里；显式抛错以保护类型检查
+        raise last_error or AIClientError("AI API 重试耗尽")
 
     def chat_text(
         self,
