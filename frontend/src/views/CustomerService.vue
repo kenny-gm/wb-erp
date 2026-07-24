@@ -566,9 +566,33 @@
           <el-table-column prop="shop_name" label="店铺" width="110" />
           <el-table-column prop="channel" label="渠道" width="90" />
           <el-table-column prop="decision" label="结果" width="90" />
-          <el-table-column prop="external_id" label="WB ID" width="110" show-overflow-tooltip />
+          <el-table-column label="会话ID" width="120">
+            <template #default="{ row }">
+              <el-link v-if="row.item_id" type="primary" :underline="false" @click.stop="jumpToAutoReplyItem(row)">
+                {{ row.external_id || ('#' + row.item_id) }}
+              </el-link>
+              <span v-else class="auto-reply-id-muted">-</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="content_zh" label="买家内容" min-width="160" show-overflow-tooltip />
-          <el-table-column prop="draft_text" label="AI回复" min-width="220" show-overflow-tooltip />
+          <el-table-column prop="reply_summary" label="AI回复摘要" min-width="180" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span v-if="row.reply_summary">{{ row.reply_summary }}</span>
+              <span v-else class="auto-reply-id-muted">-</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="需人工跟进" width="130">
+            <template #default="{ row }">
+              <el-tag v-if="row.needs_human_followup === 'yes'" size="small" type="danger" effect="dark" :title="row.followup_reason || '必须跟进'">
+                必须跟进
+              </el-tag>
+              <el-tag v-else-if="row.needs_human_followup === 'review'" size="small" type="warning" :title="row.followup_reason || '建议复核'">
+                建议复核
+              </el-tag>
+              <el-tag v-else size="small" type="success">无需跟进</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="draft_text" label="AI回复全文" min-width="220" show-overflow-tooltip />
           <el-table-column prop="block_reason" label="原因" min-width="160" show-overflow-tooltip />
         </el-table>
       </div>
@@ -1016,6 +1040,19 @@ async function selectItem(item) {
       if (seq !== detailRequestSeq.value) return
       returnActions.value = ar.data.actions || []
     } catch { returnActions.value = [] }
+  }
+}
+
+// 从 AI 自动回复明细报告点击会话ID跳转：关闭报告、加载右侧详情。
+// 不依赖左侧 inbox 列表（被 filters 过滤也不会丢）。
+async function jumpToAutoReplyItem(row) {
+  if (!row || !row.item_id) return
+  autoReplyReportVisible.value = false
+  try {
+    await selectItem({ id: row.item_id })
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.detail || '加载会话详情失败')
+    autoReplyReportVisible.value = true
   }
 }
 
@@ -2316,6 +2353,10 @@ function getReturnSlaClass(item) {
   margin: 0 0 8px;
   font-size: 14px;
   color: var(--color-text);
+}
+
+.auto-reply-id-muted {
+  color: var(--color-text-muted, #909399);
 }
 
 @media (max-width: 980px) {
