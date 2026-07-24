@@ -1569,8 +1569,50 @@ def _serialize_auto_reply_run(run: CustomerAutoReplyRun, include_items: bool = F
     return data
 
 
+def _build_auto_reply_followup(channel: str, decision: str, block_reason: str, rating: Optional[int]) -> tuple:
+    """根据 AI 自动回复结果判定是否需要客服人工跟进。
+
+    返回 (level, reason)：
+        level: yes=必须跟进 / review=建议复核 / no=无需跟进
+        reason: 人类可读的简短原因
+    """
+    reason = (block_reason or "").strip()
+    if decision == "failed":
+        return ("yes", reason or "AI 调用失败，需人工介入")
+    if decision == "blocked":
+        return ("yes", reason or "被策略拦截，建议人工评估")
+    if decision == "sent":
+        if channel in ("chat", "question"):
+            return ("review", "对话类已自动回复，建议人工复核后续语境")
+        if channel == "feedback":
+            if rating is not None and rating <= 3:
+                return ("review", f"{rating}星低评已自动回复，建议关注后续")
+            return ("no", "好评已自动回复，无需跟进")
+        return ("review", reason or "已自动回复，建议人工确认")
+    if decision == "skipped":
+        return ("review", reason or "本次未处理，建议人工跟进")
+    return ("review", reason)
+
+
+def _summarize_chat_reply(channel: str, draft_text: str, max_chars: int = 140) -> str:
+    """买家问答 / 买家会话的 AI 回复做摘要预览（不调 AI，纯文本截短）。"""
+    if not draft_text or channel not in ("chat", "question"):
+        return ""
+    text = " ".join(draft_text.split())
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars].rstrip() + "…"
+
+
 def _serialize_auto_reply_item(row: CustomerAutoReplyItem) -> Dict[str, Any]:
     item = row.item
+    channel = row.channel or ""
+    decision = row.decision or ""
+    block_reason = row.block_reason or ""
+    rating = item.rating if item else None
+    draft_text = row.draft_text or ""
+    needs_human, followup_reason = _build_auto_reply_followup(channel, decision, block_reason, rating)
+    reply_summary = _summarize_chat_reply(channel, draft_text)
     return {
         "id": row.id,
         "run_id": row.run_id,
@@ -1586,11 +1628,14 @@ def _serialize_auto_reply_item(row: CustomerAutoReplyItem) -> Dict[str, Any]:
         "auto_reply_key": row.auto_reply_key,
         "latest_buyer_message_id": row.latest_buyer_message_id,
         "draft_text": row.draft_text,
+        "reply_summary": reply_summary,
         "decision": row.decision,
         "block_reason": row.block_reason,
         "wb_response": _json_loads(row.wb_response_json, {}),
         "prompt_template_key": row.prompt_template_key,
         "prompt_version": row.prompt_version,
+        "needs_human_followup": needs_human,
+        "followup_reason": followup_reason,
         "created_at": _fmt(row.created_at),
     }
 
