@@ -237,7 +237,12 @@ class CustomerAutoReplyService:
                 return "blocked"
 
             if run.mode == "dry_run":
-                self._update_report_item(report_row, "draft_only", draft, "mode=dry_run", template_key, template.version)
+                # P2-5 修复：dry_run 路径也填 wb_response_json，区分与 "WB 真发了"
+                self._update_report_item(
+                    report_row, "draft_only", draft, "mode=dry_run",
+                    template_key, template.version,
+                    wb_response={"dry_run": True, "would_have_sent": draft, "mode": "dry_run"},
+                )
                 self._record_action(
                     item,
                     "auto_reply_draft_only",
