@@ -57,6 +57,7 @@ DEFAULT_AUTO_REPLY_SETTINGS = {
     "feedback_negative_daily_limit": 5,
     "consecutive_failures_pause": 5,
     "consecutive_failures_window_minutes": 5,
+    "scan_pool_multiplier": 50,
 }
 
 
@@ -96,6 +97,11 @@ class CustomerAutoReplyService:
                 0,
                 120,
             ),
+            "scan_pool_multiplier": _clamp_int(
+                payload.get("scan_pool_multiplier", settings["scan_pool_multiplier"]),
+                1,
+                200,
+            ),
         }
         _set_setting(self.db, "customer_ai_auto_reply_enabled", _bool_text(next_settings["enabled"]))
         _set_setting(self.db, "customer_ai_auto_reply_mode", next_settings["mode"])
@@ -115,6 +121,7 @@ class CustomerAutoReplyService:
         )
         _set_setting(self.db, "customer_ai_auto_reply_consecutive_failures_pause", str(next_settings["consecutive_failures_pause"]))
         _set_setting(self.db, "customer_ai_auto_reply_consecutive_failures_window_minutes", str(next_settings["consecutive_failures_window_minutes"]))
+        _set_setting(self.db, "customer_ai_auto_reply_scan_pool_multiplier", str(next_settings["scan_pool_multiplier"]))
         self.db.commit()
         return self.get_settings()
 
@@ -206,7 +213,7 @@ class CustomerAutoReplyService:
             CustomerServiceItem.external_created_at.is_(None),
             CustomerServiceItem.external_created_at.asc(),
             CustomerServiceItem.id.asc(),
-        ).limit(settings["max_per_run"] * 10).all()
+        ).limit(settings["max_per_run"] * settings.get("scan_pool_multiplier", 50)).all()
 
     def _process_item(self, run: CustomerAutoReplyRun, item: CustomerServiceItem, settings: Dict[str, Any]) -> str:
         latest_buyer_message_id = _latest_buyer_message_id(item)
@@ -548,6 +555,12 @@ def _get_auto_reply_settings(db: Session) -> Dict[str, Any]:
             0,
             120,
             DEFAULT_AUTO_REPLY_SETTINGS["consecutive_failures_window_minutes"],
+        ),
+        "scan_pool_multiplier": _clamp_int(
+            values.get("customer_ai_auto_reply_scan_pool_multiplier"),
+            1,
+            200,
+            DEFAULT_AUTO_REPLY_SETTINGS["scan_pool_multiplier"],
         ),
     }
 
