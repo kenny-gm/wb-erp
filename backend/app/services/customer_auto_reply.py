@@ -521,6 +521,7 @@ class CustomerAutoReplyService:
 
     def _pause_on_failures(self, settings: Dict[str, Any], run: Optional["CustomerAutoReplyRun"] = None) -> None:
         """P1-3 修复：增加时间窗口，避免跨长周期的失败被误判为"连续失败"。
+        P0-2 修复：触发时写 logger.warning，admin 能从日志发现 auto-pause。
 
         判定规则（向后兼容）：
         - 默认行为：最近 N 条全部 failed 才触发 pause
@@ -541,7 +542,17 @@ class CustomerAutoReplyService:
         if run is not None:
             window_text = f"{window_minutes}min" if window_minutes > 0 else "无窗口"
             run.message = f"自动暂停：连续 {limit} 次失败（{window_text}）"
+        # P0-2 修复：auto-pause 事件写日志，admin grep 即可发现（不再静默 8h）
+        recent_ids = [row.id for row in recent]
+        recent_run_ids = sorted({row.run_id for row in recent})
+        last_errors = [row.block_reason for row in recent if row.block_reason][:3]
         _set_setting(self.db, "customer_ai_auto_reply_enabled", "false")
+        logger.warning(
+            "AI 自动回复已被自动暂停 (P0-2): consecutive_failures=%d, window=%dmin, "
+            "recent_item_ids=%s, recent_run_ids=%s, sample_errors=%s, "
+            "action_required=人工检查 provider 配额 / WB 侧 / 设置后再重新启用",
+            limit, window_minutes, recent_ids, recent_run_ids, last_errors,
+        )
 
 
 def _get_auto_reply_settings(db: Session) -> Dict[str, Any]:
