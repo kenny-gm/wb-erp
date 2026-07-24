@@ -132,6 +132,25 @@ class CustomerAutoReplyService:
 
         run_mode = _normalize_mode(force_mode or settings.get("mode") or DEFAULT_AUTO_REPLY_SETTINGS["mode"])
 
+        # P2-4 修复：先查 candidates；如果是 0 个创建轻量 run（status=completed, scanned=0, message="本轮无 candidate"）
+        # 保留可观测性（sync hook 看到 status=completed 即知道本轮无事可做），避免 status=running 后立即 completed 不知是没活儿还是被中断
+        candidates = self._candidate_items(settings, shop_id)
+        if not candidates:
+            empty_run = CustomerAutoReplyRun(
+                trigger_source=trigger_source,
+                mode=run_mode,
+                status="completed",
+                shop_id=shop_id,
+                scanned_count=0,
+                message="本轮无 candidate",
+                started_at=_now(),
+                finished_at=_now(),
+                created_at=_now(),
+            )
+            self.db.add(empty_run)
+            self.db.commit()
+            return empty_run
+
         run = CustomerAutoReplyRun(
             trigger_source=trigger_source,
             mode=run_mode,
@@ -145,7 +164,6 @@ class CustomerAutoReplyService:
         self.db.refresh(run)
 
         try:
-            candidates = self._candidate_items(settings, shop_id)
             run.scanned_count = len(candidates)
             for item in candidates:
                 if run.sent_count >= settings["max_per_run"]:
