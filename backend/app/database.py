@@ -9,7 +9,11 @@ from app.config import settings
 # 创建数据库引擎
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args={"check_same_thread": False, "timeout": 30} if "sqlite" in settings.DATABASE_URL else {},
+    connect_args=(
+        {"check_same_thread": False, "timeout": 30}
+        if "sqlite" in settings.DATABASE_URL
+        else {"charset": "utf8mb4"}
+    ),
     echo=settings.DEBUG
 )
 
